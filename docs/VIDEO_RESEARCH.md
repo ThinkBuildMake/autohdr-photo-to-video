@@ -144,7 +144,7 @@ The reviewer's rows stay human judgment, as in `KEY_METRICS.md`; the system rows
 **Spend.** Key usage from `GET /key` went from $15.042 to $17.343: **$2.301 for the run**, exactly the three Seedance clips. No API errors, no retries. Veo 3.1 only offers 4, 6 or 8 s clips, so it got 4 s instead of 5 s.
 
 **Surprises.**
-- Veo 3.1 was billed $0 for all three clips, in the response and in the key usage, against a listed $0.20 per second (no audio). I do not know why (promotion, credit, or a billing lag). Do not plan on it being free; for cost planning use the list price.
+- Veo 3.1 was billed $0 for all three clips, in the response and in the key usage, against a listed $0.20 per second (no audio). The user's explanation (not verified by me) is that the OpenRouter account uses BYOK (own Google key) for Google, so Google bills the user's own account, not OpenRouter. If so, the real Veo cost is on the Google bill and still needs reading there; plan on the list price until it is checked. The user prefers the BYOK route.
 - Seedance returned 1112x834 (4:3) although 16:9 was requested. Veo returned 1280x720 but with black bars (see notes).
 - Seedance cost matched the estimate from the token price (about $0.77 for 5 s at 720p, no audio).
 
