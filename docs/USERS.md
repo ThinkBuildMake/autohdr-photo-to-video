@@ -6,7 +6,7 @@
 
 **This document does not cover:** how the product is built, verified, measured or hosted. Requirements, key metrics, stack and architecture are separate documents that trace back to the use case IDs (UC-n) and the constraints here.
 
-**Status:** draft, interview on 2026-10-16/17. The only source is the AutoHDR hackathon brief (`docs/AutoHDR Photo to Video.pdf`, cited as "the PRD"); no one at AutoHDR has been interviewed. The problem is taken as given by AutoHDR. The person's day in Section 4 is an illustrative composite, not an observed customer. Open items are in `MEETING_QUESTIONS.md`.
+**Status:** draft, interview on 2026-10-16/17. The only source is the AutoHDR hackathon brief (`docs/AutoHDR Photo to Video.pdf`, cited as "the PRD"); no one at AutoHDR has been interviewed. The problem is taken as given by AutoHDR. The person's day in Section 4 is an illustrative composite, not an observed customer. Where the interview left a gap, this document states an assumption (Section 10) so downstream work can proceed; each assumption is marked *(assumed)* where it is used.
 
 ---
 
@@ -104,10 +104,10 @@ This case depends on the generated shots passing as professional work; that is u
 | **Input** | The creative decisions behind a video made from a demo photoshoot: the shots, their movements, the song, the cut timing. |
 | **What they need to see** | The style saved in the library and a generated video from a demo shoot that matches the original side by side. |
 | **What they do with it** | Judge whether the reproduction is close enough to publish the style. |
-| **Time available** | Not asked. |
+| **Time available** | Not time-critical; the creator judges the reproduction once per style *(assumed)*. |
 | **Must never** | Reproduce a style in a way that visibly differs from the original in song, movement or cuts without saying so. |
 
-This use case serves UC-1: without a style, there is nothing for the novice to pick. Which authoring method to build (demo shoot, past-video upload, storyboard outline, per the PRD) is open.
+This use case serves UC-1: without a style, there is nothing for the novice to pick. Which authoring method to build (demo shoot, past-video upload, storyboard outline, per the PRD) is a design decision; the minimum is that one method works end to end *(assumed)*.
 
 **Why a stored, reusable style, not rebuilding each video by hand:** a creator spent hours on the original video, and the point of the product is that no one repeats that for the next house. Reproduction has to be repeatable.
 
@@ -128,11 +128,11 @@ The PRD describes an optional web editor for swapping a room, changing a shot or
 | F1 | Upload a property photoshoot | UC-1 | Gives the product the photos | Desktop browser only; one user at a time; demo-open, no login |
 | F2 | Pick a style from a library | UC-1 | Chooses whose look the video gets | Library of the styles built for the demo |
 | F3 | Receive a finished video | UC-1 | Gets a video with no editing work | Wait of 10–30 minutes is fine; follows the chosen style |
-| F4 | Create a style | UC-2 | Turns a creator's video into a reusable style | Authoring method open |
+| F4 | Create a style | UC-2 | Turns a creator's video into a reusable style | At least one authoring method works end to end; 2–3 demo styles *(assumed)* |
 | F5 | Capture the style's decisions and reproduce them | UC-2 | The reproduction looks nearly identical to the original side by side | A shot that looks visibly AI-generated is the failing line; 1–2 per demo video are tolerated, zero is the target |
 | F6 | Apply a saved style to a new photoshoot | UC-1, UC-2 | Same movements, song and cuts on a different house | Tested on the 12 sample photoshoots |
-| F7 | Improve mediocre photos toward the creator's composition, lens, angle and lighting | UC-1 | Makes a novice's photo look like the creator's shot | Not asked beyond the "visibly AI" line |
-| F8 | Show which shot failed and why | UC-1 | Lets the user see a failure instead of a hidden defect | Never hidden; whether the rest of the video is still shown is open |
+| F7 | Improve mediocre photos toward the creator's composition, lens, angle and lighting | UC-1 | Makes a novice's photo look like the creator's shot | Same "visibly AI" line; photo content (rooms, fixtures) must not change *(assumed)* |
+| F8 | Show which shot failed and why | UC-1 | Lets the user see a failure instead of a hidden defect | Never hidden; the rest of the video is still delivered with the failed shot marked *(assumed)* |
 | F9 | Automatically catch visibly AI-looking shots and regenerate them | UC-1 | Fewer bad shots reach the user | Wanted if possible; v1 may let 1–2 slip through |
 
 The owner's demo can run live if generation is fast enough, and otherwise is shown from a pre-generated run. The owner also expects to be able to explain how it would scale beyond one user at a time.
@@ -141,7 +141,7 @@ The owner's demo can run live if generation is fast enough, and otherwise is sho
 
 | # | Feature | Use case | What it adds for the user | Why not first |
 |---|---|---|---|---|
-| 1 | Web editor: swap a room, change a shot, remove a room, re-export | UC-3 | Handles agent and homeowner revisions without starting over | The PRD marks it optional; it needs the minimum working first |
+| 1 | Web editor: swap a room, change a shot, remove a room, re-export | UC-3 | Handles agent and homeowner revisions without starting over | The PRD marks it optional; it needs the minimum working first *(assumed not expected for this submission)* |
 | 2 | Several photoshoots at once / more than one user | UC-1 | The product holds up beyond a demo | Demo is one user at a time |
 
 ---
@@ -152,10 +152,11 @@ The owner's demo can run live if generation is fast enough, and otherwise is sho
 |---|---|
 | Commercial or public launch | The use is demo only |
 | Phone use | Desktop assumed |
+| Durable storage beyond the demo | Uploads, styles and videos only need to last through the demo *(assumed)* |
 | Accounts and logins | Demo-open for now |
 | Licensed or commercial music | Any open Creative Commons non-commercial track is acceptable for the demo |
 | Shooting video on site, gimbal and team training | Different work at a different moment (Section 3) |
-| Creator ratings, reviews, payments or credits | Shown in the PRD's mockups but not in its requirements list; to confirm with AutoHDR |
+| Creator ratings, reviews, payments or credits | Shown in the PRD's mockups but not in its requirements list *(assumed out)* |
 
 ---
 
@@ -165,11 +166,11 @@ Inputs the project arrived with, not choices made while designing it.
 
 | Constraint | What it is | Given by |
 |---|---|---|
-| Timeline | Due next Wednesday, **2026-10-21**. Time of day, time zone and what is due (working demo, repo, recorded video, write-up) were not given. Nothing is named as dropped first: "try to drop nothing." | The hackathon |
+| Timeline | Due next Wednesday, **2026-10-21**. Time of day and time zone were not given; assume end of day, 11:59 PM, in the candidate's local time *(assumed)*. Deliverable not given; assume a working demo plus the repo *(assumed)*. Nothing is named as dropped first: "try to drop nothing." | The hackathon |
 | Team | One person | Candidate |
 | Spend | None: "No budget for now." Free tiers of services outside the approved list may be used. What else draws on any free allowance, and how much is used, was not asked. | Candidate |
 | Services / vendors | Approved-provider list, a whitelist to choose from: Anthropic, Aqua Voice, Cohere, Cursor, DigitalOcean, ElevenLabs, Google One, Midjourney, OpenAI, OpenRouter, Railway, Vultr, Whisper. Free tiers of anything else are allowed. | The hackathon |
-| Hardware in hand | Local or cloud both possible. Specs (GPU, VRAM, RAM) were not given. | Candidate |
+| Hardware in hand | Local or cloud both possible. Specs were not given; assume no GPU is relied on and generation runs through hosted APIs *(assumed)*. | Candidate |
 | Intended use | Demo only. Music: any open Creative Commons non-commercial track. | Candidate |
 | Test data | 12 test photoshoots, randomly sampled across users, from the Dropbox link in the PRD | The hackathon |
 | Scale | One user at a time; the candidate should be able to explain how it would scale | Candidate |
@@ -193,3 +194,20 @@ Inputs the project arrived with, not choices made while designing it.
 2. WAV Group. HomeJab reveals top trends in pro real estate photos, video, 3D tours, aerial and more. 2021. https://www.wavgroup.com/2021/10/24/homejab-reveals-top-trends-in-pro-real-estate-photos-video-3d-tours-aerial-and-more/
 3. Imagen AI. 10 Best Real Estate Video Editing Outsourcing Services in 2026. https://imagen-ai.com/post/real-estate-video-editing-outsourcing/ ; Fotober. Real Estate Video Pricing. https://fotober.com/real-estate-video-pricing
 4. AutoReel vs Animoto. https://www.autoreelapp.com/compare/autoreel-vs-animoto ; Runway for real estate. https://runway.com/use-cases/real-estate
+
+---
+
+## 10. Assumptions made to proceed
+
+No one at AutoHDR is available to ask, so these were decided instead of asked. Each can be reversed without changing who the user is.
+
+| Gap | Assumption |
+|---|---|
+| What novices do today | They decline video, pay a freelance editor roughly $30–$150 per video, or use a generic template tool (Section 2). |
+| "Nearly identical" | Same song and cut timing; the same type of camera movement in each shot; the "visibly AI-generated" line is the hard fail. Judged by the candidate and AutoHDR's reviewers watching the original and the reproduction side by side. |
+| Style authoring | At least one authoring method works end to end, with 2–3 demo styles; the method is a design decision. |
+| Failed shot | The video is still delivered with the failed shot marked and the reason shown. |
+| What must not be lost | Uploads, saved styles and finished videos need only last through the demo. |
+| Deadline and deliverable | 2026-10-21, 11:59 PM local time; a working demo plus the repo. |
+| Web editor and marketplace | Not expected for this submission. |
+| Hardware | No GPU relied on; hosted APIs. |

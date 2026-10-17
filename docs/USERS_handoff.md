@@ -8,8 +8,8 @@ These items came up while defining the user but describe how the product is buil
 ## Verification and honesty
 - A shot that looks visibly AI-generated is the failing line. 1–2 per demo video are tolerated; zero is the target. (UC-1, UC-2)
 - Wanted if possible: an ML check that catches bad shots and regenerates them before the user sees them. Who judges "visibly AI" is you and AutoHDR's reviewers. (UC-1)
-- A shot that still fails after retries is shown to the user with which shot and why, never hidden. Whether the rest of the video is still delivered is open. (UC-1)
-- Side-by-side comparison of the original and the reproduction is the test for style fidelity. "Nearly identical" is not yet a number. (UC-2)
+- A shot that still fails after retries is shown to the user with which shot and why, never hidden. The rest of the video is still delivered with the failed shot marked (assumed). (UC-1)
+- Side-by-side comparison of the original and the reproduction is the test for style fidelity. "Nearly identical" is not yet a number; the requirements step must set one (see USERS.md Section 10). (UC-2)
 
 ## Capabilities traced to use cases
 | Capability | Required by |
@@ -39,7 +39,7 @@ These items came up while defining the user but describe how the product is buil
 ## Open questions for the audit / research step
 - Which video models are reachable from the approved-provider list or a free tier, and which accept first/last-frame or reference-video input? Verify in vendor docs; third-party blogs disagree and the tools change quickly.
 - Whether generated shots can pass as non-AI is untested; check on the 12 sample photoshoots.
-- Durability: what must never be lost (saved styles, uploads, finished videos) was not answered.
+- Durability: uploads, saved styles and finished videos need only last through the demo (assumed).
 - Music: sources of Creative Commons non-commercial tracks and their attribution terms.
 - Camera-movement vocabulary: the PRD's starter kit has a list of movement prompts; no independent source of per-shot template fields was found.
 
