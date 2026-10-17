@@ -44,7 +44,7 @@ Differences from our case: the example is stylised anime, one 20-second shot, wi
 
 ## 3. Candidate methods
 
-All five turn one source photo (after optional enhancement) into one shot. A video is the shots cut to the song, so only the shot method differs.
+All six turn one source photo (after optional enhancement) into one shot. A video is the shots cut to the song, so only the shot method differs.
 
 | ID | Method | Camera direction comes from | Also needs |
 |---|---|---|---|
@@ -54,11 +54,15 @@ All five turn one source photo (after optional enhancement) into one shot. A vid
 | M3 | **Reference-video motion.** Photo as first frame, the style's original shot as a motion reference | A clip of the original shot | A video model that takes a reference video (Seedance-style) |
 | M4 | **Multi-reference, multi-shot in one generation.** Several photos tagged as references, time-coded prompt like the example, one clip for a whole sequence | Time-coded prompt | A model that accepts several references and long clips |
 
+| M5 | **Cheap previz, then depth, then final render.** A fast, cheap model makes a rough draft of the shot (from the photo). The draft is converted to a depth map, and the expensive model renders the final shot from the draft and the real photo | The draft's motion, plus the depth map for structure | A cheap fast video model, a depth-estimation step, and a final model that takes the draft as a reference. Source: a creator's post (translated from Japanese) using MiniMax H3-max-turbo, then Seedance. Claimed benefits: cheap, fast iteration, natural camera work, background rebuilt cleanly, far fewer Seedance credits used. Self-reported, one anime example, not tested on interiors. |
+
+Open questions for M5: (a) how the depth map is given to the final model (as a reference video is assumed, not confirmed); (b) the draft should come from the new photo, or the new house's rooms would be forced into the original's layout; (c) whether the cheap model is on the approved list or has a free tier.
+
 Optional pre-step on any method: **P1 enhance** the photo toward the creator's composition and lighting (FR-1.8) with an image-edit model before it becomes the first frame. Tested as an on/off factor.
 
 ## 4. Experiment design
 
-**Inputs (fixed, so methods are compared fairly).** 4 of the 12 test photoshoots (GC-6), chosen to vary: a bright open room, a dark room, a room with mirrors or glass, a small room (bathroom or hallway). 3 shots per shoot, one per movement type taken from the style (push-in, pan, tilt up). 12 shots per method, 5 methods, with and without P1 for the best two: roughly 84 generations. Raise to all 12 shoots only for the finalist.
+**Inputs (fixed, so methods are compared fairly).** 4 of the 12 test photoshoots (GC-6), chosen to vary: a bright open room, a dark room, a room with mirrors or glass, a small room (bathroom or hallway). 3 shots per shoot, one per movement type taken from the style (push-in, pan, tilt up). 12 shots per method, 6 methods, with and without P1 for the best two: roughly 96 generations. Raise to all 12 shoots only for the finalist.
 
 **Prompt template (same for every model).** Four parts, as in the example:
 1. Source: "Use the supplied photo as the sole visual authority for the room."
