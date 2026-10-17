@@ -38,6 +38,7 @@ Differences from our case: the example is stylised anime, one 20-second shot, wi
 | Veo 3.1 offers Ingredients to Video (several reference images), Frames to Video (start and end image) and Extend, all with audio. | Vendor announcement | [Google](https://blog.google/technology/ai/veo-updates-flow/) |
 | Runway, Higgsfield: start/end frame, camera-move presets or motion controls, one clip at a time. | Third-party and vendor pages | see earlier notes in the session; unverified |
 | Dreamina free tier: about 225 daily tokens, watermarked output, no card. Seedance API price per second differs by source ($0.02–$0.25). Whether Dreamina has an API is disputed. | Reseller blogs, conflicting | [Atlas Cloud](https://www.atlascloud.ai/blog/guides/how-to-use-seedance-2) |
+| One creator's stack (self-reported, user-supplied): Seedance 2.0 / 2.5 for video, Midjourney for images, Claude for writing prompts and editing, ArtCraft / TapNow / Dreamina as platforms, Suno v6 for music. Same split as the others: images, video and prompt writing are separate tools. | Social post, unverified | user, 2026-10-17 |
 | Model naming is unstable: sources say "Seedance 2.0" and "2.5". | Blogs | same |
 
 **What is not found:** any independent test of photoreal interiors with a "looks AI-generated" rating; official pricing for the Seedance API; whether a free tier covers 12 jobs; whether any approved-list provider (OpenAI, Midjourney, Google One) exposes video generation that fits GC-3.
@@ -130,5 +131,8 @@ The reviewer's rows stay human judgment, as in `KEY_METRICS.md`; the system rows
 |---|---|---|
 | "GPT Image 2" as named by the user was not verified | The image-edit model for P1 and M2 | Access check, §5 step 1 |
 | Seedance API availability and price disputed | Decides whether it can run from the worker at all | Access check |
+| An LLM could write each shot's prompt from the style shot and the photo; not yet a design box | Adds a step before the video service; Anthropic is on the approved list | Add to the next HLD revision if the experiments show prompt wording matters |
+| Suno-generated music is not a Creative Commons track | GC-5 requires CC non-commercial tracks with source recorded | Keep repo tracks, or reword GC-5 after reading Suno's free-tier terms |
+| ArtCraft, TapNow, Dreamina as access routes to Seedance: cost and API unknown | Decides how the worker can call the model | Access check, §5 step 1 |
 | Model names and versions change quickly | Results expire | Record the model name and date with every result |
 | Reviewer is one person | VR-1 is a human judgment; one rater is a weak sample | Use AutoHDR's reviewers' standard if known; otherwise state the limit |
