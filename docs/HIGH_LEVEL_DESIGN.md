@@ -209,10 +209,10 @@ For one user at a time the demo design is final. SC-2 asks for the written expla
 |---|---|---|
 | App server, worker, database, file storage | $0 to $25/month: builder's machine or a small hosted plan | same |
 | Photo enhancement, quality check | about $0.05 to $0.50 per job [assumed] | same |
-| Video generation | about $1 to $10 per job first pass, up to about 4× with regeneration [assumed from third-party per-second prices] | whole project of under 50 jobs: roughly $50 to $500 |
-| **Total** | **about $5 to $15 per job** | **about $100 to $600 over the project — no limit set (GC-3)** |
+| Video generation | first pass of 8 five-second clips: about $2 (Veo 3.1 Lite at $0.05/s) to $3 (Seedance 2.0 at 480p, $0.067/s) to $8 (Veo 3.1 at 1080p without audio, $0.20/s); with up to 3 regenerations per shot, up to 4× | whole project, about 12 clips per job on average × 50 jobs × 5 s = 3,000 s: about $150 (Lite) to $200 (Seedance 480p) to $600 (Veo 3.1 1080p) |
+| **Total** | **about $3 to $12 per job** | **about $150 to $650 over the project — no limit set (GC-3)** |
 
-These are orders of magnitude from unconfirmed third-party prices. The number to confirm first is the video service's price per second. Cost per job is recorded (CO-1) so a limit can be added. Exact prices are in `STACK.md`.
+Per-second prices are OpenRouter's "from" prices read on 2026-10-17 (`VIDEO_RESEARCH.md` §2). Resolution and audio change them, and 720p and 1080p Seedance prices were not found. Cost per job is recorded (CO-1) so a limit can be added. Exact prices are in `STACK.md`.
 
 ## 7. Open questions and upstream fixes
 
