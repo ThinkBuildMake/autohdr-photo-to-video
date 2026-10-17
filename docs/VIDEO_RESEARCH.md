@@ -1,6 +1,6 @@
 # VIDEO_RESEARCH.md — Which video method works best for AutoHDR Photo-to-Video
 
-**Status:** plan plus desk research. No experiment has been run, so nothing here says a method "works". Every claim from the web is tagged by source type. Vendor and blog pages are self-reported; the one academic source is a literature review.
+**Status:** plan plus desk research, and one smoke test (§7.1: 6 clips, M1, one shoot). Nothing here yet says a method "works". Every claim from the web is tagged by source type. Vendor and blog pages are self-reported; the one academic source is a literature review.
 
 **Question.** For a real-estate photoshoot and a stored style (song, shots, camera movements, cut times), which way of making each shot gives the most shots that do not look AI-generated, inside the 30-minute limit, and at what cost per video? (No spend limit for now, GC-3.)
 
@@ -126,7 +126,44 @@ The reviewer's rows stay human judgment, as in `KEY_METRICS.md`; the system rows
 
 ## 7. Results
 
-[Empty until the experiments run.]
+### 7.1 Smoke test, 2026-10-17 (M1 only, 3 shots, 1 shoot)
+
+**Scope.** This is a smoke test of the pipeline, not a comparison. One shoot (`211_Colima_Ct_Ponte_Vedra_Beach_FL_32082`, bright empty apartment), three photos (living room wide, fireplace wall, fireplace/door wall), method M1 (photo as first frame, camera move as prompt text, template from §4), 720p, audio off, one clip per model per movement. M2 was not run, to stay under the $5 cap. Photos were resized to 1600 px wide and sent as base64 data URLs; the requested aspect ratio was 16:9 and the photos are 3:2. Scripts: `tools/gen_clip.py`, `tools/key_usage.py`; logs and clips are under the gitignored `out/`.
+
+**Models and dates.** `bytedance/seedance-2.0` and `google/veo-3.1`, through OpenRouter's `POST /videos`, run 2026-10-17. All six submitted at the same time, so times include queueing under six parallel jobs.
+
+| Model | Movement | Duration | Output | Time to ready | Cost reported in response | Call result |
+|---|---|---|---|---|---|---|
+| Seedance 2.0 | push-in | 5 s | 1112x834, no audio track | 270 s | $0.767 | pass |
+| Seedance 2.0 | pan | 5 s | 1112x834 | 177 s | $0.767 | pass |
+| Seedance 2.0 | tilt up | 5 s | 1112x834 | 221 s | $0.767 | pass |
+| Veo 3.1 | push-in | 4 s | 1280x720, no audio track | 58 s | $0 (see below) | pass |
+| Veo 3.1 | pan | 4 s | 1280x720 | 73 s | $0 | pass |
+| Veo 3.1 | tilt up | 4 s | 1280x720 | 58 s | $0 | pass |
+
+**Spend.** Key usage from `GET /key` went from $15.042 to $17.343: **$2.301 for the run**, exactly the three Seedance clips. No API errors, no retries. Veo 3.1 only offers 4, 6 or 8 s clips, so it got 4 s instead of 5 s.
+
+**Surprises.**
+- Veo 3.1 was billed $0 for all three clips, in the response and in the key usage, against a listed $0.20 per second (no audio). I do not know why (promotion, credit, or a billing lag). Do not plan on it being free; for cost planning use the list price.
+- Seedance returned 1112x834 (4:3) although 16:9 was requested. Veo returned 1280x720 but with black bars (see notes).
+- Seedance cost matched the estimate from the token price (about $0.77 for 5 s at 720p, no audio).
+
+**Frame notes (pre-screen only).** Six evenly spaced frames per clip, viewed by me. The final "visibly AI-generated" judgement (VR-1) belongs to the human reviewer; nothing below is a pass or fail on VR-1.
+
+| Clip | What I saw |
+|---|---|
+| Seedance push-in | Clear forward move with parallax (sliding door, window and chandelier shift against the walls). Fixture count looks unchanged. Room reads as the same room. No melting seen at this size. |
+| Seedance pan | Camera moves right with parallax; fireplace, door and shelves hold their shape. In the last frames a white door edge appears at the left frame edge that I cannot match to the photo; reviewer should check. |
+| Seedance tilt up | Tilt with a slight forward drift; ceiling lines and fireplace stay straight; mantel and door hold. Parallax is mild. |
+| Veo push-in | Black bar down the left edge in the first frames. Move reads as a push with parallax. The hallway opening on the right is larger and clearer than in the photo; a dark shape at the top left in frame 1 is not in the photo. Needs the reviewer's eye on the right-side openings. |
+| Veo pan | Black bar on the left in the first three frames, then gone; move and parallax look fine; door and fireplace stay put. |
+| Veo tilt up | Black bars on both sides in every frame (the 3:2 photo was pillarboxed). Slanted shapes appear at both side edges and a ceiling vent appears that is not obviously in the photo: possible added or warped geometry. Least trustworthy of the six. |
+
+**What the numbers say, with the limits.**
+- **PF-1 (≤ 30 min).** With six jobs in parallel, the slowest clip took 4.5 minutes. A video of 8 shots generated in parallel would fit the limit by a wide margin on either model, if parallel submission is allowed and rate limits do not bite. Sequential Seedance (about 3 to 4.5 min each) would be about 25 to 35 min, so parallelism matters. Three clips per model is not enough to say anything about spread or retries.
+- **Cost per job.** One 5 s Seedance attempt is about $0.77, so 8 shots is about $6.1 per video with no regeneration, and about $18 if every shot needed 3 attempts. Veo at list price (4 s at $0.20 per second, no audio) is about $0.80 per shot, similar. Cheaper tiers exist in the §2 list (Veo 3.1 Lite, Seedance 2.0 Fast, Mini) and were not tested.
+- **Not shown.** Nothing here measures VR-1, VR-3 or VR-5 rates, regeneration counts, dark rooms, mirrors, or M2 to M5. Three shots on one bright, empty, simple room is the easiest case. A pass here does not predict a pass on furnished or dark rooms.
+- **Pipeline works.** The OpenRouter route submits, polls, returns a cost in the completed response, and delivers a file with an API key header. It accepts a base64 first frame.
 
 ## 8. What the result changes elsewhere
 
