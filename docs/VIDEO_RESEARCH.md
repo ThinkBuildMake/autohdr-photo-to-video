@@ -39,6 +39,10 @@ Differences from our case: the example is stylised anime, one 20-second shot, wi
 | Runway, Higgsfield: start/end frame, camera-move presets or motion controls, one clip at a time. | Third-party and vendor pages | see earlier notes in the session; unverified |
 | Dreamina free tier: about 225 daily tokens, watermarked output, no card. Seedance API price per second differs by source ($0.02–$0.25). Whether Dreamina has an API is disputed. | Reseller blogs, conflicting | [Atlas Cloud](https://www.atlascloud.ai/blog/guides/how-to-use-seedance-2) |
 | One creator's stack (self-reported, user-supplied): Seedance 2.0 / 2.5 for video, Midjourney for images, Claude for writing prompts and editing, ArtCraft / TapNow / Dreamina as platforms, Suno v6 for music. Same split as the others: images, video and prompt writing are separate tools. | Social post, unverified | user, 2026-10-17 |
+| **Veo vs Seedance on realism.** Hands-on blog tests favour Veo 3.1 for faces, skin and light (one scorecard: 9.5 vs 8 out of 10), and say Seedance 2.0 is stronger on motion and multi-reference control. Blind-vote arena snapshots (Artificial Analysis, image-to-video with audio) put Seedance 2.0 near the top (about 1,176–1,199) and Veo 3.1 far below (about 1,078–1,094). The October 2026 snapshot shows a near tie among MiniMax H3 Max, Vidu Q4, Gemini Omni Flash and Seedance 2.0. The two kinds of evidence disagree; neither tested real-estate interiors. | Blogs (vendor-affiliated) and leaderboard snapshots via blogs | [Picsart](https://picsart.com/compare-models/seedance-2-0-vs-veo-3-1/), [SitePoint](https://www.sitepoint.com/seedance-2-0-vs-veo-3-1-which-is-best-for-ai-video-creators/), [benchmarklist](https://benchmarklist.com/arenas/artificial_analysis_image_to_video/) |
+| **Veo access.** No free Gemini API tier for Veo 3.1. Flow reportedly gives 50 credits a day (about 5 Lite clips or 2 Fast clips), possibly only with a Google AI plan (Pro about $19.99/month). One source says the Veo 3.1 preview models on the Gemini API can shut down from 2026-10-22, one day after our deadline, with Gemini Omni Flash as the replacement. | Third-party pricing blogs, conflicting | [benchlm](https://benchlm.ai/media-pricing/veo), [camclo3d](https://camclo3d.com/blog/veo-3-pricing), [costgoat](https://costgoat.com/pricing/google-veo) |
+| **Seedance face rule.** Seedance 2.0 reportedly blocks reference images with realistic human faces (deepfake filter); AI-generated and stylised faces pass. Listing photos rarely contain people, but any that do could be rejected. | Third-party docs and forum posts | [apiyi](https://docs.apiyi.com/en/faq/seedance2-asset-face-reference), [Luma](https://lumalabs.ai/learning-center/articles/seedance-2.0-basics) |
+| Sora: reported discontinued in 2026 (app April, API September 24). | Roundup blog, unconfirmed | [TechSifted](https://techsifted.com/roundups/best-ai-video-generators-2026/) |
 | Model naming is unstable: sources say "Seedance 2.0" and "2.5". | Blogs | same |
 
 **What is not found:** any independent test of photoreal interiors with a "looks AI-generated" rating; official pricing for the Seedance API; whether a free tier covers 12 jobs; whether any approved-list provider (OpenAI, Midjourney, Google One) exposes video generation that fits GC-3.
@@ -100,7 +104,11 @@ The reviewer's rows stay human judgment, as in `KEY_METRICS.md`; the system rows
 4. **Score**, apply the decision rule, write the result into §7.
 5. **Feed back** into the wireframe, entities and stack (§8).
 
-## 6. Access table (to fill in step 1)
+## 6. Shortlist and access table (to fill in step 1)
+
+**Shortlist for the platform choice, 2026-10-17:** Seedance 2.0 (Dreamina), Veo 3.1 (Flow), and MiniMax H3 as the third because it tops the latest arena snapshot and is the cheap previz model in M5. Runway, Kling and Higgsfield stay in the table but are tested only if one of the three fails the access check. Sora is dropped (discontinued).
+
+**Platform decision rule.** Run the same 12 shots (§4) on each shortlisted model through the method that model supports best. The platform with the most eligible results wins; a tie goes to the one that stays at $0 and has an API the worker can call (HLD §4.3). Blogs say Veo is more realistic and the blind arena says Seedance is, so the test on interiors decides, not either source.
 
 | Model | Web UI free? | API free? | Max length | Resolution | Watermark | Daily limit | Start/end frame | Reference video | On approved list (GC-4) or free tier |
 |---|---|---|---|---|---|---|---|---|---|
