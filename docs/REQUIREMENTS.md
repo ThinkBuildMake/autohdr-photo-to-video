@@ -38,7 +38,7 @@ If a row names a library, a component, or a way of meeting a threshold, it is in
 
 | Area | Headline threshold |
 |---|---|
-| Givens | $0 spend; approved providers; due 2026-10-21 |
+| Givens | No spend limit for now; approved providers (free tier for others); due 2026-10-21 |
 | Wait | Finished video within 30 min of submitting |
 | Quality | ≤ 2 visibly AI shots per video; target 0 |
 | Style fidelity | Same song; cuts within ±0.1 s; same movement type per shot |
@@ -65,7 +65,7 @@ If a row names a library, a component, or a way of meeting a threshold, it is in
 |---|---|---|---|---|
 | GC-1 | The submission is complete by **2026-10-21, 11:59 PM local time** *(assumed)* [src U§8] | Dated deliverable in the repo | U§8 | Must |
 | GC-2 | One builder; no work depends on another person [src U§8] | Plan names one owner | U§8 | Must |
-| GC-3 | Total spend on paid services is **$0**; only free tiers are used [src U§8] | Usage and billing pages show no charges at handoff | U§8 | Gate |
+| GC-3 | No spend limit is set for now; paid use of approved providers is allowed [src user, 2026-10-17: "no budget limits for now"]. A limit may be set later. | Cost per job is recorded (CO-1) | U§8 | Must |
 | GC-4 | Every external service is on the approved list (Anthropic, Aqua Voice, Cohere, Cursor, DigitalOcean, ElevenLabs, Google One, Midjourney, OpenAI, OpenRouter, Railway, Vultr, Whisper) or is a free tier of something else [src U§8] | Config review lists each service against the list | U§8 | Gate |
 | GC-5 | Used for demo only; every song is an open Creative Commons non-commercial track, with its attribution recorded [src U§8] | Each track's license and source URL stored in the repo | U§8 | Gate |
 | GC-6 | The 12 PRD test photoshoots are the test set [src PRD p.7] | Every eval runs on all 12 | U§8 | Must |
@@ -142,7 +142,7 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.4.
 
 | ID | Requirement | Verified by | Trace | Priority |
 |---|---|---|---|---|
-| RL-1 | A provider error or a free-tier limit is reported to the user within **60 s** of occurring [prop]. | Inject a failing provider; time the message | FR-1.5 | Must |
+| RL-1 | A provider error or a usage or rate limit is reported to the user within **60 s** of occurring [prop]. | Inject a failing provider; time the message | FR-1.5 | Must |
 | RL-2 | **100%** of failed shots appear in the result with a reason; none are replaced silently [src user, 2026-10-17: "just show the failure"]. | Inject a failing shot; result lists it | FR-1.5 | Must |
 | RL-3 | A failed shot never stops the other shots in the job from finishing *(assumed)*. | Inject one failure in a job; remaining shots complete | FR-1.6 | Must |
 
@@ -187,7 +187,7 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.4.
 
 | ID | Requirement | Verified by | Trace | Priority |
 |---|---|---|---|---|
-| CO-1 | A job that would exceed a free-tier limit stops and says so; it never incurs a charge [src GC-3]. | Run with a limit reached; billing shows $0 | GC-3 | Gate |
+| CO-1 | Every job records the cost of each provider call and the job's total, so a spend limit set later can be enforced [prop]. Nothing is blocked on cost now. A call to a service outside the approved list stops and says so when its free tier runs out (GC-4). | Inspect the log of a test job; run one outside-list call past its free limit | GC-3, GC-4 | Should |
 
 ### 3.10 Change and later iterations (CH-)
 
@@ -232,10 +232,11 @@ Every **[prop]** and **[tbd]** number. [prop] rows not commented on at review ar
 | QC-2 | 3 attempts | Bounded so regeneration stays inside PF-1 | Accepted |
 | DE-1 | current desktop Chrome | User said assume desktop | Accepted |
 | DE-2 | JPG/PNG, 40 photos, 25 MB | Covers a typical shoot with room to spare; the 12 test shoots set the real size | Accepted |
+| CO-1 | cost recorded per call and per job; no limit enforced | No spend limit now (user, 2026-10-17); recording lets one be added | Accepted |
 | EV-1, EV-2 | reports listed | Needed to verify VR rows | Accepted |
 | CH-1, CH-2 | as written | Later iterations 1 and 2 need them | Accepted |
 
 **Open items only a running system (or an upstream fix) can answer:**
 1. Which approved or free-tier models can produce shots that are not visibly AI-generated, and how long they take (decides PF-1 and QC-2).
 2. What "nearly identical" means on a real side-by-side (VR-4).
-3. Which free-tier limits the 12 test jobs hit (CO-1).
+3. Which usage or rate limits the 12 test jobs hit, and what the 12 jobs cost (CO-1). If a spend limit is set later, add its row.

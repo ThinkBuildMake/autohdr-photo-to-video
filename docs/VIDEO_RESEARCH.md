@@ -2,9 +2,9 @@
 
 **Status:** plan plus desk research. No experiment has been run, so nothing here says a method "works". Every claim from the web is tagged by source type. Vendor and blog pages are self-reported; the one academic source is a literature review.
 
-**Question.** For a real-estate photoshoot and a stored style (song, shots, camera movements, cut times), which way of making each shot gives the most shots that do not look AI-generated, inside the 30-minute limit and the $0 budget?
+**Question.** For a real-estate photoshoot and a stored style (song, shots, camera movements, cut times), which way of making each shot gives the most shots that do not look AI-generated, inside the 30-minute limit, and at what cost per video? (No spend limit for now, GC-3.)
 
-**Why now.** `HIGH_LEVEL_DESIGN.md` treats the video service as one box. The choice of method decides the wireframe (does a shot have a start and end frame? a movement preset?), the entities (does a style hold a reference video?) and the stack. Requirements it must satisfy: VR-1 (≤ 2 visibly AI shots per video, target 0), VR-3 (same movement type as the original), VR-5 (rooms and fixtures unchanged), PF-1 (≤ 30 min), CO-1 / GC-3 ($0), GC-4 (approved providers or free tiers).
+**Why now.** `HIGH_LEVEL_DESIGN.md` treats the video service as one box. The choice of method decides the wireframe (does a shot have a start and end frame? a movement preset?), the entities (does a style hold a reference video?) and the stack. Requirements it must satisfy: VR-1 (≤ 2 visibly AI shots per video, target 0), VR-3 (same movement type as the original), VR-5 (rooms and fixtures unchanged), PF-1 (≤ 30 min), CO-1 / GC-3 (cost recorded, no limit now), GC-4 (approved providers or free tiers).
 
 ---
 
@@ -46,7 +46,7 @@ Differences from our case: the example is stylised anime, one 20-second shot, wi
 | Sora: reported discontinued in 2026 (app April, API September 24). | Roundup blog, unconfirmed | [TechSifted](https://techsifted.com/roundups/best-ai-video-generators-2026/) |
 | Model naming is unstable: sources say "Seedance 2.0" and "2.5". | Blogs | same |
 
-**What is not found:** any independent test of photoreal interiors with a "looks AI-generated" rating; official pricing for the Seedance API; whether a free tier covers 12 jobs; whether any approved-list provider (OpenAI, Midjourney, Google One) exposes video generation that fits GC-3.
+**What is not found:** any independent test of photoreal interiors with a "looks AI-generated" rating; official pricing for the Seedance API; what 12 jobs cost on each route; whether any approved-list provider (OpenAI, Midjourney, Google One) exposes video generation by API (GC-4).
 
 ## 3. Candidate methods
 
@@ -87,7 +87,7 @@ Optional pre-step on any method: **P1 enhance** the photo toward the creator's c
 | Automatic check agreement | Run the proposed quality check; compare flags with the reviewer's | System | QC-1 |
 | Generation time per shot | Timestamps | System | PF-1 |
 | Attempts to get a passing shot | Count regenerations until pass, max 3 | System | QC-2 |
-| Free-tier use per shot | Provider usage page | System | CO-1, GC-3 |
+| Cost per shot and per passing shot | Provider billing or usage page, divided by shots | System | CO-1 |
 
 The reviewer's rows stay human judgment, as in `KEY_METRICS.md`; the system rows can be logged.
 
@@ -99,7 +99,7 @@ The reviewer's rows stay human judgment, as in `KEY_METRICS.md`; the system rows
 
 ## 5. Order of work
 
-1. **Access check (1 hour).** For each of Seedance (Dreamina), Veo (Flow or Google One), Runway, Kling, Higgsfield, and any OpenAI or Midjourney video feature: can I generate a 5-second clip from a photo today at $0, with what watermark, daily limit and length? Record in the table in §6. This decides which methods are even possible.
+1. **Access check (1 hour).** For each of Seedance (Dreamina), Veo (Flow or Google One), Runway, Kling, Higgsfield, and any OpenAI or Midjourney video feature: can I generate a 5-second clip from a photo today by API, at what price per second, with what watermark, rate limit and length? Record in the table in §6. This decides which methods are even possible.
 2. **Smoke test.** One shoot, M1 and M2 on one model by hand through its web UI. Expect to learn the prompt shape.
 3. **Full matrix** on the 4 shoots for every method the access check allowed.
 4. **Score**, apply the decision rule, write the result into §7.
@@ -109,7 +109,7 @@ The reviewer's rows stay human judgment, as in `KEY_METRICS.md`; the system rows
 
 **Shortlist for the platform choice, 2026-10-17:** Seedance 2.0 (Dreamina), Veo 3.1 (Flow), and MiniMax H3 as the third because it tops the latest arena snapshot and is the cheap previz model in M5. Runway, Kling and Higgsfield stay in the table but are tested only if one of the three fails the access check. Sora is dropped (discontinued).
 
-**Platform decision rule.** Run the same 12 shots (§4) on each shortlisted model through the method that model supports best. The platform with the most eligible results wins; a tie goes to the one that stays at $0 and has an API the worker can call (HLD §4.3). Blogs say Veo is more realistic and the blind arena says Seedance is, so the test on interiors decides, not either source.
+**Platform decision rule.** Run the same 12 shots (§4) on each shortlisted model through the method that model supports best. The platform with the most eligible results wins; a tie goes to the cheaper cost per passing shot, provided it has an API the worker can call (HLD §4.3). Blogs say Veo is more realistic and the blind arena says Seedance is, so the test on interiors decides, not either source.
 
 | Model | Web UI free? | API free? | Max length | Resolution | Watermark | Daily limit | Start/end frame | Reference video | On approved list (GC-4) or free tier |
 |---|---|---|---|---|---|---|---|---|---|
@@ -120,7 +120,7 @@ The reviewer's rows stay human judgment, as in `KEY_METRICS.md`; the system rows
 | Higgsfield | | | | | | | | | |
 | OpenAI / Midjourney video | | | | | | | | | |
 
-**API is required for the live product.** The worker (HLD §4.3) must submit and poll jobs programmatically, so a web-UI-only free tier (Dreamina, Flow) can test quality but cannot run the product. A pre-generated demo job is allowed (DE-4), but then nothing is generated live. Route to check first: OpenRouter, since it is on the approved list. Conflict to raise: every API route found is paid per second, which meets neither CO-1 nor GC-3 ($0) as written, unless the account has free credits. Options if so: (a) get free credits or a trial, (b) cap the live demo to a few shots and pre-generate the rest, (c) ask for a small spend limit. This goes to the user as an upstream decision.
+**API is required for the live product.** The worker (HLD §4.3) must submit and poll jobs programmatically, so a web-UI-only free tier (Dreamina, Flow) can test quality but cannot run the product. A pre-generated demo job is allowed (DE-4), but then nothing is generated live. Route to check first: OpenRouter, since it is on the approved list. Every API route found is paid per second. GC-3 now sets no spend limit (user, 2026-10-17), so this is allowed; record cost per call (CO-1) and compare routes on cost per passing shot.
 
 ## 7. Results
 
@@ -134,7 +134,7 @@ The reviewer's rows stay human judgment, as in `KEY_METRICS.md`; the system rows
 | M3 (reference video) | A Style stores a reference clip per shot, so "create a style" must cut the original into shots. Reference clips become files in storage. |
 | M4 (multi-shot) | The unit of regeneration becomes a group of shots, not one shot; revisit FR-1.5 and QC-2 (per-shot failure reporting). |
 | M0 (no AI) | The product is a styled slideshow. Revisit UC-1's honesty line and the demo story. |
-| No access at $0 | Raise with the user: CO-1 and GC-3 rule out every method, so the design cannot meet them as written. |
+| Cost per passing shot is high | Decide with the user whether to set a spend limit; consider M5 (cheap draft, then final render) to cut cost. |
 
 ## 9. Open items
 

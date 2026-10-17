@@ -168,7 +168,7 @@ Inputs the project arrived with, not choices made while designing it.
 |---|---|---|
 | Timeline | Due next Wednesday, **2026-10-21**. Time of day and time zone were not given; assume end of day, 11:59 PM, in the candidate's local time *(assumed)*. Deliverable not given; assume a working demo plus the repo *(assumed)*. Nothing is named as dropped first: "try to drop nothing." | The hackathon |
 | Team | One person | Candidate |
-| Spend | None: "No budget for now." Free tiers of services outside the approved list may be used. What else draws on any free allowance, and how much is used, was not asked. | Candidate |
+| Spend | No budget limit for now (candidate, 2026-10-17: "I meant no budget limits for now"). Paid use of approved providers is allowed. Services outside the approved list may be used only on a free tier. Whether AutoHDR reimburses spend, and whether the limit changes later, was not asked. | Candidate |
 | Services / vendors | Approved-provider list, a whitelist to choose from: Anthropic, Aqua Voice, Cohere, Cursor, DigitalOcean, ElevenLabs, Google One, Midjourney, OpenAI, OpenRouter, Railway, Vultr, Whisper. Free tiers of anything else are allowed. | The hackathon |
 | Hardware in hand | Local or cloud both possible. Specs were not given; assume no GPU is relied on and generation runs through hosted APIs *(assumed)*. | Candidate |
 | Intended use | Demo only. Music: any open Creative Commons non-commercial track. | Candidate |

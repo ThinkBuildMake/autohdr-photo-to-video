@@ -8,7 +8,7 @@
 - **Design:** One app server, one background worker, one database, file storage, and three outside AI services (video, photo enhancement, quality check). The job queue is a table in the database.
 - **Wireframe:** [Photo to Video wireframe](https://claude.ai/artifact/Y9f7bkitn6dqRLvP5sN5vH), clickable: Styles, New video (upload), Jobs, Job (running, waiting, stopped, partly failed, ready), Create a style, Original vs reproduction. Use the Tweaks panel to jump to each state.
 - **Next as it grows:** final for the demo. The scaling write-up (GC-7) names two pieces for more than one user: a real queue with more workers, and a paid tier at the outside services. Triggers are in §5.
-- **Cost:** $0 now and at the horizon, against a budget of $0 (CO-1, GC-3). Every box must run on a free tier or the builder's own machine.
+- **Cost:** no spend limit for now (GC-3). Own boxes about $0 to $25/month; the video service is the cost driver, estimated in §6 and recorded per job (CO-1).
 
 ```mermaid
 ---
@@ -35,7 +35,7 @@ flowchart LR
 | 2 | Read- or write-heavy | Neither in the usual sense. Browser reads (status polling) outnumber writes about 100:1, but the real work is long jobs calling outside services. The heaviest interaction is the job itself (I-4). | FR-1.3, PF-1 |
 | 3 | Data that can never be lost | None. Uploads, styles and videos only need to last through the demo. One exception worth keeping: the pre-generated demo job and the demo styles must survive until the demo (DE-4). | U§7, U§10, DE-4 |
 | 4 | Latency expected | Screens: under 1 s. Job: median 10 min, at most 30 min. Error message: within 60 s. See §2. | PF-1, PF-2, RL-1 |
-| 5 | Cost ceiling | $0 | CO-1, GC-3 |
+| 5 | Cost ceiling | None for now; a limit may be set later (user, 2026-10-17). Cost is recorded per job so one can be enforced. | GC-3, CO-1 |
 
 ## 2. Interactions and load
 
@@ -57,7 +57,7 @@ flowchart LR
 - Jobs: 12 test jobs (GC-6) + about 3 demo styles × 2 runs + about 20 retries of whole jobs while building = under 50 jobs.
 - Files per job (upper bound from DE-2): 40 photos × 25 MB = 1 GB. Typical shoot: 28 photos × 5 MB = 140 MB. A video of 6–8 shots: about 50 MB. So worst case under 50 jobs × 1.1 GB = 55 GB; typical about 10 GB. Both fit a free file-storage tier or local disk with room to spare; the worst case does not, so the worker deletes a job's source photos after the demo (see §7).
 - Calls to outside services per job, worst case, with 8 shots and up to 3 regenerations each (QC-2): photo enhancement 8 (one per shot), video generation 8 × 4 = 32, quality check 32. First pass only: 8 + 8 + 8. A job's time is then dominated by video generation, which is in the minutes per clip. At 4 clips in flight at once (an assumption on the provider's limit), 32 clips at about 2 minutes each is 16 minutes, inside the 30-minute limit (PF-1). That arithmetic rests on assumed clip times; it is checked on the first real run (§7).
-- Free-tier limits are the real ceiling, not our servers. 12 test jobs × up to 32 clips = up to 384 clips, which may exceed a free tier. CO-1 already says the job stops and says so.
+- Provider rate limits and per-second price are the real ceiling, not our servers. 12 test jobs × up to 32 clips = up to 384 clips. At an assumed $0.05 to $0.25 per second of video and 5-second clips, that is about $96 to $480 for the worst case, and about a quarter of that for first passes only. Prices are third-party and unconfirmed; `STACK.md` replaces them.
 
 Load is a single browser and a few jobs. One small app server and one database handle it with more than 100× headroom. The design is shaped by the long wait on outside services, not by traffic.
 
@@ -192,7 +192,7 @@ The worker does not take calls. It reads the database for work.
 
 ### Photo enhancement service, Video generation service, Quality check service
 
-**Why they exist:** FR-1.8 (improve the photo), FR-1.4 (movement from a still), FR-1.7 and QC-1 (catch visibly AI shots). They are outside services from the approved list or on a free tier (GC-4). They are the slowest and most limited boxes: speed, failure rate and free allowance live on the provider's side (KEY_METRICS guarantees). **Holds / does:** nothing of ours. **Provided by platform:** n/a.
+**Why they exist:** FR-1.8 (improve the photo), FR-1.4 (movement from a still), FR-1.7 and QC-1 (catch visibly AI shots). They are outside services from the approved list, or on a free tier if outside it (GC-4). They are the slowest and most limited boxes: speed, failure rate and free allowance live on the provider's side (KEY_METRICS guarantees). **Holds / does:** nothing of ours. **Provided by platform:** n/a.
 
 ### What to add next
 
@@ -201,27 +201,28 @@ For one user at a time the demo design is final. SC-2 asks for the written expla
 | Next piece | What breaks first | Add when (measurable) |
 |---|---|---|
 | Real queue and several workers | One worker runs one job at a time; the second job waits for the first, up to 30 min | Jobs waiting more than 5 min on the median, or a requirement for more than 1 job at once (SC-1 raised) |
-| Paid tier at the outside services | Free-tier limits stop jobs (CO-1) | More than 1 job in 10 stops on a limit |
+| Higher rate-limit tier at the outside services | Per-account rate limits slow or stop jobs | More than 1 job in 10 stops or slows past PF-1 on a limit |
 
 ## 6. Cost envelope
 
 | Component | Now | At horizon |
 |---|---|---|
-| App server, worker, database, file storage | $0: builder's machine or a free tier | $0 |
-| Photo enhancement, video generation, quality check | $0: free tiers only | $0 |
-| **Total** | **$0** | **$0 — within the $0 budget (CO-1)** |
+| App server, worker, database, file storage | $0 to $25/month: builder's machine or a small hosted plan | same |
+| Photo enhancement, quality check | about $0.05 to $0.50 per job [assumed] | same |
+| Video generation | about $1 to $10 per job first pass, up to about 4× with regeneration [assumed from third-party per-second prices] | whole project of under 50 jobs: roughly $50 to $500 |
+| **Total** | **about $5 to $15 per job** | **about $100 to $600 over the project — no limit set (GC-3)** |
 
-Whether free tiers cover 12 test jobs is open (§7). If they do not, jobs stop and say so (CO-1); we do not pay. Exact prices and limits are in `STACK.md`.
+These are orders of magnitude from unconfirmed third-party prices. The number to confirm first is the video service's price per second. Cost per job is recorded (CO-1) so a limit can be added. Exact prices are in `STACK.md`.
 
 ## 7. Open questions and upstream fixes
 
 | Item | Why it matters | Resolved by |
 |---|---|---|
 | [assumed] Providers allow about 4 clips in flight at once, and a clip takes about 2 minutes | Sizes the 16-minute estimate against PF-1 | First real run; adds a measured number to PF-1's check |
-| [assumed] Source photos are deleted after the demo to keep storage within a free tier | Worst case is 55 GB | `choose-stack` after the free-tier limits are known |
+| [assumed] Source photos are deleted after the demo to keep storage small | Worst case is 55 GB | `choose-stack` after storage prices are known |
 | [assumed] A second job is queued, not refused; the wireframe shows both messages | Decides one screen state | Add to SC-1 which of the two |
 | **Upstream fix** — FR: the photographer can see a list of their jobs and reopen one | The wireframe's Jobs screen; FR-1.3 says "come back", which needs a list | REQUIREMENTS.md, new FR-1.10 |
 | **Upstream fix** — FR: a stopped job keeps its finished shots and offers "Start again" | Wireframe error state; RL-3 says remaining shots finish but not what the user can do | REQUIREMENTS.md, add to FR-1.5 |
 | **Upstream fix** — FR: the creator can edit the shot rows of a new style before saving | Wireframe create-style screen; FR-2.1 says only that a style can be created | REQUIREMENTS.md, add to FR-2.1 |
 | **Upstream fix** — FR: the comparison screen lists song, cuts, movement and flagged shots | Wireframe; VR-2 to VR-4 need somewhere to show their result | REQUIREMENTS.md, add to FR-2.4 |
-| **Upstream fix** — a free-tier usage row (limit and what is left) | KEY_METRICS.md already lists it | REQUIREMENTS.md, once models are chosen |
+| Spend limit may be set later | Changes the cost check and may need a "stop at limit" row | User; add a requirement row and a cost-per-video metric (KEY_METRICS.md) when it is set |
