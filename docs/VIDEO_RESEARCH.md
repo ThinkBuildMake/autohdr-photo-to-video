@@ -228,6 +228,26 @@ Frame notes on the five walkthrough clips: living room push-in and dining pan ho
 
 **What this adds.** Cost for the five-clip walkthrough at Veo list price is about $4.00 (5 x 4 s x $0.20), and about 1 minute of wall time if all five are submitted together. A video of eight shots is therefore about $6.40 per attempt at list price. This is still an easy house (bright, mostly empty or lightly furnished) and cuts between rooms rather than a continuous walk.
 
+### 7.4 Summary and decision, 2026-10-18
+
+**Decision (user, after watching the clips):** the output is "good enough" to move on. Working choice: **M1 (photo as first frame, camera move in the prompt) on Veo 3.1 through OpenRouter with the user's own Google key (BYOK), shots generated one per photo and cut together to the song.** Seedance 2.0 is the fallback. This is a working choice from 25 clips, not the §4 decision rule: no method was scored against the eligibility thresholds, and M0, M2 to M5 were not run.
+
+**Evidence, all `google/veo-3.1` and `bytedance/seedance-2.0` via OpenRouter, 2026-10-17 and 18, M1, 720p, one rater:**
+- 25 clips in total (6 in 7.1, 12 in 7.2, 7 in 7.3): 19 Veo and 6 Seedance. All calls succeeded with no errors.
+- Time per clip: Veo 48 to 88 s, Seedance 173 to 270 s (jobs run in parallel). PF-1 is not a risk if shots are submitted in parallel.
+- Cost: Seedance about $0.76 per 5 s clip (billed by OpenRouter, $4.59 in total across the three rounds). Veo was $0 on OpenRouter (BYOK); list price is $0.20 per second, about $0.80 per 4 s clip.
+- Failures the reviewer or I saw: a person with a camera in the Veo bathroom pan (retry with a stronger prompt looked clean, n = 1); a second ceiling vent and skewed walls on the Veo bathroom tilt up (the stronger prompt did not fix it, n = 1); invented detail in mirrors and glass on both models; black bars and a 4:3 output when the 3:2 photo was not pre-cropped to 16:9 (fixed by cropping).
+- Tilt up was the weakest movement on Veo in all three rooms; push-in and pan were the most reliable.
+
+**Not established, still open:**
+- VR-1, VR-3 and VR-5 rates; no regeneration counts (QC-2) beyond two single retries.
+- A truly dark room (the "dark" photo was fairly bright), more mirror and glass rooms, furnished rooms with people-like shapes.
+- Whether an automatic check (count vents and people against the source photo, then re-prompt) can catch what the reviewer catches; my six-frame pre-screen missed the person once, so a human or stronger check is needed before a clip ships.
+- M2 (first and last frame), M3, M4, M5; cheaper tiers (Veo 3.1 Fast and Lite, Seedance Fast and Mini); continuous walk through a doorway.
+- The real Veo cost, which sits on the user's Google bill, and the Veo 3.1 preview shutdown date (one source said 2026-10-22, §2).
+
+**Files.** Scripts are in `tools/` (`gen_clip.py`, `key_usage.py`); all clips, frames, photos and logs are under the gitignored `out/` and are not committed. The downloaded photoshoots are outside the repo.
+
 ## 8. What the result changes elsewhere
 
 | If the winner is … | Changes |
