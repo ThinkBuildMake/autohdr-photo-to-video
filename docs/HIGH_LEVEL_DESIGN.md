@@ -6,7 +6,7 @@
 
 - **Load:** 1 user, 1 job at a time (SC-1). About 12 test jobs plus a few demo runs in total, so under 50 jobs over the project. Peak is about 0.2 browser requests/s. Each job is 10–30 minutes of work that is almost all waiting on outside AI services. About 10 GB of files in total (55 GB worst case, §2).
 - **Design:** One app server, one background worker, one database, file storage, and three outside AI services (video, photo enhancement, quality check). The job queue is a table in the database.
-- **Wireframe:** [Photo to Video wireframe](https://claude.ai/artifact/Y9f7bkitn6dqRLvP5sN5vH), clickable: Styles, New video (upload, then which photo fills each shot), Jobs, Job (running, waiting, stopped, partly failed, ready) with shot cards and "Redo this shot", Editor (swap a room, change a shot, remove a room, re-export), Create a style (demo-shoot method), Original vs reproduction (same house or a different house). Use the Tweaks panel to jump to each state.
+- **Wireframe:** [Photo to Video wireframe](https://claude.ai/artifact/Y9f7bkitn6dqRLvP5sN5vH), clickable: Styles (preset texts), New video (style text field, upload, then the shot plan to check), Jobs, Job (running, waiting, stopped, partly failed, ready) with shot cards and "Redo this shot", Editor (swap a room, change a shot, remove a room, re-export), Create a style (demo-shoot method), Original vs reproduction (same house or a different house). Use the Tweaks panel to jump to each state.
 - **Next as it grows:** final for the demo. The scaling write-up (GC-7) names two pieces for more than one user: a real queue with more workers, and a paid tier at the outside services. Triggers are in §5.
 - **Cost:** no spend limit for now (GC-3). Own boxes about $6–8/month; the video service is the cost driver: about $7 per job first pass, up to $26–52 worst case (§6, from `STACK.md`), recorded per job (CO-1).
 
@@ -24,7 +24,8 @@ flowchart LR
   worker -->|reads photos, writes clips and final video| files
   worker -->|enhance photo, async poll| img[Photo enhancement service]
   worker -->|generate clip from photo, async poll| vid[Video generation service]
-  worker -->|score clip, sync| qc[Quality check service]
+  worker -->|score clip, sync| qc[Vision and language service]
+  app -->|label photos, write shot plan, async| qc
 ```
 
 ## 1. Sizing answers
@@ -41,16 +42,16 @@ flowchart LR
 
 | # | Interaction | R/W | How often | Peak/s | Expected latency | Data touched | Can be lost? | Source |
 |---|---|---|---|---|---|---|---|---|
-| I-1 | See the style library | R | ~1 per session | <0.1 | ≤ 1 s | Style, Song | No (demo styles kept) | FR-1.2 |
+| I-1 | See the preset styles and fill the style text field | R | ~1 per session | <0.1 | ≤ 1 s | Style, Song | No (demo styles kept) | FR-1.2 |
 | I-2 | Upload a photoshoot | W | ~1 per job, up to 40 photos | <0.1 | Upload finishes as fast as the connection allows; page responds ≤ 1 s | Photoshoot, Photo | Only through the demo | FR-1.1, DE-2 |
 | I-3 | Submit a job | W | ~1 per job | <0.1 | ≤ 1 s to accept | Job | Only through the demo | FR-1.3 |
 | I-4 | Make the video (system, in the background) | W | 1 job at a time | — | median 10 min, max 30 min | Job, Job shot, Attempt, Video | Only through the demo | FR-1.4–1.8, PF-1, PF-2 |
 | I-5 | Check job status (browser polls) | R | every 5 s while a job page is open | 0.2 | ≤ 1 s | Job, Job shot | — | FR-1.3 |
 | I-6 | List jobs, open a past job | R | a few per session | <0.1 | ≤ 1 s | Job | No (demo job kept) | FR-1.3 |
 | I-7 | Play and download the video | R | ~1 per job | <0.1 | Starts in a few seconds | Video | Only through the demo | FR-1.9 |
-| I-8 | Create a style (demo-photoshoot method) | W | 2–3 per project | <0.1 | Save ≤ 1 s | Style, Style shot, Song, Photoshoot | Kept through the demo | FR-2.1, FR-2.2 |
-| I-9 | Reproduce a style on its demo shoot or another shoot, compare side by side | W then R | about 3 per style | <0.1 | Same as I-4 | Style, Job, Video | Kept through the demo | FR-2.3, FR-2.4 |
-| I-11 | See and change which photo fills each shot slot before submitting | W | ~1 per job | <0.1 | ≤ 1 s | Job, Job shot, Photo | Only through the demo | FR-1.10 |
+| I-8 | Create a style: write the text, pick a song, try it on a demo shoot, mark the reference video | W | 2–3 per project | <0.1 | Save ≤ 1 s; each try is a job (I-4) | Style, Song, Photoshoot, Job | Kept through the demo | FR-2.1, FR-2.2 |
+| I-9 | Reproduce a style on another shoot, compare with the reference video side by side | W then R | about 3 per style | <0.1 | Same as I-4 | Style, Job, Video | Kept through the demo | FR-2.3, FR-2.4 |
+| I-11 | The system writes the shot plan from the style text and photos; the photographer checks and changes it before submitting | W | ~1 per job | <0.1 | Plan ready in under a minute (background); each change ≤ 1 s | Job, Job shot, Photo | Only through the demo | FR-1.10 |
 | I-12 | Redo one shot of a finished video | W | a few per project | <0.1 | One shot plus re-cut, about 2 min | Job shot, Attempt, Video | Only through the demo | FR-1.12 |
 | I-13 | Edit a finished video (swap a room, change a shot, remove a room) and re-export | W | a few per job | <0.1 | Each edit saves ≤ 1 s; re-export ≤ 10 min (PF-4) | Job shot, Attempt, Video | Only through the demo | FR-1.13–FR-1.16 |
 | I-10 | Apply a saved style to another photoshoot | W | same as I-3 | — | same as I-3 | Style, Job | — | FR-2.5 |
@@ -69,12 +70,11 @@ Load is a single browser and a few jobs. One small app server and one database h
 | Entity | What it is | Key attributes | Relations | Durability | Growth |
 |---|---|---|---|---|---|
 | Song | A Creative Commons non-commercial track | title, artist, license, source URL (GC-5) | 1 to n Style | keep through demo | <10 |
-| Style | A saved storyboard plus its song | name, song, demo photoshoot, original video | has Style shots; belongs to a Song | keep through demo | 2–3 |
-| Style shot | One slot in a style | order, room or subject, photo-edit prompt, movement name, movement prompt, speed, model, place in song, cut time, transition into the next shot | belongs to Style | keep through demo | 5–8 per style |
+| Style | A written style plus its song (a preset) | name, author, style text, song, frame rate, demo photoshoot, reference video (a job) | belongs to a Song | keep through demo | 2–5 |
 | Photoshoot | The photos uploaded for one property | uploaded at | has Photos | disposable | <50 |
 | Photo | One uploaded image | file reference, type, size | belongs to Photoshoot | disposable | ≤ 40 per shoot |
-| Job | One run of photoshoot + style | status, style, photoshoot, submitted, finished, total time, stop reason | has Job shots, one Video | disposable (demo job kept) | <50 |
-| Job shot | One shot of a job | style shot, photo (assigned, changeable before submit), enhanced photo reference, status, failure reason | belongs to Job; has Attempts | disposable | 5–8 per job |
+| Job | One run of photoshoot + style text + song | status, style (if a preset was used), the style text as used, song, photoshoot, plan status, submitted, finished, total time, stop reason | has Job shots (the shot plan), one Video | disposable (demo job kept) | <50 |
+| Job shot | One shot of the job's shot plan | order, photo, photo edits, movement name and prompt, speed, length, transition, cut time, edited photo reference, status, failure reason | belongs to Job; has Attempts | disposable | 5–8 per job |
 | Attempt | One try at making a shot | prompt, model used, clip reference, check score, pass or fail | belongs to Job shot | disposable | up to 4 per shot (OB-1, OB-2) |
 | Video | The finished file | file reference, length | belongs to Job | disposable (demo job kept) | <50 |
 
@@ -85,12 +85,10 @@ config:
 ---
 erDiagram
   SONG ||--o{ STYLE : "plays in"
-  STYLE ||--|{ STYLE_SHOT : "has"
   PHOTOSHOOT ||--|{ PHOTO : "contains"
   STYLE ||--o{ JOB : "applied in"
   PHOTOSHOOT ||--o{ JOB : "used by"
   JOB ||--|{ JOB_SHOT : "has"
-  STYLE_SHOT ||--o{ JOB_SHOT : "fills"
   PHOTO ||--o{ JOB_SHOT : "feeds"
   JOB_SHOT ||--|{ ATTEMPT : "tries"
   JOB ||--o| VIDEO : "produces"
@@ -100,9 +98,9 @@ erDiagram
 
 | Read | Entities combined | How | At this scale |
 |---|---|---|---|
-| I-1 library | Style, Song | list with the song's title | fine as a query |
+| I-1 presets | Style, Song | list with the song's title | fine as a query |
 | I-5, I-6 job status and list | Job, Job shot | filter by job, sort by order | fine as a query |
-| I-9 comparison table | Style shot, Job shot, Attempt | join by shot slot | fine as a query (tens of rows) |
+| I-9 comparison table | Job shot, Attempt of the reference and the reproduction jobs | side by side by position | fine as a query (tens of rows) |
 | EV-1, EV-2 reports | Job, Job shot, Attempt | scan all jobs | fine as a query (under 50 jobs) |
 
 ## 4. API operations
@@ -115,25 +113,26 @@ config:
   layout: elk
 ---
 flowchart LR
-  client[Web client] -->|listStyles, getStyle, createStyle, createUpload, createJob, updateJobShots, submitJob, listJobs, getJob, redoShot, getVideo, createReproduction, getReproduction| app[App server]
+  client[Web client] -->|listStyles, getStyle, createStyle, updateStyle, createUpload, createJob, updateJobShots, submitJob, listJobs, getJob, redoShot, getVideo, createReproduction, getReproduction| app[App server]
   client -->|upload photos, download video| files[(File storage)]
   worker[Background worker] -->|enhancePhoto| img[Photo enhancement service]
   worker -->|generateClip, getClip| vid[Video generation service]
-  worker -->|scoreClip| qc[Quality check service]
+  worker -->|scoreClip| qc[Vision and language service]
+  app -->|labelPhotos, planShots| qc
 ```
 
 ### 4.1 App server
 
 | Operation | Called by | Input | Output | R/W | Latency class | Sync / async | Serves |
 |---|---|---|---|---|---|---|---|
-| `listStyles` — `GET /styles` | Web client | — | styles with song and shot count | R | ≤ 1 s | sync | I-1, FR-1.2 |
-| `getStyle` — `GET /styles/{id}` | Web client | style id | style, its shots, its song | R | ≤ 1 s | sync | I-1, I-9 |
+| `listStyles` — `GET /styles` | Web client | — | presets: name, author, text, song | R | ≤ 1 s | sync | I-1, FR-1.2 |
+| `getStyle` — `GET /styles/{id}` | Web client | style id | style text, song, reference video | R | ≤ 1 s | sync | I-1, I-9 |
 | `listSongs` — `GET /songs` | Web client | — | tracks with license and source | R | ≤ 1 s | sync | I-8, GC-5 |
-| `createStyle` — `POST /styles` | Web client | name, song, demo photoshoot, original video | Style (draft) | W | ≤ 1 s | sync | I-8, FR-2.1, FR-2.2 |
-| `updateStyleShots` — `PUT /styles/{id}/shots` | Web client | edited shot rows | Style | W | ≤ 1 s | sync | I-8 |
+| `createStyle` — `POST /styles` | Web client | name, author, style text, song, frame rate, demo photoshoot | Style | W | ≤ 1 s | sync | I-8, FR-2.1, FR-2.2, FR-2.5 |
+| `updateStyle` — `PUT /styles/{id}` | Web client | text, song, frame rate | Style | W | ≤ 1 s | sync | I-8 |
 | `createUpload` — `POST /photoshoots` | Web client | file names, sizes, types | Photoshoot, signed upload links; refusal reasons for bad files | W | ≤ 1 s | sync | I-2, FR-1.1, DE-2 |
-| `createJob` — `POST /jobs` | Web client | photoshoot, style | Job (draft) with a proposed photo for each shot slot, and which slots reuse a photo or are skipped | W | ≤ 1 s | sync | I-3, I-11, FR-1.10 |
-| `updateJobShots` — `PUT /jobs/{id}/shots` | Web client | photo per shot slot | Job (draft) | W | ≤ 1 s | sync | I-11, FR-1.10 |
+| `createJob` — `POST /jobs` | Web client | photoshoot, style text, song, preset style (optional) | Job (draft, plan being written); the plan appears when ready | W | ≤ 1 s accept; plan async | sync accept | I-3, I-11, FR-1.10 |
+| `updateJobShots` — `PUT /jobs/{id}/shots` | Web client | the edited shot plan | Job (draft) | W | ≤ 1 s | sync | I-11, FR-1.10 |
 | `submitJob` — `POST /jobs/{id}/submit` | Web client | job id | Job (queued; says it is waiting if another job runs) | W | ≤ 1 s | sync accept; the work is async | I-3, FR-1.3, SC-1 |
 | `restartJob` — `POST /jobs/{id}/restart` | Web client | stopped job id | Job (queued; finished shots kept) | W | ≤ 1 s | sync accept | FR-1.5 |
 | `redoShot` — `POST /jobs/{id}/shots/{n}/redo` | Web client | job id, shot | Job shot (queued) | W | ≤ 1 s | sync accept; work async | I-12, FR-1.12 |
@@ -142,8 +141,8 @@ flowchart LR
 | `listJobs` — `GET /jobs` | Web client | — | jobs with status | R | ≤ 1 s | sync | I-6, FR-1.3 |
 | `getJob` — `GET /jobs/{id}` | Web client | job id | status, shots with status and failure reason, stop reason, time taken | R | ≤ 1 s | sync | I-5, FR-1.5, RL-1 |
 | `getVideo` — `GET /jobs/{id}/video` | Web client | job id | signed download link | R | ≤ 1 s | sync | I-7, FR-1.9 |
-| `createReproduction` — `POST /styles/{id}/reproductions` | Web client | style id, photoshoot (the demo shoot or another) | Job on that photoshoot | W | ≤ 1 s | sync accept; work async | I-9, FR-2.3 |
-| `getReproduction` — `GET /styles/{id}/reproductions/{job}` | Web client | style id, job id | original and reproduction links, per-shot checks (song, cut time, movement name, transition, flagged) | R | ≤ 1 s | sync | I-9, FR-2.4 |
+| `createReproduction` — `POST /styles/{id}/reproductions` | Web client | style id, photoshoot (another shoot) | Job on that photoshoot | W | ≤ 1 s | sync accept; work async | I-9, FR-2.3 |
+| `getReproduction` — `GET /styles/{id}/reproductions/{job}` | Web client | style id, job id | reference and reproduction links, both shot plans side by side (song, shot count and lengths, movements, transitions, flagged) | R | ≤ 1 s | sync | I-9, FR-2.4 |
 
 **Inside the app server (no caller):** labelling a new photoshoot's rooms in the background through the quality-check service, so slots can be filled (FR-1.10). `ARCHITECTURE.md` holds the contracts, including renamed external operations (`editPhoto`, `checkClip`) and the supporting operations added there (`completeUpload`, `getPhotoshoot`, `setOriginal`).
 
@@ -163,7 +162,8 @@ The worker does not take calls. It reads the database for work.
 
 | Operation | Called by | Input | Output | Latency class | Serves |
 |---|---|---|---|---|---|
-| `enhancePhoto` | Worker (run next job) | photo, the style shot's photo-edit prompt (composition, lens, angle, light) | edited photo | seconds to a minute | FR-1.8 |
+| `planShots` | App server (background, after createJob) | style text, song length, photos with their room labels and small copies, the 12 movement names, allowed clip lengths | a shot plan | seconds to a minute | FR-1.10 |
+| `enhancePhoto` | Worker (run next job) | photo, the shot's photo-edit prompt (composition, lens, angle, light) | edited photo | seconds to a minute | FR-1.8 |
 | `generateClip` / `getClip` | Worker (run next job) | edited photo as first frame, movement prompt, length (the next allowed length up from the cut: 4, 6 or 8 s on Veo) | clip, delivered later; the worker polls | about 1 min | FR-1.4 |
 | `scoreClip` | Worker (run next job) | clip, frames from it, source photo | score for "looks AI-generated" and "matches source", counts of people and fixtures | seconds | FR-1.7, QC-1, VR-5 |
 
@@ -172,13 +172,13 @@ The worker does not take calls. It reads the database for work.
 ### Web client
 
 **Why it exists:** the photographer works in a desktop browser (FR-1.1, DE-1). **Wireframe:** [Photo to Video wireframe](https://claude.ai/artifact/Y9f7bkitn6dqRLvP5sN5vH). **Screens:**
-- **Styles:** cards for each style with song and a "Use this style" button, a "See reproduction" link and a "Create a style" link. Only demo styles exist; no empty state is needed.
-- **New video (upload):** the chosen style, a drop zone, the photo grid. States: empty, photos ready, invalid files (names the file and the reason; submit stays off and says why). Then the shot-slot list: each slot's proposed photo, changeable, and which slots reuse a photo or are skipped (FR-1.10).
+- **Styles:** preset cards with their text, author and song; "Use this style" fills the New video text field; "See reproductions"; "Create a style".
+- **New video:** a style text field (filled from a preset, editable, with "Save as my style") and the song; a drop zone and photo grid (empty, photos ready, invalid files with reasons); then the shot plan the system wrote, one editable card per shot, with notes where the text asked for a room the photos lack (FR-1.10).
 - **Jobs:** every job with its status; opens a job.
 - **Job:** running (which shot, attempts), waiting (another job is running), stopped (names the shot and the reason, "Start again" keeps finished shots), ready with failed shot marked, ready. Shot table with status and reason, and "Redo this shot". Player, download and the song's credit once there is a video.
-- **Create a style:** upload the demo photoshoot, name, song (with its licence), the original video, and an editable shot table (photo, photo edit, movement name, speed, cut time, transition); save and run a reproduction. The wireframe still shows three methods; v1 builds only this one (REQUIREMENTS 0a #5).
+- **Create a style:** name, author, the style text, song (with its licence), frame rate and a demo photoshoot; "Try it" makes a plan and a video; revise the text and try again; "Use as reference video". No creator video is uploaded (FR-3.6).
 - **Editor:** a timeline of the shots over the song bar; pick a shot to swap its photo, change its movement (the 12 names), speed, prompt, photo edit, length or transition, or remove it; each card says whether it will be made again, only re-cut, or is unchanged; "Re-export video".
-- **Original and reproduction:** pick the reproduction (demo shoot or another shoot), two players, a play-both button, a per-shot table of checks (song, cut time, movement name, transition, flagged), keep or edit.
+- **Reference and reproduction:** pick the reproduction (another shoot), two players, a play-both button, both shot plans side by side (shot count and lengths, movements, transitions, flagged) and cut checks against each plan; keep or edit the text.
 - No accounts (one shared passphrase), no phone layout (FR-3.2, FR-3.4).
 
 ### App server
@@ -197,9 +197,9 @@ The worker does not take calls. It reads the database for work.
 
 **Why it exists:** photos, clips and videos are large and do not belong in the database (§2 sizes: up to 1 GB per job). **Holds / does:** uploads, enhanced photos, clips, final videos, the songs. The browser sends and receives files directly through signed links so the app server never carries video. **Provided by platform:** the local disk would do for the demo; the kind stays "file storage" so `choose-stack` can pick.
 
-### Photo enhancement service, Video generation service, Quality check service
+### Photo enhancement service, Video generation service, Vision and language service
 
-**Why they exist:** FR-1.8 (improve the photo), FR-1.4 (movement from a still), FR-1.7 and QC-1 (catch visibly AI shots). They are outside services from the approved list, or on a free tier if outside it (GC-4). They are the slowest and most limited boxes: speed, failure rate and free allowance live on the provider's side (KEY_METRICS guarantees). **Holds / does:** nothing of ours. **Provided by platform:** n/a.
+**Why they exist:** FR-1.8 (improve the photo), FR-1.4 (movement from a still), FR-1.10 (label the photos and turn the style text into a shot plan), FR-1.7 and QC-1 (catch visibly AI shots). They are outside services from the approved list, or on a free tier if outside it (GC-4). They are the slowest and most limited boxes: speed, failure rate and free allowance live on the provider's side (KEY_METRICS guarantees). **Holds / does:** nothing of ours. **Provided by platform:** n/a.
 
 ### What to add next
 

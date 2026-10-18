@@ -32,17 +32,18 @@ flowchart LR
   client -->|styles, songs pages and API| library
   client -->|createUpload, completeUpload, getPhotoshoot| shoots
   client -->|jobs, shots, redo, restart, editor edits and re-export, video link| jobs
-  client -->|getReproduction, setOriginal| compare
+  client -->|getReproduction, setReference| compare
   client -->|presigned upload and download| bucket
   shoots -->|labelPhotos| providers
   shoots -->|thumbnail, probe| media
   shoots -->|presign upload and download, get, head| files
   library -->|listPhotos| shoots
   library -->|allowedLengths| providers
-  jobs -->|getStyleForJob| library
+  jobs -->|getStyle| library
+  jobs -->|planShots| providers
   jobs -->|listPhotos| shoots
   jobs -->|presign download| files
-  compare -->|setOriginalJob| library
+  compare -->|setReferenceJob| library
   compare -->|get video, presign download| files
   pipeline -->|claimNextJob, attempt and shot updates, finishJob| jobs
   pipeline -->|editPhoto, checkEdit, generateClip, checkClip| providers
@@ -63,22 +64,22 @@ Every client route also passes through **Access** (the shared passphrase); those
 | Module | What it does | Owns (writes) | Serves | Called by |
 |---|---|---|---|---|
 | Access | Checks the shared demo passphrase on every request | none | every route | every route |
-| Library | Songs, styles and their shots | `songs`, `styles`, `style_shots` | listStyles, getStyle, listSongs, createStyle, updateStyleShots | client; Jobs; Comparison |
+| Library | Songs and preset styles (style text + song) | `songs`, `styles` | listStyles, getStyle, listSongs, createStyle, updateStyle | client; Jobs; Comparison |
 | Photoshoots | Uploads and labels photos | `photoshoots`, `photos` | createUpload, completeUpload, getPhotoshoot | client; Jobs; Library; Evals |
-| Jobs | A job's life: draft, slot assignment, queue, shots, attempts, finished video, and the web editor's edits | `jobs`, `job_shots`, `attempts` | createJob, updateJobShots, submitJob, restartJob, redoShot, editShot, exportJob, listJobs, getJob, getVideo | client; Pipeline; Comparison; Evals |
+| Jobs | A job's life: draft, the shot plan written from the style text, queue, shots, attempts, finished video, and the web editor's edits | `jobs`, `job_shots`, `attempts` | createJob, updateJobShots, submitJob, restartJob, redoShot, editShot, exportJob, listJobs, getJob, getVideo | client; Pipeline; Comparison; Evals |
 | Pipeline *(worker)* | Runs the next queued job end to end | none | none (no caller) | worker loop |
 | Providers *(both)* | Every call to an outside AI service, and its cost record | `provider_calls` | none | Pipeline; Photoshoots; Library |
 | Media *(both)* | Image and video processing (crop, frames, assemble, detect cuts) | none | none | Pipeline; Comparison; Photoshoots |
 | Files *(both)* | Bucket key layout, presigned links, object reads and writes | none (bucket objects) | none | Photoshoots; Jobs; Pipeline; Comparison; Library (song links) |
-| Comparison | Cut times detected in finished videos; original vs reproduction | `cut_checks` | getReproduction, setOriginal | client; Pipeline |
+| Comparison | Cut times detected in finished videos; reference video vs reproduction | `cut_checks` | getReproduction, setReference | client; Pipeline |
 | Evals | Runs EV-1 and EV-2 and writes their reports | none (report files) | command line only | builder |
 
 **Key decisions.**
 - **One job runs at a time is a database rule:** a partial unique index allows at most one `jobs` row with status `running` (SC-1).
 - **Only the Jobs module writes job state.** The worker's Pipeline owns no tables and changes jobs, shots and attempts only through Jobs' interface, so the app and worker never write the same rows two ways.
-- **A job is a snapshot of its style.** `job_shots` copy the style shot's prompts, movement, length and transition at creation, so editing a style never changes a job that ran (CH-1, OB-1). After that, only the web editor changes a job's shot, one shot at a time.
+- **A style is text; each job gets its own shot plan.** A style is a name, a style text and a song (REQUIREMENTS 0a #8); no storyboard or creator video is stored. On createJob the planner turns the job's style text and photos into `job_shots`, which the photographer edits before submitting. The job keeps the text it was made from, so editing a preset never changes a job (CH-1, OB-1). After submit, only the web editor changes a job's shot, one shot at a time.
 - **Restart, redo, editor re-export and first run are one path.** The worker runs every shot whose status is `pending`, then re-assembles the video from every shot not removed. "Start again", "Redo this shot" and "Re-export" only set shots back to `pending` and queue the job; a re-export with only length, transition or removal changes sets no shot pending and just re-cuts (FR-1.5, FR-1.12, FR-1.16).
-- **A style's original video is a job.** The creator runs the style on its demo photoshoot and marks that job as the original. Reproductions are compared with it by detected cut times, so both sides are measured the same way (FR-2.4, VR-2) **[assumed]**.
+- **A style's reference video is a job.** The author tries the style on a demo photoshoot and marks the job they like as the reference video. Reproductions are laid beside it, and every video's cuts are checked against its own plan (FR-2.4, VR-2), so no outside video is ever needed (FR-3.6).
 - **Every outside call writes one `provider_calls` row**, with cost reported by OpenRouter or computed from the list price under BYOK (CO-1).
 
 ## Existing system
@@ -91,17 +92,18 @@ HLD entity mapping: HLD *Video* is the `video_*` columns of `jobs` (one video pe
 
 | Operation | Path | Sync / async | Committed before response? |
 |---|---|---|---|
-| listStyles | client → Library.listStyles → read `styles`, `songs`, count `style_shots` | sync | n/a (read) |
-| getStyle | client → Library.getStyle → read `styles`, `style_shots`, `songs` | sync | n/a |
+| listStyles | client → Library.listStyles → read `styles`, `songs` | sync | n/a (read) |
+| getStyle | client → Library.getStyle → read `styles`, `songs` | sync | n/a |
 | listSongs | client → Library.listSongs → read `songs` | sync | n/a |
-| createStyle | client → Library.createStyle → Photoshoots.listPhotos (validate) → insert `styles` + `style_shots` | sync | yes |
-| updateStyleShots | client → Library.updateStyleShots → update, add and remove `style_shots` rows for the style (jobs keep their copies) | sync | yes |
+| createStyle | client → Library.createStyle → insert `styles` | sync | yes |
+| updateStyle | client → Library.updateStyle → update the style's text, song or frame rate (jobs keep the text they used) | sync | yes |
 | createUpload | client → Photoshoots.createUpload → insert `photoshoots`, `photos` (status `awaiting_upload`) → Files.presignUpload per photo → links | sync | yes |
 | (browser upload) | client → bucket, one presigned POST per photo | sync, browser to bucket | n/a |
 | completeUpload | client → Photoshoots.completeUpload → Files.headObject per photo → update `photos` → background: Providers.labelPhotos → update `photos.room` | sync accept, labels async | upload status yes, labels later |
 | getPhotoshoot | client polls → read `photoshoots`, `photos` | sync | n/a |
-| createJob | client → Jobs.createJob → Library.getStyleForJob → Photoshoots.listPhotos → insert `jobs` (draft) + `job_shots` with proposed photos | sync | yes |
-| updateJobShots | client → Jobs.updateJobShots → update `job_shots.photo_id` (draft only) | sync | yes |
+| createJob | client → Jobs.createJob → insert `jobs` (draft, plan `planning`) → background: Photoshoots.listPhotos → Providers.planShots → validate → insert `job_shots` → plan `ready` | sync accept, plan async | job yes, plan later |
+| updateJobShots | client → Jobs.updateJobShots → replace the draft's `job_shots` with the edited plan (draft only) | sync | yes |
+| replanJob | client → Jobs.replanJob → new style text → plan `planning` → background planShots as in createJob | sync accept, plan async | yes |
 | submitJob | client → Jobs.submitJob → `jobs` draft → queued | sync | yes |
 | listJobs, getJob | client polls every 5 s → read `jobs`, `job_shots`, latest `attempts` | sync | n/a |
 | getVideo | client → Jobs.getVideo → Files.presignDownload | sync | n/a |
@@ -111,7 +113,7 @@ HLD entity mapping: HLD *Video* is the `video_*` columns of `jobs` (one video pe
 | exportJob | client (editor) → Jobs.exportJob → shots with `needs_new_clip` → `pending`, round + 1; job → queued → worker makes those shots and re-cuts all shots not removed into a new video version | sync accept, work async | yes |
 | Run next job | worker loop → Jobs.claimNextJob → per pending shot in parallel: Media.crop, Providers.editPhoto + checkEdit, Providers.generateClip + checkClip, Jobs attempt updates → Media.assemble → Files.put → Jobs.finishJob → Comparison.recordCuts | async | each step committed as it happens |
 | Startup recovery | worker start → Jobs.recoverInterrupted (running job → `stopped`, open attempts closed) → Providers.recoverCalls (finished clips downloaded, open calls closed); app start → Photoshoots relabels any shoot left `labelling` | async | yes |
-| setOriginal | client → Comparison.setOriginal → Library.setOriginalJob → update `styles.original_job_id` | sync | yes |
+| setReference | client → Comparison.setReference → Library.setReferenceJob → update `styles.reference_job_id` | sync | yes |
 | getReproduction | client → Comparison.getReproduction → read `cut_checks` for both jobs, `job_shots`, `attempts` | sync | n/a |
 | Evals | builder runs command → Photoshoots.importPhotoshoot per test shoot (once) → Jobs.createJob + submitJob per shoot → waits → reads tables → writes report files | async, hours | n/a |
 
@@ -187,12 +189,13 @@ sequenceDiagram
   participant L as Library
   participant CMP as Comparison
   C->>J: POST /api/jobs, styleId, photoshootId, purpose reproduction
-  J->>L: getStyleForJob
-  J-->>C: draft job with proposed photos
+  J->>L: getStyle (text and song)
+  J-->>C: draft job, plan being written
+  Note over J: planShots in the background, then the photographer checks the plan
   C->>J: POST /api/jobs/{id}/submit
   Note over J: worker runs it as in the flow above, then Comparison records its cuts
   C->>CMP: GET /api/styles/{id}/reproductions/{jobId}
-  CMP->>CMP: join cut_checks of the original job and this job by shot position
+  CMP->>CMP: read both jobs' shot plans, attempts and cut_checks
   CMP-->>C: two video links, per-shot checks
 ```
 
@@ -215,24 +218,16 @@ erDiagram
   }
   styles {
     TEXT id PK
+    TEXT style_text
     TEXT song_id FK
-    TEXT demo_photoshoot_id FK
-    TEXT original_job_id FK "nullable"
-  }
-  style_shots {
-    TEXT id PK
-    TEXT style_id FK "UK with position"
-    INTEGER position
-    TEXT photo_id FK
+    TEXT demo_photoshoot_id FK "nullable"
+    TEXT reference_job_id FK "nullable"
   }
   photoshoots
-  photos
   jobs
   songs ||--o{ styles : "plays in"
-  styles ||--|{ style_shots : has
-  photoshoots ||--o{ styles : "demo shoot of"
-  photos ||--o{ style_shots : "demo photo of"
-  jobs |o--o| styles : "original of"
+  photoshoots |o--o{ styles : "demo shoot of"
+  jobs |o--o| styles : "reference video of"
 ```
 
 #### `songs` — owned by Library
@@ -254,45 +249,22 @@ One Creative Commons track. Rows are added by a seed command, not through the UI
 
 #### `styles` — owned by Library
 
-A saved storyboard plus its song.
+A preset style: a written style plus its song (REQUIREMENTS Definitions).
 
 | Column | Type | Null | Default | Meaning |
 |---|---|---|---|---|
 | id | TEXT | no | | UUID |
-| name | TEXT | no | | Shown in the library |
-| creator_name | TEXT | no | | Who made it; any name, since there are no accounts (FR-3.2). The library shows creators' and the photographer's own styles alike (FR-1.2) |
-| fps | INTEGER | no | 30 | Frame rate of the original video, 24 or 30; every video of the style is made at it (DE-5) |
+| name | TEXT | no | | Shown on the preset card |
+| author_name | TEXT | no | | Who wrote it; any name, since there are no accounts (FR-3.2). Creators' presets and the photographer's own appear together (FR-1.2) |
+| style_text | TEXT | no | | The written style: pacing and length, movements by name, speed, light and photo look, transitions, mood |
 | song_id | TEXT → songs.id | no | | The style's song |
 | song_offset_s | REAL | no | 0 | Where in the song the video starts |
-| demo_photoshoot_id | TEXT → photoshoots.id | no | | The demo shoot the style was built on (FR-2.1) |
-| original_job_id | TEXT → jobs.id | yes | null | The creator's approved run on the demo shoot; the "original video" (FR-2.4) |
+| fps | INTEGER | no | 30 | Frame rate of every video made from the style, 24 or 30 (DE-5) |
+| demo_photoshoot_id | TEXT → photoshoots.id | yes | null | The demo shoot the author tried it on (FR-2.1); null for a style the photographer saved from a job |
+| reference_job_id | TEXT → jobs.id | yes | null | The author's approved video of this style (FR-2.2, FR-2.4) |
 | created_at, updated_at | TEXT | no | now | |
 
-- **Constraints:** `name` unique; check `fps in (24, 30)`.
-
-#### `style_shots` — owned by Library
-
-One shot slot of a style.
-
-| Column | Type | Null | Default | Meaning |
-|---|---|---|---|---|
-| id | TEXT | no | | UUID |
-| style_id | TEXT → styles.id | no | | |
-| position | INTEGER | no | | Order in the video, from 1 |
-| photo_id | TEXT → photos.id | no | | The demo-shoot photo the creator chose |
-| room | TEXT | no | | What the slot shows: a `Room` value (Shared types); used to fill the slot on a new shoot (FR-1.10) |
-| photo_edit_prompts | TEXT (JSON array of strings) | no | `[]` | The chain of edits toward composition, lens, angle and light, applied in order as in the PRD example (FR-1.8, STACK §7); empty = crop only |
-| movement_name | TEXT | no | | A `MovementName` (REQUIREMENTS Definitions) |
-| movement_prompt | TEXT | no | | Movement prompt; starts as the PRD starter-kit text for `movement_name` and may be edited |
-| speed | TEXT | no | `slow` | `slow`, `medium` or `fast` (more may be added) |
-| model | TEXT | no | | Video model id, e.g. `google/veo-3.1` |
-| length_s | REAL | no | | How long the shot plays in the video |
-| transition | TEXT | no | `cut` | Transition from the previous shot into this one: `cut` or `crossfade` (more may be added); ignored on the first shot |
-| transition_s | REAL | no | 0 | Crossfade length; 0 for a cut. The crossfade ends at the cut, so this shot's clip starts `transition_s` early |
-| removed_at | TEXT | yes | null | Set when the creator removes the shot; removed rows are never deleted, so jobs that copied them keep their link |
-
-- **Constraints:** unique `(style_id, position)` among rows where `removed_at` is null; check `length_s > 0`; check `transition_s >= 0`; check `transition = 'cut' or transition_s > 0`.
-- **Indexes:** `(style_id, position)`, from the unique constraint: getStyle reads shots in order.
+- **Constraints:** `name` unique; check `fps in (24, 30)`; check `length(style_text) between 1 and 4000`.
 
 ### Photoshoots tables
 
@@ -369,31 +341,32 @@ erDiagram
     INTEGER attempt_no
   }
   styles
-  style_shots
   photoshoots
   photos
-  styles ||--o{ jobs : "applied in"
+  styles |o--o{ jobs : "preset used by"
   photoshoots ||--o{ jobs : "used by"
   jobs ||--|{ job_shots : has
-  style_shots ||--o{ job_shots : "copied into"
   photos ||--o{ job_shots : feeds
   job_shots ||--o{ attempts : tries
 ```
 
 #### `jobs` — owned by Jobs
 
-One run of photoshoot + style → video. The video's own columns are here (HLD *Video*).
+One run of photoshoot + style text + song → shot plan → video. The video's own columns are here (HLD *Video*).
 
 | Column | Type | Null | Default | Meaning |
 |---|---|---|---|---|
 | id | TEXT | no | | UUID |
-| style_id | TEXT → styles.id | no | | |
+| style_id | TEXT → styles.id | yes | null | The preset the text came from, if any |
+| style_text | TEXT | no | | The style text this job was planned from, as the photographer left it |
 | photoshoot_id | TEXT → photoshoots.id | no | | |
+| plan_status | TEXT | no | `planning` | `planning`, `ready`, `failed` (more may be added) |
+| plan_notes | TEXT | yes | null | What the planner could not follow, e.g. "the text asks for a pool; no pool photo" (FR-1.10) |
 | purpose | TEXT | no | `video` | `video` or `reproduction` (FR-2.3) |
 | status | TEXT | no | `draft` | `JobStatus` (Shared types) |
 | stop_reason | TEXT | yes | null | `StopReason` when status is `stopped` |
-| song_id | TEXT → songs.id | no | | Copied from the style at creation |
-| song_offset_s | REAL | no | | Copied from the style |
+| song_id | TEXT → songs.id | no | | The song chosen with the style text |
+| song_offset_s | REAL | no | | From the preset, or 0 |
 | created_at | TEXT | no | now | |
 | first_submitted_at | TEXT | yes | null | Set once, by the first submit; PF-1 and PF-2 are measured from here |
 | submitted_at | TEXT | yes | null | Set by submit, restart and redo: when the current run was queued |
@@ -401,7 +374,7 @@ One run of photoshoot + style → video. The video's own columns are here (HLD *
 | deadline_at | TEXT | yes | null | `started_at` + 30 min: the generation budget of the current run (PF-3). Time spent waiting behind another job is not taken from it |
 | finished_at | TEXT | yes | null | When the current run reached `ready`, `ready_with_failures` or `stopped`; for a stop, also when the user was told (RL-1) |
 | first_finished_at | TEXT | yes | null | Set once, when the first run finished; PF-1 uses it |
-| fps | INTEGER | no | | Copied from the style |
+| fps | INTEGER | no | | From the preset, or 30 |
 | video_key | TEXT | yes | null | Bucket key of the current video version |
 | video_version | INTEGER | no | 0 | 1 for the first video; +1 on every re-export, redo or restart that finishes |
 | video_duration_s | REAL | yes | null | |
@@ -414,20 +387,27 @@ One run of photoshoot + style → video. The video's own columns are here (HLD *
 
 #### `job_shots` — owned by Jobs
 
-One shot of a job, with a copy of its style shot.
+One shot of the job's shot plan.
 
 | Column | Type | Null | Default | Meaning |
 |---|---|---|---|---|
 | id | TEXT | no | | UUID |
 | job_id | TEXT → jobs.id | no | | |
-| style_shot_id | TEXT → style_shots.id | no | | The style shot it was copied from (never deleted, see `style_shots.removed_at`) |
 | removed | INTEGER | no | 0 | 1 when the photographer removed this room in the editor (FR-1.15); a removed shot is left out of the video and can be put back |
 | needs_new_clip | INTEGER | no | 0 | 1 after an editor change that needs a new clip; cleared when exportJob sets the shot pending |
 | edited_at | TEXT | yes | null | Last editor change |
-| position | INTEGER | no | | Copied |
-| room, photo_edit_prompts, movement_name, movement_prompt, speed, model, length_s, transition, transition_s | as in `style_shots` | | | Copied at createJob; changed afterwards only by editShot (FR-1.14) |
-| photo_id | TEXT → photos.id | yes | null | The photo filling the slot; null = slot skipped (FR-1.10) |
-| assignment_note | TEXT | yes | null | Why: `matched`, `reused` (photo also used by another slot), `no_match`, `changed_by_photographer` (more may be added) |
+| position | INTEGER | no | | Order in the video, from 1 |
+| room | TEXT | no | | What the shot shows: a `Room` value (Shared types) |
+| photo_id | TEXT → photos.id | yes | null | The photo the shot is made from; null = skipped, the text asked for a room the photos lack (FR-1.10) |
+| photo_edit_prompts | TEXT (JSON array of strings) | no | `[]` | The chain of edits toward composition, lens, angle and light, applied in order as in the PRD example (FR-1.8, STACK §7); empty = crop only |
+| movement_name | TEXT | no | | A `MovementName` (REQUIREMENTS Definitions) |
+| movement_prompt | TEXT | no | | Starts as the PRD starter-kit text for `movement_name`; the planner or photographer may adapt it |
+| speed | TEXT | no | `slow` | `slow`, `medium` or `fast` (more may be added) |
+| model | TEXT | no | | Video model id, e.g. `google/veo-3.1` |
+| length_s | REAL | no | | How long the shot plays in the video |
+| transition | TEXT | no | `cut` | Transition from the previous shot into this one: `cut` or `crossfade` (more may be added); ignored on the first shot |
+| transition_s | REAL | no | 0 | Crossfade length; 0 for a cut. The crossfade ends at the cut, so this shot's clip starts `transition_s` early |
+| plan_note | TEXT | yes | null | Why the planner chose this, or `changed_by_photographer`; shown on the plan card |
 | status | TEXT | no | `pending` | `ShotStatus` (Shared types) |
 | status_detail | TEXT | yes | null | What the photographer reads, e.g. "Attempt 2 of 4: flagged, a person appears" |
 | failure_reason | TEXT | yes | null | `FailureReason` when status is `failed` |
@@ -440,7 +420,8 @@ One shot of a job, with a copy of its style shot.
 | final_attempt_id | TEXT → attempts.id | yes | null | The attempt whose clip is in the video |
 | updated_at | TEXT | no | now | Changes whenever status or detail changes; RL-1 is measured from it |
 
-- **Constraints:** unique `(job_id, position)`; check status in the `ShotStatus` set; check `status <> 'failed' or failure_reason is not null`.
+- **Constraints:** unique `(job_id, position)`; check status in the `ShotStatus` set; check `status <> 'failed' or failure_reason is not null`; check `length_s > 0`; check `transition_s >= 0`; check `transition = 'cut' or transition_s > 0`.
+- Plan fields are written by planShots, changed by the photographer while the job is a draft (updateJobShots), and after that only by editShot (FR-1.14).
 
 #### `attempts` — owned by Jobs
 
@@ -475,7 +456,7 @@ One row per call to an outside AI service (CO-1).
 | Column | Type | Null | Default | Meaning |
 |---|---|---|---|---|
 | id | TEXT | no | | UUID |
-| kind | TEXT | no | | `label_photos`, `edit_photo`, `check_edit`, `generate_clip`, `check_clip` (more may be added) |
+| kind | TEXT | no | | `label_photos`, `plan_shots`, `edit_photo`, `check_edit`, `generate_clip`, `check_clip` (more may be added) |
 | model | TEXT | no | | Model id |
 | job_id | TEXT → jobs.id | yes | null | Null for labelling, which happens before a job exists |
 | job_shot_id | TEXT → job_shots.id | yes | null | |
@@ -523,7 +504,7 @@ FailureReason
             provider_error          the provider returned an error on the last attempt
             refused                 the provider refused the content
             out_of_time             no time left before deadline_at (PF-3)
-            no_photo                the slot was skipped (FR-1.10)
+            no_photo                the plan skipped this shot: no matching photo (FR-1.10)
             job_stopped             the job stopped before this shot finished
             (more may be added)
 ProviderErrorKind
@@ -544,21 +525,23 @@ Song {
   credit         "title, artist, licence, source URL", shown with every video (GC-5)
 }
 
-StyleShot {
-  id, position, photoId, room
-  photoEditPrompts  ordered list, empty = crop only
-  movementName, movementPrompt, speed, model
-  lengthS, transition, transitionS
-}
-
 Style {
-  id, name, creatorName
+  id, name, authorName
+  styleText        the written style
   song             Song
   songOffsetS
   fps              24 or 30
-  demoPhotoshootId
-  originalJobId    null until the creator marks one
-  shots            StyleShot[] in position order
+  demoPhotoshootId null for a style saved from a job
+  referenceJobId   null until the author marks one
+}
+
+PlannedShot {      what planShots returns and updateJobShots accepts, one per shot
+  position, room
+  photoId          null = skipped
+  photoEditPrompts ordered list, empty = crop only
+  movementName, movementPrompt, speed, model
+  lengthS, transition, transitionS
+  planNote
 }
 
 Photo {
@@ -574,11 +557,11 @@ JobShot {
   photoId          null = skipped
   removed          true when removed in the editor
   pendingChange    none | new_clip | recut_only   what the next re-export will do with it
-  assignmentNote   matched | reused | no_match | changed_by_photographer (more may be added)
+  planNote         why the planner chose this, or changed_by_photographer
   editStatus       edited | crop_only | null before editing
   editNote         why the edit was not used
   model            model of the final attempt
-  usedFallback     true when model differs from the style's
+  usedFallback     true when model differs from the plan's
   status           ShotStatus
   statusDetail     text for the photographer
   failureReason    FailureReason or null
@@ -588,6 +571,9 @@ JobShot {
 
 Job {
   id, styleId, styleName, photoshootId, purpose
+  styleText    the text this job was planned from
+  planStatus   planning | ready | failed
+  planNotes    what the planner could not follow
   status       JobStatus
   stopReason   StopReason or null
   submittedAt, startedAt, finishedAt
@@ -648,13 +634,13 @@ Errors     401 with a basic-auth challenge, no body detail
 - No route other than `/healthz` answers without the passphrase.
 - The passphrase is never logged.
 
-## Module: Library — songs and styles
+## Module: Library — songs and preset styles
 
 ### What it does
-Holds the songs and the styles, and gives each new job a consistent copy of its style.
+Holds the songs and the preset styles (a style text plus a song), and fills the New video form from a preset.
 
 ### Owns
-Writes `songs` (seed command only), `styles`, `style_shots`. Reads `photos` through Photoshoots.
+Writes `songs` (seed command only), `styles`.
 
 ### API
 
@@ -662,57 +648,52 @@ Pages under `/` render the same data as these JSON routes by calling the same mo
 
 ```
 listStyles   GET /api/styles                           serves FR-1.2, HLD I-1
-Response   200 { styles: [{ id, name, creatorName, song: Song, shotCount, hasOriginal }] }
+Response   200 { styles: [{ id, name, authorName, styleText, song: Song, hasReference }] }
 
 getStyle     GET /api/styles/{id}                      serves HLD I-1, I-9
-Response   200 { style: Style }
+Response   200 { style: Style, referenceVideoUrl | null }
 Errors     404 style_not_found
 
-listSongs    GET /api/songs                            serves FR-2.1, GC-5
+listSongs    GET /api/songs                            serves FR-1.2, FR-2.1, GC-5
 Response   200 { songs: Song[] }
 
-createStyle  POST /api/styles                          serves FR-2.1, FR-2.2, HLD I-8
-Request    { name, creatorName, songId, songOffsetS?, demoPhotoshootId,
-             shots: [ StyleShot without id ] }
+createStyle  POST /api/styles                          serves FR-2.1, FR-2.2, FR-2.5, HLD I-8
+Request    { name, authorName, styleText, songId, songOffsetS?, fps?, demoPhotoshootId? }
+           A photographer saving their edited text sends the same fields (FR-2.5)
 Response   201 { style: Style }
-Errors     400 invalid_shots — names each bad row and why (unknown movement, photo
-               not in the demo shoot, length longer than the model's longest clip)
+Errors     400 invalid_style — empty or too-long text, fps not 24 or 30
            404 song_not_found | photoshoot_not_found
            409 name_taken
            (more may be added)
 
-updateStyleShots  PUT /api/styles/{id}/shots           serves FR-2.1, HLD I-8
-Request    { shots: [ StyleShot without id ], songId?, songOffsetS? }
+updateStyle  PUT /api/styles/{id}                      serves FR-2.1, HLD I-8
+Request    any of { name, styleText, songId, songOffsetS, fps }
 Response   200 { style: Style }
-Errors     400 invalid_shots, 404 style_not_found
+Errors     400 invalid_style, 404 style_not_found, 409 name_taken
 ```
 
 ### Interface for other modules
 ```
-getStyleForJob(styleId) -> Style
-  The style with its shots in order. Throws StyleNotFound, StyleHasNoShots.
-  Callers rely on: the returned shots are one consistent read, never a mix of
-  before and after an update.
+getStyle(styleId) -> Style
+  Throws StyleNotFound.
 
-setOriginalJob(styleId, jobId)
-  Records the style's original video. Called only by Comparison.setOriginal.
+setReferenceJob(styleId, jobId)
+  Records the style's reference video. Called only by Comparison.setReference.
 ```
 
-`updateStyleShots` updates rows in place by position, adds new ones and sets `removed_at` on dropped ones; it never deletes a row.
-
 ### Calls out
-Photoshoots.listPhotos to check that each shot's photo belongs to the demo shoot. Providers.allowedLengths(model) to check `length_s` plus `transition_s` fits the model. Files.presignDownload for song previews.
+Files.presignDownload for song previews and the reference video.
 
 ### Must hold
-- Only Library writes `songs`, `styles`, `style_shots`.
-- A style shot's `length_s` plus its `transition_s` fits within the longest clip its model can make.
+- Only Library writes `songs`, `styles`.
+- A style holds text and a song only: no video, frames or storyboard taken from outside the product is ever stored (FR-3.6).
 - Every song a style uses has a licence of BY-NC or BY-NC-SA (GC-5).
-- Updating a style never changes a job that already exists (jobs hold copies).
+- Updating a style never changes a job that already exists (each job keeps its own text and plan).
 
 ## Module: Photoshoots — uploads and labels
 
 ### What it does
-Accepts a photoshoot's photos straight into the bucket and labels each photo's room so a style's shot slots can be filled (FR-1.1, FR-1.10).
+Accepts a photoshoot's photos straight into the bucket and labels each photo's room so the planner can write a shot plan (FR-1.1, FR-1.10).
 
 ### Owns
 Writes `photoshoots`, `photos`.
@@ -748,8 +729,8 @@ Trigger proof  internal only, no route
 Reads          photos (uploaded)
 Writes         photos.room, photos.subject; photoshoots.status labelling → ready | label_failed
 Twice-safe     yes — labels are overwritten
-On failure     status label_failed; createJob still works and every slot is
-               assigned in upload order with assignment_note no_match
+On failure     status label_failed; createJob still works and the plan is
+               planned from the photos alone, with a plan note saying rooms are unlabelled
 ```
 
 ### Interface for other modules
@@ -776,28 +757,37 @@ importPhotoshoot(paths, label) -> photoshootId
 ## Module: Jobs — the life of a job
 
 ### What it does
-Creates a job from a style and a photoshoot, proposes which photo fills each slot, queues it, and holds every shot's and attempt's state for the page and the worker.
+Creates a job from a style text, a song and a photoshoot, has the planner write its shot plan, lets the photographer edit it, queues it, and holds every shot's and attempt's state for the page and the worker.
 
 ### Owns
-Writes `jobs`, `job_shots`, `attempts`. Reads `styles`, `style_shots` (through Library), `photos` (through Photoshoots), `provider_calls`.
+Writes `jobs`, `job_shots`, `attempts`. Reads `styles` (through Library), `photos` (through Photoshoots), `provider_calls`.
 
 ### API
 ```
-createJob    POST /api/jobs                            serves FR-1.10, FR-2.3, FR-2.5, HLD I-3, I-11
-Request    { styleId, photoshootId, purpose?: video | reproduction }
-Response   201 { job: Job }   status draft, each slot with a proposed photo
-Errors     404 style_not_found | photoshoot_not_found
-           409 style_has_no_shots
+createJob    POST /api/jobs                            serves FR-1.2, FR-1.10, FR-2.3, FR-2.5, HLD I-3, I-11
+Request    { photoshootId, styleText, songId, styleId?, purpose?: video | reproduction }
+           styleId names the preset the text came from; its fps and song offset are used.
+           A reproduction sends the preset's text unchanged.
+Response   201 { job: Job }   status draft, planStatus planning; poll getJob for the plan
+Errors     400 invalid_style — empty or too-long text
+           404 style_not_found | photoshoot_not_found | song_not_found
            409 photoshoot_not_ready — still uploading (labelling may still run;
-               slots are then filled in upload order)
+               the plan is then made from the photos alone)
            (more may be added)
 
+replanJob    POST /api/jobs/{id}/plan                  serves FR-1.2, FR-1.10
+Request    { styleText?, songId? }   the photographer changed the text on the plan page
+Response   202 { job: Job }   planStatus planning; the old plan is replaced when ready
+Errors     404 job_not_found, 409 not_draft, 400 invalid_style
+
 updateJobShots  PUT /api/jobs/{id}/shots               serves FR-1.10, HLD I-11
-Request    { shots: [{ position, photoId | null }] }
+Request    { shots: PlannedShot[] }   the whole edited plan: shots changed, added, removed, reordered
 Response   200 { job: Job }
 Errors     404 job_not_found
-           409 not_draft
-           400 photo_not_in_photoshoot
+           409 not_draft | plan_not_ready
+           400 invalid_plan — names each bad shot: unknown movement, photo not in this
+               photoshoot, length longer than the model's longest clip
+           (more may be added)
 
 submitJob    POST /api/jobs/{id}/submit                serves FR-1.3, SC-1, HLD I-3
 Response   202 { job: Job }   queued; waitingBehind set if another job runs
@@ -829,7 +819,7 @@ Response   202 { job: Job }
 Errors     404 job_not_found | shot_not_found
            409 job_busy — job is queued or running
            409 not_finished — the job is a draft or stopped (use restart)
-           409 no_photo — the slot is skipped
+           409 no_photo — the shot has no photo
 
 listJobs     GET /api/jobs                             serves FR-1.11, HLD I-6
 Response   200 { jobs: [{ id, styleName, photoshootLabel, purpose, status, submittedAt, elapsedS }] }
@@ -843,6 +833,23 @@ getVideo     GET /api/jobs/{id}/video                  serves FR-1.9, HLD I-7
 Response   200 { url, downloadUrl, durationS }   url plays inline, downloadUrl saves the file, 1 h
 Errors     404 job_not_found, 409 no_video
 ```
+
+### Jobs and messages
+```
+planJob   started by createJob and replanJob; runs in a background thread of the app
+          process, like labelling (A-3), so it never waits behind a running job
+Trigger proof  internal only, no route
+Reads          the job's style text and song, the photoshoot's photos and labels
+Calls          Providers.planShots, then checks the plan: movement names known, each
+               length + transition fits the model's longest clip, total length fits the
+               song after its offset, photos belong to the photoshoot
+Writes         job_shots (the plan), jobs.plan_status ready | failed, jobs.plan_notes
+Twice-safe     yes — a new plan replaces the draft's shots
+On failure     an invalid plan is asked for once more with the errors listed; then
+               plan_status failed with the reason, and the page offers "Try again" or
+               writing the plan by hand (updateJobShots accepts a full plan)
+```
+On app start, a job left in `planning` is planned again.
 
 ### Interface for other modules
 ```
@@ -957,6 +964,9 @@ Writes `provider_calls`.
 ### Interface for other modules
 ```
 labelPhotos(photos: [{ photoId, jpegBytes }], photoshootId) -> [{ photoId, room: Room, subject }]
+planShots(styleText, songDurationS, photos: [{ photoId, room, subject, jpegBytes }],
+          movements: { name -> starterPrompt }, allowedLengths, ids) -> { shots: PlannedShot[], notes }
+  Returns the shot plan as JSON in the PlannedShot shape; anything else → bad_response.
 editPhoto(jpegBytes, prompt, ids) -> jpegBytes
 checkEdit(originalJpeg, editedJpeg, ids) -> EditCheck
 generateClip(firstFrameJpeg, prompt, model, lengthS, ids) -> ClipResult
@@ -981,6 +991,7 @@ cost; a call never retries on its own after a 402.
 |---|---|---|---|
 | generateClip | OpenRouter Videos API; `VIDEO_MODEL` default `google/veo-3.1`, fallback `bytedance/seedance-2.0`; the shot's `model` wins | model, prompt, duration, resolution 1080p, aspect ratio 16:9, audio off, the photo as a base64 first frame | job id → poll → clip file, downloaded with the API key; cost in `usage` |
 | editPhoto | OpenRouter chat completions; `ENHANCE_MODEL` default `google/gemini-nano-banana-2.1`, `ENHANCE_MODEL_FALLBACK` default `google/gemini-3.1-flash-image` | the current photo, one photo-edit prompt ending "preserve all architectural and interior details" (PRD pp.10–12) | one image |
+| planShots | OpenRouter chat completions; `PLANNER_MODEL` default `anthropic/claude-sonnet-5.5` (STACK §8a) | the style text, song length, small copies of the photos with their labels, the 12 movement names with their PRD starter-kit prompts, allowed clip lengths | JSON shot plan; anything else → `bad_response` |
 | checkEdit, checkClip, labelPhotos | OpenRouter chat completions; `QUALITY_CHECK_MODEL` default `google/gemini-3.8-flash` | photos as images; for clips, the clip inline plus frames, both small enough for the inline limit | JSON matching EditCheck, ClipCheck or labels; anything else → `bad_response` |
 
 - **Cost:** `cost_usd` is the cost OpenRouter reports. For a BYOK call (the response's usage marks it [verify]; otherwise the models listed in the `BYOK_MODELS` setting), `cost_usd` = output seconds × the model's listed price per second and `cost_source = list_price` (CO-1).
@@ -1040,32 +1051,36 @@ put(key, path) / get(key, path) / headObject(key) -> { sizeBytes } | None
 ## Module: Comparison — cut times and side by side
 
 ### What it does
-Measures where the cuts landed in each finished video, and lays a reproduction beside its style's original (FR-2.4, VR-2).
+Measures where the cuts landed in each finished video against its plan, and lays a reproduction beside its style's reference video (FR-2.4, VR-2).
 
 ### Owns
 Writes `cut_checks`. Reads `jobs`, `job_shots`, `attempts`, `styles`.
 
 ### API
 ```
-setOriginal    POST /api/styles/{id}/original           serves FR-2.4
+setReference   POST /api/styles/{id}/reference          serves FR-2.2, FR-2.4
 Request    { jobId }
 Response   200 { style: Style }
 Errors     404 style_not_found | job_not_found
-           409 not_eligible — the job is not ready, or not this style on its demo shoot
+           409 not_eligible — the job is not ready, or was not made from this style's text
 
 getReproduction  GET /api/styles/{id}/reproductions/{jobId}   serves FR-2.4, VR-2, VR-6, HLD I-9
 Response   200 {
-  original:     { jobId, videoUrl } ,
-  reproduction: { jobId, videoUrl, photoshootLabel, sameHouse: bool },
+  reference:    { jobId, videoUrl, photoshootLabel },
+  reproduction: { jobId, videoUrl, photoshootLabel },
   song:         { sameSong: bool, credit },
+  sameText:     bool   the reproduction used the style's text unchanged,
+  summary: { reference and reproduction: shotCount, totalS, medianShotS,
+             movements used with counts, transitions used with counts },
   shots: [{ position, movementName, transition,
-            originalCutS, reproductionCutS, cutErrorS,      null for the first shot or a missing shot
+            reference: { lengthS, cutErrorS } | null,         by position; shot counts may differ
+            reproduction: { lengthS, cutErrorS } | null,      cutErrorS is against the job's own plan
             flagged: bool }],                               the reproduction's shot failed, used a fallback,
                                                             or was changed in the editor
-  maxCutErrorS
+  maxCutErrorS                                         worst over both videos
 }
 Errors     404 style_not_found | job_not_found
-           409 no_original — the style has no original yet
+           409 no_reference — the style has no reference video yet
            409 not_ready
 ```
 
@@ -1077,11 +1092,11 @@ recordCuts(jobId)
 ```
 
 ### Calls out
-Media.detectCuts and Files.get to read the video; Files.presignDownload for both videos; Library.setOriginalJob.
+Media.detectCuts and Files.get to read the video; Files.presignDownload for both videos; Library.setReferenceJob.
 
 ### Must hold
 - Only Comparison writes `cut_checks`.
-- An original is always a ready job of the same style on its demo shoot.
+- A reference video is always a ready job made from the style's text.
 
 ## Module: Evals — EV-1 and EV-2 (command line)
 
@@ -1122,7 +1137,7 @@ On failure     a job that stops is reported with its reason; the run continues
 | Backup and restore | None required (HLD §1 row 3). The demo job's video is also downloaded and kept offline before the demo (DE-4) |
 | Health | `GET /healthz` returns 200 if the database opens; no passphrase needed |
 | Processes | One container runs the app and the worker; if either exits, both stop so the host restarts the container (STACK §5) |
-| Configuration | Environment variables only: `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `VIDEO_MODEL`, `VIDEO_MODEL_FALLBACK`, per-model resolution, `ENHANCE_MODEL`, `ENHANCE_MODEL_FALLBACK`, `QUALITY_CHECK_MODEL`, `BYOK_MODELS`, bucket credentials and name, `DATABASE_PATH`, `DEMO_PASSPHRASE`, `FAKE_PROVIDERS`, check thresholds, check frame rate, label image size, shots in flight. `.env.example` lists them |
+| Configuration | Environment variables only: `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `VIDEO_MODEL`, `VIDEO_MODEL_FALLBACK`, per-model resolution, `ENHANCE_MODEL`, `ENHANCE_MODEL_FALLBACK`, `QUALITY_CHECK_MODEL`, `PLANNER_MODEL`, `BYOK_MODELS`, bucket credentials and name, `DATABASE_PATH`, `DEMO_PASSPHRASE`, `FAKE_PROVIDERS`, check thresholds, check frame rate, label image size, shots in flight. `.env.example` lists them |
 
 ## Measurement
 
@@ -1151,11 +1166,11 @@ The regression gate runs in GitHub Actions: ruff, pytest, Playwright against the
 
 | # | Question | Options and cost | Blocks | Resolved by |
 |---|---|---|---|---|
-| 1 | Can the labelling model tell rooms apart well enough to fill slots (FR-1.10)? | A: model labels, photographer corrects (current); B: photographer picks every slot by hand; the API is the same either way | Nothing; the page lets the photographer change the assignment | First 12 shoots |
+| 1 | Does the planner follow a style text closely enough (FR-1.10, VR-3), and can the labelling model tell rooms apart? | A: planner writes the plan, photographer corrects (current); B: photographer writes the plan by hand, which updateJobShots already accepts | Nothing; the page lets the photographer change the assignment | First 12 shoots |
 | 2 | Does OpenRouter accept a clip inline for Gemini video input at our sizes? [verify] | A: send the clip and frames (current); B: frames only; ClipCheck is the same | Pipeline check | First real check call |
 | 3 | Quality-check thresholds and check frame rate (QC-1 [tbd], STACK §17) | Set from the first 12 test videos; stored as configuration | Nothing; defaults are permissive | Evals report |
 | 4 | Does the cut detector find the end of a crossfade? | A: detect and accept misses for crossfades (current, `detected_s` null); B: measure crossfades from the style's own timing | VR-2 on crossfade shots | First reproduction |
-| 5 | Should a creator also be able to upload an original video edited elsewhere? | A: no, the original is a job on the demo shoot (current); B: add one upload route, then compare by detected cuts on both | FR-2.4 | Candidate |
+| 5 | Is a written style precise enough for a reproduction to look "nearly identical" to the reference video (VR-4, REQUIREMENTS 0a #8)? | A: text only (current); B: also store the reference job's plan as a template for reproductions, with no outside video involved; adds one column to `styles` | VR-4 | EV-2 report |
 | 6 | Do Railway buckets enforce size and type conditions on presigned POST? [verify] | A: yes, as written; B: no, completeUpload's size check and delete is the only guard (already in the contract) | Nothing | First upload test |
 | 7 | Does OpenRouter's response mark BYOK calls, and give a retry delay on 429? [verify] | A: read them from the response; B: `BYOK_MODELS` setting and a fixed back-off; contracts unchanged | CO-1 accuracy | First real call |
 | 8 | Veo 3.1 vs Veo 3.1 Lite or Fast (STACK §17) | Model id per style shot and in configuration; no contract changes | Cost only | One clip per tier on 3 photos |
@@ -1171,7 +1186,8 @@ The approved-provider question for BYOK Google billing is settled by GC-4 *(assu
 | # | Assumption | Where it is used | Confirm with |
 |---|---|---|---|
 | A-1 | Module grouping chosen without a reviewer: Pipeline owns no tables and writes through Jobs; Providers owns the cost table; Comparison owns cut checks | Summary | Candidate |
-| A-2 | The original video is the creator's approved run on the demo shoot | Comparison, `styles.original_job_id` | Candidate |
+| A-2 | A style's reference video is the author's approved run on the demo shoot | Comparison, `styles.reference_job_id` | Candidate |
+| A-10 | The shot plan is written in the app process in the background, like labelling | Jobs → planJob | Candidate |
 | A-3 | Photos are labelled in a background thread of the app process, not by the worker, so labelling never waits behind a running job | Photoshoots → labelPhotoshoot | Candidate |
 | A-4 | A rate limit counts as one of a shot's 4 attempts | Pipeline → Failure behaviour | Candidate |
 | A-5 | A job with no passing shot is `stopped`, not delivered empty | Pipeline | Candidate |
@@ -1183,11 +1199,11 @@ The approved-provider question for BYOK Google billing is settled by GC-4 *(assu
 **Requirement rows.** None added. Every operation traces to an existing row.
 
 **Upstream fixes.**
-- HLD §4.1: add the supporting operations `completeUpload` and `getPhotoshoot` (the upload trace needs a step after the browser upload, and labels must be polled, FR-1.10), and `setOriginal` (FR-2.4 needs an original). `createReproduction` is `createJob` with `purpose: reproduction`, and its route is `POST /api/jobs`.
+- HLD §4.1: add the supporting operations `completeUpload` and `getPhotoshoot` (the upload trace needs a step after the browser upload, and labels must be polled, FR-1.10), and `setReference` (FR-2.4 needs an original). `createReproduction` is `createJob` with `purpose: reproduction` and the preset's text unchanged, and its route is `POST /api/jobs`.
 - HLD §4.1 and §5 App server: the app server now does background work, labelling photos through the quality-check service (A-3). The HLD says it "does no work on its own"; add the app → quality-check-service edge.
 - HLD §5: add the Evals command-line process, which creates photoshoots and jobs and writes reports (EV-1, EV-2).
 - HLD §3: *Video* is columns on `jobs`, not its own table. Add *Provider call* and *Cut check* entities.
 - HLD §4.3: operations renamed here: `enhancePhoto` → `editPhoto` (now a chain of edits), `generateClip` / `getClip` → `generateClip` (polling is inside Providers), `scoreClip` → `checkClip`. Add `labelPhotos` and `checkEdit`.
 - KEY_METRICS: "Delivered shots the automatic check still flags" is 0 by construction, since only passed clips are delivered. Replace it with "Shots dropped because every attempt was flagged" (Measurement).
-- Wireframe: done (version 3, 2026-10-18): shot-slot assignment, shot cards with "Redo this shot", the editor, the original/reproduction picker, the song credit and the fallback and crop-only notes.
+- Wireframe: done (version 4, 2026-10-18): style text field filled from presets, the shot plan to check, shot cards with "Redo this shot", the editor, the original/reproduction picker, the song credit and the fallback and crop-only notes.
 - `.env.example`: add `DEMO_PASSPHRASE`, bucket settings, `DATABASE_PATH`, `FAKE_PROVIDERS`, `VIDEO_MODEL_FALLBACK`, `ENHANCE_MODEL_FALLBACK`, `BYOK_MODELS`.

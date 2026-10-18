@@ -19,6 +19,7 @@
 | 5 | Hosting | Railway Hobby, one service, Dockerfile on `python:3.13-slim-trixie`, honcho running app + worker | Approved provider (GC-4); about $6–8/month |
 | 6 | Video generation | OpenRouter Videos API, `google/veo-3.1` (Vertex, BYOK), 1080p, no audio, PRD starter-kit movement prompts; fallback `bytedance/seedance-2.0` | Measured best fit (VIDEO_RESEARCH §7.4); PF-1, DE-5 |
 | 7 | Photo enhancement | Pillow crop to 16:9 + `google/gemini-nano-banana-2.1` with the PRD's cinematic and detail-shot prompts | FR-1.8 (composition, lens, angle, light); architecture preserved (VR-5) |
+| 8a | Shot planning (style text → shot plan) | `anthropic/claude-sonnet-5.5` through OpenRouter, JSON output | Follows a written brief closely (FR-1.10, VR-3); one call per job |
 | 8 | Quality check and cut detection | `google/gemini-3.8-flash` given the clip plus frames at 4–8 per second; PySceneDetect 0.6.7.1 for cut times in finished videos | Catches brief figures (QC-1); measures cuts to ±0.1 s (VR-2) |
 | 9 | Video assembly | ffmpeg 7.1 (Debian trixie) | The only tool needed to cut to the song (FR-1.4) |
 | 10 | Songs | CC BY-NC or BY-NC-SA tracks from Free Music Archive | Licence recorded and credited per video (GC-5) |
@@ -36,6 +37,7 @@
 | Video, regenerations: up to 3 more attempts per shot (QC-2) | up to $19.20 more |
 | Photo enhancement: 8 to 16 edits (the PRD example uses two edits for a detail shot) × about $0.04 (1K image, billed by OpenRouter) | $0.32–0.64 [verify] |
 | Quality check: 8 to 32 calls × about $0.01 on Gemini 3.8 Flash | $0.08–0.32 [verify] |
+| Shot plan: one Claude Sonnet 5.5 call per job (style text, room labels, small photo copies) at $2 / $10 per million input / output tokens | about $0.10 [verify] |
 | Hosting: Railway Hobby $5 (includes $5 usage) + about 0.5 GB RAM over that + bucket at $0.015/GB-month × 10–55 GB | $6–8/month [verify] |
 | **Typical job (first pass, 4 s clips)** | **about $6.80** (about $10 if shots need 6 s clips) |
 | **Worst case job (every shot regenerated 3 times)** | **about $26 with 4 s clips, about $52 with 8 s clips** — no limit is set; driven entirely by video seconds |
@@ -178,6 +180,20 @@ The fallback Seedance 2.0 measured $0.76 per 5 s clip (§7.1): about $6 per firs
 
 **Needs from the design.** The original photo is kept next to the edited one, and the quality check compares them for added or removed fixtures before the edit is used (VR-5). An edit that fails the check is retried, then falls back to the crop-only photo with the reason recorded. A style shot may chain more than one edit, as the PRD example does.
 
+## 8a. Shot planning
+
+**Why it exists.** A style is text, not a stored storyboard (REQUIREMENTS 0a #8), so every job needs its shot plan written from the style text and the photos: which photos, in what order, and for each shot the photo edit, movement name, speed, length, transition and cut time (FR-1.10). The photographer then checks and edits it.
+
+| Option | Pros | Cons |
+|---|---|---|
+| **`anthropic/claude-sonnet-5.5` through OpenRouter** ✅ | Strong at following a long written brief and returning a fixed JSON shape, which is what VR-3 checks; accepts the photos as images; Anthropic and OpenRouter are both approved (GC-4); one call per job, so about $0.10 | Another model family to prompt; untested on our photos [verify] |
+| `google/gemini-3.8-flash` | Already used for checks; cheaper; sees photos | Weaker at long structured briefs in our experience [verify]; a mistake here spoils every shot of the job |
+| Rules in code (fixed templates per style) | Deterministic, free | A free-text style can't be turned into rules; editing the text would change nothing |
+
+**Choice: Claude Sonnet 5.5 through OpenRouter, with `PLANNER_MODEL` in configuration so Gemini 3.8 Flash can replace it.** The plan decides every shot, so the model that follows the brief best is worth a few cents.
+
+**Needs from the design.** The plan comes back as a fixed JSON shape and is validated against the movement names, the model's clip lengths and the song length before the photographer sees it; an invalid plan is retried once, then reported. The plan is stored with the job, so a re-run or the editor never asks for a new plan unless the photographer edits the text.
+
 ## 8. Quality check and cut detection
 
 **Why it exists.** Flags visibly AI shots and changed rooms before delivery (FR-1.7, QC-1, VR-5), and measures a reproduction's cut times against the original (VR-2, FR-2.4).
@@ -266,6 +282,7 @@ The fallback Seedance 2.0 measured $0.76 per 5 s clip (§7.1): about $6 per firs
 | Choice | Current lean | Settled by |
 |---|---|---|
 | Veo 3.1 vs Veo 3.1 Lite or Fast | Veo 3.1 | One clip on each cheaper tier on the same three photos (§7.2), judged by the reviewer |
+| Shot planner: Claude Sonnet 5.5 or Gemini 3.8 Flash | Claude Sonnet 5.5 | Three style texts on three shoots, plans checked against VR-3 |
 | How far photo edits may move the angle | Full PRD edits, with crop-only fallback per shot | First 12 test videos: does the edit ever change a room (VR-5)? |
 | Style as stored data or a trained model | Stored data (REQUIREMENTS Definitions: "a style is stored data, not a trained model") | Confirmed 2026-10-18; revisit only if reproductions miss VR-4 |
 | Seedance fallback at 1080p or 720p | 1080p to meet DE-5 | Its 1080p price on the first fallback call |

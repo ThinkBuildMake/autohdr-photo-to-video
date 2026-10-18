@@ -64,11 +64,11 @@ How to shoot video on site, how to use a gimbal, and how to train staff are diff
 
 **The 30 seconds before opening it:** Dana doesn't know whether any video she can make would look good enough to send, and has no idea which style the agent would like.
 
-**What they need from it:** a way to pick a style from a creator Dana trusts, upload the 28 photos, and walk away. → **UC-1**
+**What they need from it:** a way to pick a style (a preset written by a creator Dana trusts, which Dana can tweak in a text box), upload the 28 photos, check the shot plan, and walk away. → **UC-1**
 
 **What they do with the output:** Dana watches the finished video, sends it to the agent if it looks professional, and notices any shot that looks fake. If the agent asks to swap a room, Dana wants to change just that. → **UC-1**, **UC-3**
 
-**Behind the scenes:** a top videographer once built the style Dana picked, by choosing shot movements, a song and the cut timing. → **UC-2**
+**Behind the scenes:** a top videographer once wrote the style Dana picked, describing the shot movements, pacing, light and transitions, chose a song, and tried it on a demo shoot until it looked right. → **UC-2**
 
 ---
 
@@ -79,7 +79,7 @@ How to shoot video on site, how to use a gimbal, and how to train staff are diff
 | | |
 |---|---|
 | **Trigger** | The photographer has edited photos for a listing and wants a video for the agent. |
-| **Input** | The edited photos from one property; a style picked from a library (a creator's, or one the photographer saved). |
+| **Input** | The edited photos from one property; a style text, filled from a preset (a creator's, or one the photographer saved) and editable, plus a song. |
 | **What they need to see** | A finished video that follows the chosen style (the same camera movements, song and cut timing as the original, on this house) and that does not look AI-generated. If any shot failed, which shot and why. |
 | **What they do with it** | Watch it, decide whether it is good enough for the agent, and send it. The product never sends it to the agent for them. |
 | **Time available** | 10–30 minutes of waiting is acceptable to them (their own answer for this project); they come back when it is done. |
@@ -90,7 +90,7 @@ A template tool can cut photos to a song, and a freelance editor can match a sty
 
 1. **The inputs are photos, not footage.** The movement in the finished video has to be generated; a slideshow only pans and zooms.
 2. **The photos are mediocre.** The PRD wants composition, angle, lens and lighting changed toward how the creator would have shot it, and a slideshow keeps the photo as it is.
-3. **The target is one specific creator's video.** The PRD wants the same movements, song and cuts reproduced so the original and the new video "look nearly identical, just on a different house." A generic template does not do that.
+3. **The target is one specific creator's look.** The PRD wants the same movements, song and cuts reproduced so the original and the new video "look nearly identical, just on a different house." A generic template does not do that.
 
 This case depends on the generated shots passing as professional work; that is untested. If they don't, a slideshow tool with a creator's song and pacing would be the honest alternative.
 
@@ -100,16 +100,16 @@ This case depends on the generated shots passing as professional work; that is u
 
 | | |
 |---|---|
-| **Trigger** | A creator (or whoever builds styles on their behalf) wants a video they made to become a reusable style. |
-| **Input** | The creative decisions behind a video made from a demo photoshoot: the shots, their movements, the song, the cut timing. |
-| **What they need to see** | The style saved in the library and a generated video from a demo shoot that matches the original side by side. |
-| **What they do with it** | Judge whether the reproduction is close enough to publish the style. |
+| **Trigger** | A creator (or whoever builds styles on their behalf) wants their look to become a reusable style. |
+| **Input** | A written description of the look (movements, pacing, light, transitions, mood) and a song, tried on a demo photoshoot. No video of theirs is uploaded, to avoid reusing copyrighted work (REQUIREMENTS 0a #8). |
+| **What they need to see** | The shot plan and the video the text produces on the demo shoot, then that reference video beside a reproduction on a different house. |
+| **What they do with it** | Revise the text until the result looks like their work, mark the reference video, and judge whether reproductions are close enough to publish the preset. |
 | **Time available** | Not time-critical; the creator judges the reproduction once per style *(assumed)*. |
-| **Must never** | Reproduce a style in a way that visibly differs from the original in song, movement or cuts without saying so. |
+| **Must never** | Make a video that visibly departs from the style text in song, movement or pacing without saying so; store or reuse a creator's video. |
 
-This use case serves UC-1: without a style, there is nothing for the novice to pick. Which authoring method to build (demo shoot, past-video upload, storyboard outline, per the PRD) is a design decision; the minimum is that one method works end to end *(assumed)*. Chosen 2026-10-18: the demo-photoshoot method (REQUIREMENTS 0a #5).
+This use case serves UC-1: without a style, there is nothing for the novice to pick. Chosen 2026-10-18: a style is text plus a song, tried on a demo photoshoot (REQUIREMENTS 0a #5, #8).
 
-**Why a stored, reusable style, not rebuilding each video by hand:** a creator spent hours on the original video, and the point of the product is that no one repeats that for the next house. Reproduction has to be repeatable.
+**Why a stored, reusable style, not rebuilding each video by hand:** a creator spent hours finding their look, and the point of the product is that no one repeats that for the next house. A written style can be reused, shared and tweaked, and copies nobody's footage.
 
 ---
 
@@ -128,10 +128,10 @@ The PRD describes a web editor for swapping a room, changing a shot or removing 
 | # | Feature | Use case | What it does for the user | Acceptable in v1 |
 |---|---|---|---|---|
 | F1 | Upload a property photoshoot | UC-1 | Gives the product the photos | Desktop browser only; one user at a time; demo-open, no login |
-| F2 | Pick a style from a library | UC-1 | Chooses whose look the video gets | Library of the styles built for the demo, including any the photographer saved themselves (PRD p.6) |
+| F2 | Set the style in a text field, filled from a preset | UC-1 | Chooses whose look the video gets, and lets the photographer tweak it | Library of the styles built for the demo, including any the photographer saved themselves (PRD p.6) |
 | F3 | Receive a finished video | UC-1 | Gets a video with no editing work | Wait of 10–30 minutes is fine; follows the chosen style |
-| F4 | Create a style | UC-2 | Turns a creator's video into a reusable style | At least one authoring method works end to end; 2–3 demo styles *(assumed)* |
-| F5 | Capture the style's decisions and reproduce them | UC-2 | The reproduction looks nearly identical to the original side by side | A shot that looks visibly AI-generated is the failing line; 1–2 per demo video are tolerated, zero is the target |
+| F4 | Create a style | UC-2 | Turns a creator's written look and song into a reusable preset | Written and tried on a demo shoot; 2–3 demo styles *(assumed)* |
+| F5 | Follow the style text and reproduce it | UC-2 | A reproduction looks nearly identical to the style's reference video side by side | A shot that looks visibly AI-generated is the failing line; 1–2 per demo video are tolerated, zero is the target |
 | F6 | Apply a saved style to a new photoshoot | UC-1, UC-2 | Same movements, song and cuts on a different house | Tested on the 12 sample photoshoots |
 | F7 | Improve mediocre photos toward the creator's composition, lens, angle and lighting | UC-1 | Makes a novice's photo look like the creator's shot | Same "visibly AI" line; composition, lens, angle and light may change as the PRD's example does (pp.4–5), architecture, rooms and fixtures must not *(assumed)* |
 | F8 | Show which shot failed and why | UC-1 | Lets the user see a failure instead of a hidden defect | Never hidden; the rest of the video is still delivered with the failed shot marked *(assumed)* |

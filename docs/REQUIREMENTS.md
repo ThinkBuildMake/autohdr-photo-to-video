@@ -26,13 +26,14 @@ If a row names a library, a component, or a way of meeting a threshold, it is in
 
 | Term | Meaning |
 |---|---|
-| Style | A stored storyboard plus its song. For each shot it holds: the photo edit (prompt for composition, lens, angle and light), the camera movement (one of the movement names below, plus its prompt text and speed), the model used, the shot's place in the song and its cut time, and the transition into the next shot. Reproduced on a new photoshoot to make a video. A style is stored data, not a trained model. |
+| Style | A written description of the look a video should have, plus a song from the Creative Commons list. The text names the pacing and length, the camera movements (by movement name), their speed, the light and photo look, the transitions and the mood, e.g. "Six to eight shots over about 40 s. Open on the exterior with a Drone Top Down Descend. Slow Dolly In through each main room, late-afternoon light with long shadows. Crossfades on the downbeat, hard cuts in the chorus. End on a Dolly Out." Preset styles are saved texts; the photographer can edit one or write their own. A style is text, not a creator's video and not a trained model (0a #8). |
+| Shot plan | The per-shot list the system writes for one job from the style text and the photos: for each shot the photo, the photo edit, the movement name and prompt, the speed, the length, the transition and the cut time on the song. The photographer can change it before submitting; it is stored with the job. |
 | Shot | One generated clip in a video, the unit that is checked, regenerated and reported as failed. |
-| Shot slot | One position in a style's storyboard, filled on each job by one of the photoshoot's photos. |
 | Movement name | One of the PRD's 12 starter-kit movements (PRD pp.8–9): Dolly In, Dolly In (timelapse), Drone Top Down Descend, Timelapse Variant, Dolly Out, Slider Truck Left to Right, Slider Truck Right to Left, Parallax Orbit, Dolly In + Pan Right, Crane Up, Crane Down, Orbit (Hyperlapse). VR-3 compares shots by this name. |
 | Visibly AI-generated shot | A shot where a viewer can see warping, morphing, melting or other artifacts. The failing line in USERS.md UC-1. |
-| Job | One run of "this photoshoot + this style → this video". |
-| Reproduction | A job that runs a style on a photoshoot so it can be played beside the style's original video. The PRD's test is "just on a different house" (p.3), so reproductions run on the style's own demo photoshoot and on other photoshoots. |
+| Job | One run of "this photoshoot + this style text + song → this shot plan → this video". |
+| Reference video | The video the style's author approved when building the style on its demo photoshoot. It is made by this product, so no third party's video is reused. |
+| Reproduction | A job that runs a saved style on another photoshoot so it can be played beside the style's reference video. The PRD's test is "just on a different house" (p.3). |
 
 ---
 
@@ -43,7 +44,7 @@ If a row names a library, a component, or a way of meeting a threshold, it is in
 | Givens | No spend limit for now; approved providers (free tier for others); due 2026-10-21 |
 | Wait | Finished video within 30 min of submitting |
 | Quality | ≤ 2 visibly AI shots per video; target 0 |
-| Style fidelity | Same song; cuts within ±0.1 s; same movement, speed and transition per shot, on a different house too |
+| Style fidelity | The video follows its shot plan (cuts within ±0.1 s, same movements and transitions); the plan follows the style text; a reproduction looks nearly identical to the reference video |
 | Output | 1920×1080, 16:9 |
 | Load | 1 job at a time, a second job queued; scaling explained in writing |
 | Failures | Never hidden; reported per shot with a reason |
@@ -58,8 +59,9 @@ If a row names a library, a component, or a way of meeting a threshold, it is in
 | 2 | The demo is sized for one job at a time; a second job is queued; scaling is written down, not built | Building concurrency now | SC-1, SC-2 |
 | 3 | Failed shots are surfaced, not silently replaced | Fallback shots that hide the failure | FR-1.5, RL-2 |
 | 4 | Photo edits change composition, lens, angle and light as the PRD asks (pp.3–5), but never architecture, rooms or fixtures | Limiting edits to light and colour | FR-1.8, VR-5 |
-| 5 | Styles are authored by one method: the demo-photoshoot method (PRD p.3, first example). Past-video upload and storyboard outline are later iterations | Building all three methods | FR-2.1 |
+| 5 | Styles are authored one way: the author writes the style text and tries it on a demo photoshoot until the result looks right (closest to the PRD's demo-photoshoot example, p.3) | Past-video upload and storyboard-outline methods | FR-2.1 |
 | 6 | The web editor (PRD p.7, "optional") is built in v1: swap a room, change a shot, remove a room, re-export, regenerating only the changed shots [src candidate, 2026-10-18: "That was the easiest part"] | Deferring the editor | FR-1.12–FR-1.16, CH-1 |
+| 8 | A style is a text description plus a CC song, not a creator's video or a storyboard taken from one, so no creator's video is copied or stored [src candidate, 2026-10-18: "there may be some copyright if we reuse the creator's video … it really should be just a text of the style we are going for"]. This narrows the PRD's "EXACTLY reproduce" (p.3) to "follows the same written style"; the side-by-side test compares with the style's own reference video | Storing a creator's video and its storyboard | FR-1.2, FR-2.1–FR-2.4, VR-2–VR-4 |
 | 7 | One shared demo passphrase, no accounts, because a public address with no spend limit lets anyone start paid jobs *(assumed, 2026-10-18)* | Fully open address | FR-3.2, GC-3 |
 
 ---
@@ -74,7 +76,7 @@ If a row names a library, a component, or a way of meeting a threshold, it is in
 | GC-2 | One builder; no work depends on another person [src U§8] | Plan names one owner | U§8 | Must |
 | GC-3 | No spend limit is set for now; paid use of approved providers is allowed [src user, 2026-10-17: "no budget limits for now"]. A limit may be set later. | Cost per job is recorded (CO-1) | U§8 | Must |
 | GC-4 | Every external service is on the approved list (Anthropic, Aqua Voice, Cohere, Cursor, DigitalOcean, ElevenLabs, Google One, Midjourney, OpenAI, OpenRouter, Railway, Vultr, Whisper) or is a free tier of something else [src U§8]. Google models reached through OpenRouter, including with the user's own Google Cloud key (BYOK), count as OpenRouter use *(assumed, 2026-10-18; the user set up BYOK and prefers it)*. | Config review lists each service against the list | U§8 | Gate |
-| GC-5 | Used for demo only; every song is an open Creative Commons non-commercial track that allows adaptation (BY-NC or BY-NC-SA, not ND), with its attribution recorded and shown with the video [src U§8]. Each demo style's original video is made by the builder with such a track *(assumed, 2026-10-18)*. | Each track's licence code and source URL stored in the repo; credit visible on the video page | U§8 | Gate |
+| GC-5 | Used for demo only; every song is an open Creative Commons non-commercial track that allows adaptation (BY-NC or BY-NC-SA, not ND), with its attribution recorded and shown with the video [src U§8]. Every reference video is made by this product with such a track (0a #8). | Each track's licence code and source URL stored in the repo; credit visible on the video page | U§8 | Gate |
 | GC-6 | The 12 PRD test photoshoots are the test set [src PRD p.7] | Every eval runs on all 12 | U§8 | Must |
 | GC-7 | The submission includes a written explanation of how the system would scale beyond one user at a time [src U§8] | Document exists and is reviewed against SC-2 | U§8 | Must |
 | GC-8 | The repo has a README with setup steps, the design in brief and the results on the 12 test shoots, since the PRD judges "systems engineering, creative problem solving" (p.2) [prop] | README review | PRD p.2 | Must |
@@ -95,15 +97,15 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.7.
 | ID | Requirement | Trace | Priority |
 |---|---|---|---|
 | FR-1.1 | The photographer uploads the edited photos of one property in a desktop browser. | F1, U§5 UC-1 | Must |
-| FR-1.2 | The photographer picks a style from a library of styles, which includes styles from creators and any style the photographer saved themselves (PRD p.6). | F2 | Must |
+| FR-1.2 | The photographer sets the style in a text field. Choosing a preset style (from creators or saved by the photographer, PRD p.6) fills the field and its song; the photographer can edit the text, change the song, or write their own. | F2 | Must |
 | FR-1.3 | After submitting, the photographer can leave and come back to find the job's status or result. | F3, U§5 UC-1 | Must |
-| FR-1.4 | The photographer gets a finished video that follows the chosen style: the style's song, shot movements, speeds, transitions and cut timing, on the uploaded photos. | F3, F6 | Must |
+| FR-1.4 | The photographer gets a finished video that follows the style text and its shot plan: the song, shot movements, speeds, transitions and cut timing, on the uploaded photos. | F3, F6 | Must |
 | FR-1.5 | If a shot fails after retries, the photographer sees which shot failed and why. The failure is never hidden. A stopped job keeps its finished shots and offers "Start again". | F8 | Must |
 | FR-1.6 | When a shot fails, the rest of the video is still delivered with the failed shot marked *(assumed)*. | F8 | Must |
 | FR-1.7 | The photographer never sees a rejected attempt; shots the system itself rejected as visibly AI-generated are regenerated before delivery. | F9, PRD p.2 | Must |
 | FR-1.8 | Each shot's photo is improved toward the creator's composition, lens, angle and lighting, as the style's photo edit says (PRD pp.3–5); architecture, rooms and fixtures are preserved. | F7 | Must |
 | FR-1.9 | The photographer plays the finished video in the browser and downloads it. | F3 | Must |
-| FR-1.10 | Each shot slot is filled with the photo that best matches the slot's room or subject. Before submitting, the photographer sees the assignment and can change it. If there are fewer suitable photos than slots, the job says which slots reuse a photo or are skipped. | PRD p.3 "the clips they're applied to, the order of the clips" | Must |
+| FR-1.10 | From the style text and the photos, the system writes a shot plan: which photos to use and in what order, and for each shot the photo edit, movement, speed, length, transition and cut time. Before submitting, the photographer sees the plan and can change any shot, add one or remove one. If the text asks for a room the photos don't have, the plan says so. | PRD p.3 "the clips they're applied to, the order of the clips, and the cuts to the song are the edits" | Must |
 | FR-1.11 | The photographer sees a list of their jobs with status and can reopen any of them. | F3, FR-1.3 | Must |
 | FR-1.12 | The photographer can redo one shot of a finished video without regenerating the others. | PRD p.7, CH-1 | Must |
 | FR-1.13 | In the web editor, the photographer swaps the room of a shot by choosing another photo from the photoshoot. | F10, PRD p.7 | Must |
@@ -115,11 +117,11 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.7.
 
 | ID | Requirement | Trace | Priority |
 |---|---|---|---|
-| FR-2.1 | A creator makes a style with the demo-photoshoot method: upload a demo photoshoot, then for each shot choose the photo, the photo edit, the movement name and prompt, the speed and the transition; pick the song and set the cut times. The shot rows can be edited before saving. | F4, PRD p.3 | Must |
-| FR-2.2 | A created style is saved in the library with a name and its song. | F4, F5 | Must |
-| FR-2.3 | Running a style on its own demo photoshoot, or on any other photoshoot, produces a reproduction. | F5, PRD p.3 | Must |
-| FR-2.4 | The creator plays the original video beside a reproduction, on the demo photoshoot and on a different photoshoot. The comparison lists, per shot, song, cut time, movement name and any flagged shot. | F5, PRD p.3 | Must |
-| FR-2.5 | A saved style can be applied to a different photoshoot. | F6 | Must |
+| FR-2.1 | A style author writes a style: a name, the style text and a song. They try it on a demo photoshoot, see the shot plan and the video, and revise the text until it looks right. No video from outside the product is uploaded or reused. | F4, PRD p.3 | Must |
+| FR-2.2 | A style is saved as a preset with its name, text and song, and marks one of its videos as the reference video. | F4, F5 | Must |
+| FR-2.3 | Running a saved style on any other photoshoot produces a reproduction. | F5, PRD p.3 | Must |
+| FR-2.4 | The author plays the reference video beside a reproduction on a different photoshoot. The comparison lists the song, the number and length of shots, the movements and transitions used, and any flagged shot, for both videos. | F5, PRD p.3 | Must |
+| FR-2.5 | A saved style can be applied to a different photoshoot, and the photographer can save their own edited text as a new style. | F6, PRD p.6 | Must |
 
 ### FR-3 Out of v1 by design
 
@@ -129,6 +131,7 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.7.
 | FR-3.3 | No creator ratings, reviews, payments or credits *(assumed)*. | U§7 | Must |
 | FR-3.4 | No phone layout; desktop only. | U§7 | Must |
 | FR-3.5 | No past-video upload or storyboard-outline authoring method in v1 (0a #5). | U§6 | Must |
+| FR-3.6 | No creator's video, or anything extracted from one, is uploaded, stored or reused (0a #8). | 0a #8 | Gate |
 
 ---
 
@@ -141,11 +144,11 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.7.
 | ID | Requirement | Verified by | Trace | Priority |
 |---|---|---|---|---|
 | VR-1 | At most **2** visibly AI-generated shots per delivered video; target **0** [src user, 2026-10-17; narrows PRD p.2 "does not look AI generated", 0a #1]. | Reviewer watches all 12 test videos and counts failing shots; pass = every video ≤ 2 | FR-1.4 | Must |
-| VR-2 | A reproduction uses the original's song and its cut times within **±0.1 s** [prop] | Compare cut timestamps of original and reproduction for each demo style, on the demo shoot and on other shoots | FR-2.3, FR-2.4 | Must |
-| VR-3 | In a reproduction, **100%** of shots use the same movement name, speed and direction as the original's matching shot [src PRD p.3 "down to … the movement of the shots"] | Reviewer labels movement name per shot in both videos | FR-2.3 | Must |
-| VR-4 | Overall look of a reproduction versus the original, "nearly identical … just on a different house" [src PRD p.3]: threshold [tbd: set on the first side-by-side review of a demo style]; interim target **100%** of shots judged a match, floor **80%** [prop] | Side-by-side review by the builder, on the demo shoot and 2 other shoots | FR-2.4 | Must |
+| VR-2 | Every video uses its style's song, and its cuts land within **±0.1 s** of the shot plan's cut times [prop] | Detect cut times in every finished video and compare with its plan | FR-1.4, FR-2.3 | Must |
+| VR-3 | **100%** of shots move as their plan says (movement name, speed, direction), and **100%** of the movements, transitions and pacing the style text names appear in the plan [src PRD p.3 "down to … the movement of the shots"] | Reviewer labels movement per shot; reviewer checks each plan against its text | FR-1.4, FR-1.10 | Must |
+| VR-4 | Overall look of a reproduction versus the style's reference video, "nearly identical … just on a different house" [src PRD p.3]: threshold [tbd: set on the first side-by-side review]; interim target **100%** of reproductions judged a match, floor **80%** [prop] | Side-by-side review by the builder, reference vs reproductions on 2 other shoots | FR-2.4 | Must |
 | VR-5 | **0** generated shots or edited photos add, remove or change a room, fixture or architectural feature compared with the source photo [src PRD prompt kit pp.10–12, "Preserve all architectural and interior details", taken as a product rule by the candidate] | Reviewer compares each shot with its photo on the 12 test shoots | FR-1.8 | Must |
-| VR-6 | In a reproduction, **100%** of transitions between shots match the original's (cut, crossfade or other) [src PRD p.3 "all the same effects"] | Compare transitions per cut in both videos | FR-2.3 | Must |
+| VR-6 | **100%** of transitions in the video match the shot plan (cut, crossfade or other) [src PRD p.3 "all the same effects"] | Compare transitions per cut with the plan | FR-1.4 | Must |
 
 ### 3.2 Performance (PF-)
 
@@ -193,14 +196,14 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.7.
 | DE-2 | Uploads accept **JPG and PNG**, up to **40 photos** and **25 MB each** [prop]. | Upload a set of 40 photos at 25 MB | FR-1.1 | Must |
 | DE-3 | The demo runs end to end on the builder's machine or hosted APIs without a GPU requirement *(assumed)*. | Clean-install run | U§8 | Should |
 | DE-4 | The demo runs live if a job finishes within the demo's time window; otherwise a pre-generated job is shown [src user]. | Both modes rehearsed before the deadline | PF-1 | Must |
-| DE-5 | The finished video is **1920×1080, 16:9 landscape**, at the original video's frame rate (24 or 30 fps) [prop; PRD p.2 "professional level output"]. | Inspect the file of each test video | FR-1.9 | Must |
+| DE-5 | The finished video is **1920×1080, 16:9 landscape**, at the style's frame rate (24 or 30 fps, set with the style) [prop; PRD p.2 "professional level output"]. | Inspect the file of each test video | FR-1.9 | Must |
 
 ### 3.8 Evaluation suite (EV-)
 
 | ID | Requirement | Verified by | Trace | Priority |
 |---|---|---|---|---|
 | EV-1 | One eval runs at least one demo style on each of the 12 test photoshoots and reports, per video, the count of visibly AI shots, rooms changed, cut-time error and the job time [prop]. | Report exists and covers 12 videos | VR-1, VR-2, VR-5, PF-1 | Must |
-| EV-2 | One eval runs each demo style on its own demo photoshoot and on at least 2 other test shoots, and reports VR-2, VR-3, VR-4 and VR-6 for each [prop]. | Report exists per style and shoot | VR-2, VR-3, VR-4, VR-6 | Must |
+| EV-2 | One eval runs each preset style on at least 2 test shoots other than its demo shoot, and reports VR-2, VR-3, VR-4 and VR-6 against the reference video and the plans [prop]. | Report exists per style and shoot | VR-2, VR-3, VR-4, VR-6 | Must |
 
 ### 3.9 Cost (CO-)
 
@@ -251,7 +254,7 @@ Every **[prop]** and **[tbd]** number. [prop] rows not commented on at review ar
 | DE-1 | current desktop Chrome | User said assume desktop | Accepted |
 | DE-2 | JPG/PNG, 40 photos, 25 MB | Covers a typical shoot with room to spare; the 12 test shoots set the real size | Accepted |
 | PF-4 | re-export ≤ 10 min for ≤ 2 changed shots | One round of a few clips in parallel plus a re-cut, measured at about 1–2 min per clip (VIDEO_RESEARCH §7) | Proposed 2026-10-18 |
-| DE-5 | 1920×1080, 16:9, original frame rate | Listing videos are landscape HD; Veo 3.1 costs the same at 720p and 1080p (STACK §6) | Proposed 2026-10-18 |
+| DE-5 | 1920×1080, 16:9, the style's frame rate | Listing videos are landscape HD; Veo 3.1 costs the same at 720p and 1080p (STACK §6) | Proposed 2026-10-18 |
 | GC-8 | README with setup, design, results | The PRD judges engineering and problem solving | Proposed 2026-10-18 |
 | CO-1 | cost recorded per call and per job; list price for BYOK | No spend limit now (user, 2026-10-17); recording lets one be added | Accepted |
 | EV-1, EV-2 | reports listed | Needed to verify VR rows | Accepted |
@@ -259,6 +262,6 @@ Every **[prop]** and **[tbd]** number. [prop] rows not commented on at review ar
 
 **Open items only a running system (or an upstream fix) can answer:**
 1. Which approved or free-tier models can produce shots that are not visibly AI-generated, and how long they take (decides PF-1 and QC-2). First results: `VIDEO_RESEARCH.md` §7.
-2. What "nearly identical" means on a real side-by-side (VR-4).
+2. What "nearly identical" means on a real side-by-side of a reference video and a reproduction (VR-4), and whether a written style is precise enough to get there (0a #8).
 3. Which usage or rate limits the 12 test jobs hit, and what the 12 jobs cost (CO-1). If a spend limit is set later, add its row.
 4. Whether photo edits that change angle and lens keep architecture intact often enough (VR-5); if not, the edit narrows per shot and the narrowing is recorded.
