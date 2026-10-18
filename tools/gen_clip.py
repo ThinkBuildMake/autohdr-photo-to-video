@@ -33,14 +33,17 @@ def main():
     res = sys.argv[6] if len(sys.argv) > 6 else "720p"
     dur = int(dur)
     prompt = TEMPLATE.format(move=MOVES[move])
+    if os.environ.get("EXTRA_PROMPT"):  # optional extra lock sentences, e.g. for a retry test
+        prompt += " " + os.environ["EXTRA_PROMPT"]
+    tag = os.environ.get("TAG", "")
     mime = mimetypes.guess_type(photo)[0] or "image/jpeg"
     data_url = f"data:{mime};base64," + base64.b64encode(open(photo, "rb").read()).decode()
     body = {"model": model, "prompt": prompt, "duration": dur, "resolution": res, "aspect_ratio": "16:9",
             "generate_audio": False,
             "frame_images": [{"type": "image_url", "image_url": {"url": data_url}, "frame_type": "first_frame"}]}
     rec = {"model": model, "method": meth, "move": move, "photo": os.path.basename(photo), "prompt": prompt,
-           "duration_s": dur, "resolution": res, "submit_ts": time.time(), "ok": False}
-    name = f"{model.replace('/', '_')}_{move}_{os.path.basename(photo).rsplit('.',1)[0]}"
+           "tag": tag, "duration_s": dur, "resolution": res, "submit_ts": time.time(), "ok": False}
+    name = f"{model.replace('/', '_')}_{move}_{os.path.basename(photo).rsplit('.',1)[0]}{tag}"
     os.makedirs(os.path.join(OUT, "clips"), exist_ok=True)
     try:
         job = call("POST", f"{BASE}/videos", body)
