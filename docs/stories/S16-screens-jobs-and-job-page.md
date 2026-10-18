@@ -38,7 +38,7 @@ Playwright in Chromium against the app with stubbed routes returning each job st
    Given a queued job waiting behind job A
    When the Job page opens
    Then it says "Waiting for job A to finish"
-6. Stopped names the shot and the reason
+6. Stopped names the reason
    Given a stopped job with reason `out_of_credit`
    When the Job page opens
    Then it says the video service is out of credit and shows "Start again"

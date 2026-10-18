@@ -54,6 +54,10 @@ pytest running the worker once against stubbed Jobs, Providers, Media, Files and
    Given the same job and fake providers run on two separate databases and buckets
    When both finish
    Then the two videos have the same shots, lengths and cuts as a single run
+10. A re-cut-only export re-assembles
+    Given a queued job with no pending shots and shot 1's length changed
+    When the worker runs it
+    Then no clip is requested and a new video is cut from the final clips
 
 #### Not in this story
 - Real provider, media and bucket calls — joined in S22

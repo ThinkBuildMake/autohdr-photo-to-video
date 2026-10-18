@@ -14,7 +14,7 @@ The PRD judges consistent professional output on its 12 test shoots. This is whe
 
 #### How it's checked
 The human demo:
-1. Before the runs: each preset gets a try on its demo shoot and a reference video through Create a style.
+1. Before the runs: each preset is tried again on its demo shoot through Create a style (revise and try) and its chosen try marked as the reference video.
 2. Show `evals import` loading the 12 test shoots from the downloaded folder, and the repo with no test photos in it.
 3. Show the EV-1 and EV-2 runs' jobs on the Jobs page.
 4. The reviewer has watched every EV-1 and EV-2 video and filled the sheet; run `evals report`.
@@ -67,6 +67,10 @@ The human demo:
     Given the EV-1 jobs
     When the metrics report runs
     Then panel 2 shows their median submit-to-playable time
+12. No stub is left
+    Given the codebase after this story
+    When the gate's stub check runs
+    Then no route or module interface answers from a stub
 
 #### Not in this story
 - The demo rehearsal — picked up by S27, which does not wait for the evals

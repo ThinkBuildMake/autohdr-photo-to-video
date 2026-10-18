@@ -4,7 +4,7 @@
 **Blocked by:** S23, S24, S25
 **Review gate:** human demo
 **Size:** S — no new seam; checks the deployed system as the demo will use it
-**Wires:** the Production environment on demo day, and makes the pre-generated demo job (DE-4): the live flow end to end and the Backup and restore contract (the demo job's video kept offline). Removes no stubs (none are left)
+**Wires:** the Production environment on demo day, and makes the pre-generated demo job (DE-4): the live flow end to end and the Backup and restore contract (the demo job's video kept offline). Removes no stubs; only the Evals stubs remain, removed by S26
 **Extends:** none
 **Requirements:** DE-4, PF-1
 **Guards:** PF-1, GC-3
@@ -25,8 +25,8 @@ The human demo, a rehearsal:
    When one 4 s clip is requested
    Then it returns a clip
 2. The live flow runs
-   Given the deployed app and a test shoot
-   When the demo flow is walked: preset, upload, plan, Make my video, play, editor re-export, comparison
+   Given the deployed app, a test shoot and the written demo script (preset, upload, plan, Make my video, play, editor re-export, comparison)
+   When the script is walked
    Then the comparison page shows the new reproduction beside its reference
 3. The fallback video plays offline
    Given the demo job made on the deployed app and downloaded
@@ -36,10 +36,10 @@ The human demo, a rehearsal:
    Given the Railway service
    When a commit is pushed
    Then it is not deployed until unfrozen
-5. No stub is left
+5. No stub is left outside Evals
    Given the codebase
    When the gate's stub check runs
-   Then no route or module interface answers from a stub
+   Then only the Evals stubs answer from a stub
 
 #### Not in this story
 - none

@@ -74,6 +74,10 @@ pytest against the routes with seeded finished and stopped jobs.
     Given a ready job first submitted at 09:00
     When it is re-exported at 14:00
     Then its current submit time is 14:00 and its first submit time stays 09:00
+15. A speed change needs a new clip
+    Given a ready job
+    When `PATCH` shot 6 sets speed `fast`
+    Then shot 6 will get a new clip
 
 #### Not in this story
 - Making the pending shots and the new video version — done by S12, S28 and S30, joined in S23 and S24

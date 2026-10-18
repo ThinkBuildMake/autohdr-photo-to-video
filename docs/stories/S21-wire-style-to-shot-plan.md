@@ -14,7 +14,7 @@ The photographer sees what will be made before paying for it: the style text tur
 
 #### How it's checked
 The human demo, on the deployed app, with the seeded songs and the shoot uploaded in S20:
-1. Create two presets from the wireframe's example texts through createStyle.
+1. Upload two more test shoots labelled with their folder names, then create two presets from the wireframe's example texts through createStyle, each with one of those shoots as its demo shoot.
 2. Open Styles; the presets show their text, author and song.
 3. Click "Use this style" on one; edit the text to add "End on a Dolly Out."; pick the uploaded shoot.
 4. The plan appears: one card per shot with photo, movement, speed, length, transition and the words of the text it follows; the last shot is a Dolly Out.
@@ -24,8 +24,8 @@ The human demo, on the deployed app, with the seeded songs and the shoot uploade
 
 #### Acceptance criteria
 1. The demo presets exist
-   Given two preset texts and the seeded songs
-   When each is created through createStyle
+   Given two preset texts, the seeded songs and two uploaded test shoots
+   When each is created through createStyle with one shoot as its demo shoot
    Then the Styles page lists both with their text, author and song
 2. A preset fills the form from the real library
    Given the seeded presets
@@ -63,6 +63,10 @@ The human demo, on the deployed app, with the seeded songs and the shoot uploade
     Given a preset's song in the form
     When another seeded song is picked
     Then the form shows the new song with its credit and its preview plays
+11. A shot can be added
+    Given the real plan
+    When a shot with movement Crane Up on an unused photo is added and the plan saved
+    Then the plan holds the new shot
 
 #### Not in this story
 - Submitting the plan — picked up by S22

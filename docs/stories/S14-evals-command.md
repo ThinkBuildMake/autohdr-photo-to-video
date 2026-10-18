@@ -18,9 +18,9 @@ pytest running each command against stubbed imports and seeded finished jobs, on
 
 #### Acceptance criteria
 1. Shoots are imported once
-   Given a folder with 12 subfolders of synthetic photos
-   When `evals import` runs twice
-   Then 12 photoshoots exist, not 24
+   Given a folder of 12 subfolders and a shoot already uploaded with the label "Shoot 03"
+   When `evals import` runs
+   Then 12 photoshoots exist and "Shoot 03" is the one already uploaded
 2. EV-1 runs a style on every shoot
    Given 12 imported shoots and the style "Golden hour"
    When `evals run --suite ev1 --style "Golden hour"` runs

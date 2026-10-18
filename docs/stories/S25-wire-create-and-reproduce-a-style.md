@@ -4,7 +4,7 @@
 **Blocked by:** S18, S22
 **Review gate:** human demo
 **Size:** M — four seams, plus three real jobs counted as generation time: Create a style to Library and Jobs, Library to Photoshoots, setReference to Library, getReproduction to Jobs, Files and cut checks
-**Wires:** the createStyle, updateStyle, setReference, getReproduction and "Reproduce a style and compare" traces. Removes the stubs behind the Create a style and Reference and reproduction screens, Photoshoots in Library, and Library.setReferenceJob, Files and Media in Comparison's routes
+**Wires:** the updateStyle, setReference, getReproduction and "Reproduce a style and compare" traces. Removes the stubs behind the Create a style and Reference and reproduction screens and the Styles card's "Make a reproduction" control, Photoshoots in Library, and Library.setReferenceJob, Files and Media in Comparison's routes
 **Extends:** none
 **Requirements:** FR-2.1, FR-2.2, FR-2.3, FR-2.4, FR-3.6, VR-2, VR-4, VR-6, GC-5
 **Guards:** FR-3.6, GC-5, VR-2
@@ -44,11 +44,11 @@ The human demo, on the deployed app with real providers:
 6. The comparison lists both videos' shots
    Given the comparison page
    When it is read
-   Then it shows both shot counts, lengths, movements and transitions, and each video's worst cut error against its own plan
+   Then it shows both shot counts, lengths, movements, transitions and flagged shots, and each video's worst cut error against its own plan
 7. No outside video anywhere
    Given the style and both jobs
-   When the bucket and the style are read
-   Then they hold only product-made clips and videos, photos and text
+   When the bucket keys they use are listed
+   Then every key is under `photoshoots/`, `jobs/` or `songs/`
 8. The seams join the gate
    Given the regression gate
    When it runs

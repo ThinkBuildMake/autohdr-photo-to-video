@@ -58,6 +58,14 @@ pytest against the interface with seeded jobs, including several threads calling
     Given a running job with one shot still `generating`
     When finishJob is called with `ready`
     Then it is refused
+11. Each finished run is a new version
+    Given a ready job at video version 1
+    When finishJob records a re-exported video
+    Then its version is 2 and its first finish time is unchanged
+12. An attempt's result is recorded
+    Given a running attempt
+    When finishAttempt records it flagged with score 0.8 and cost $0.40
+    Then getJob shows the attempt flagged with that score and cost
 
 #### Not in this story
 - Restart, redo and editor edits — picked up by S11

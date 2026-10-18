@@ -4,7 +4,7 @@
 **Blocked by:** S01
 **Review gate:** agents
 **Size:** M — two screens with uploads, polling and an editable plan
-**Builds:** the Styles screen (preset cards with text, author and song; "Use this style"; "See reproductions"; "Create a style"); the New video screen (style text field filled from a preset and editable, song picker with credit, "Save as my style", drop zone and photo grid with refused files and their reasons, the shot plan as one editable card per shot with its plan note, the planner's notes for missing rooms, "Make my video")
+**Builds:** the Styles screen (preset cards with text, author and song; "Use this style"; "See reproductions"; "Create a style"); the New video screen (style text field filled from a preset and editable, song picker with credit, "Save as my style", drop zone and photo grid with refused files and their reasons, the shot plan as one editable card per shot with its plan note, the planner's notes for missing rooms, the failed-plan state with "Try again", "Make my video"); the photo grid's room and subject labels and the "labels missing" note; the song preview; the Styles card's reference-video mark and its "Make a reproduction" control (a shoot picker that starts a job with the style's text unchanged and purpose reproduction)
 **Extends:** none
 **Stubs:** the Library, Photoshoots and Jobs routes (listStyles, getStyle, listSongs, createStyle, createUpload, completeUpload, getPhotoshoot, createJob, replanJob, updateJobShots, getJob, submitJob) — removed by S20, S21 and S22 (submitJob)
 **Requirements:** DE-1
@@ -66,6 +66,30 @@ Playwright in Chromium against the app with stubbed routes.
     Given a ready plan
     When "Make my video" is clicked
     Then the stubbed submitJob is called and the Job page opens
+13. Rooms show in the grid
+    Given a stubbed shoot whose photos are labelled kitchen and bedroom
+    When the grid refreshes
+    Then each thumbnail shows its room and subject
+14. Missing labels are said
+    Given a stubbed shoot that is `label_failed`
+    When the grid refreshes
+    Then the grid says the rooms are not labelled
+15. A failed plan offers Try again
+    Given a stubbed job whose plan is `failed`
+    When the page polls
+    Then it shows the reason and a "Try again" button
+16. The song can be previewed
+    Given a song in the picker
+    When its play button is clicked
+    Then the stubbed preview link plays
+17. A style with a reference is marked
+    Given a stubbed preset with `hasReference` true
+    When the Styles page opens
+    Then its card shows it has a reference video
+18. A reproduction is started from a style
+    Given the Styles page and another shoot
+    When "Make a reproduction" is used on "Golden hour" with that shoot
+    Then the stubbed createJob receives the style's text unchanged and purpose `reproduction`
 
 #### Not in this story
 - Real uploads and real plans — joined in S20 and S21

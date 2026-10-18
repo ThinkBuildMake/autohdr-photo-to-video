@@ -6,7 +6,7 @@
 **Size:** M — four seams: screen to Photoshoots, Photoshoots to Files and the real bucket, to Media, and to labelling on OpenRouter
 **Wires:** the "Upload a photoshoot" trace (createUpload, browser upload, completeUpload, labelPhotos, getPhotoshoot). Removes the stubs for Files, Media.probe and thumbnail and Providers.labelPhotos in Photoshoots, and the Photoshoots routes behind the New video screen
 **Extends:** none
-**Requirements:** FR-1.1, DE-2, FR-1.10, FR-3.2
+**Requirements:** FR-1.1, DE-2, FR-3.2
 **Guards:** DE-2, GC-9
 
 #### Why
@@ -48,6 +48,10 @@ The human demo, on the deployed app, with one of the 12 test shoots:
    Given the regression gate
    When it runs
    Then it holds integration cases for upload, complete and label across the real Photoshoots, Files on moto and Providers on mocked OpenRouter answers, including a labelling error
+8. A full shoot fits
+   Given 40 JPEGs of about 25 MB each
+   When they are dropped on New video
+   Then all 40 reach the bucket and show in the grid
 
 #### Not in this story
 - Writing a plan from these photos — picked up by S21

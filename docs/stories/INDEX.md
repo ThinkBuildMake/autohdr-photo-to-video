@@ -56,7 +56,7 @@ flowchart LR
     classDef held stroke-dasharray:5 4
     class S01,S20,S21,S22,S23,S24,S25,S26,S27 demo
     class S02,S03,S04,S05,S06,S07,S08,S09,S10,S11,S12,S13,S14,S15,S16,S17,S18,S19,S28,S29,S30 module
-    class S01,S20,S21,S26 held
+    class S01,S20,S21,S25,S26 held
 ```
 
 Arrows point from a story to the stories it unblocks. Red = human demo (story 1 and wiring stories); grey = module story checked by agents. Dashed border = planning waits on a blocker below (outside setup the candidate does).
@@ -68,9 +68,11 @@ Demo order: S01 → S20 then S21 (one long window) → S22 → S23 + S24 + S25 (
 | 1 | S01 (deploy) | Railway Hobby account, one bucket per environment, bucket CORS for the app's address and localhost | Candidate, under an hour, start now | STACK §16 |
 | 2 | S20 and every real call after it | OpenRouter key with credits for Nano Banana, Gemini, Claude and Seedance; BYOK for Veo on; a Google Cloud budget alert (an alert, not a limit: GC-3 sets no spend limit) | Candidate, under an hour, before the 10-19 morning window | STACK §16, GC-3 |
 | 3 | S20, S26 | The 12 test shoots downloaded from the PRD's Dropbox link to a folder outside the repo (GC-9) | Candidate | GC-6, GC-9 |
-| 4 | S21, S25, S26 | 2–3 BY-NC or BY-NC-SA songs picked from Free Music Archive, licences recorded in the seed manifest; 2–3 preset style texts | Candidate, a few hours, before the 10-19 morning window | STACK §16, GC-5 |
+| 4 | S21, S25, S26 | 2–3 BY-NC or BY-NC-SA songs picked from Free Music Archive, licences recorded in the seed manifest; 2–3 preset style texts | Candidate, a few hours, by 10-18 evening (S21 is demoed in the 10-19 morning window) | STACK §16, GC-5 |
 | 5 | GC-1 if the demo windows are fewer | The timeline needs the long window on 10-19 and two windows a day (Timeline) | Candidate | Timeline |
 | 6 | none (stories follow the architecture) | FR-1.6 wording: "marked" in the video vs left out and marked on the Job page | Candidate | Architectural issue 1 |
+
+| 7 | S01, S08, S09, S11, S15, S16, S22 (sizes) | These run 12–18 criteria, above the skill's "about 8". Kept whole after two review rounds: each is one module's operations or one flow, and a split would add a story with no seam of its own. Splitting S15 (Styles vs New video) and S11 (restart and redo vs editor) is the first move if a build pass overruns | Candidate | Final review, 2026-10-18 |
 
 ## Order
 | # | Story | Kind | Blocked by | Review gate | Size | Checked by |
@@ -121,14 +123,14 @@ Total: agent time 330–680 min (about 5.5–11.3 h), plus generation time for r
 | 27 | S24 | 10 – 20, plus one re-export of up to 10 min | 10-19 night | W4 10-20 morning | S27 |
 | 28 | S25 | 10 – 20, plus three real jobs of 10–30 min | 10-19 night | W4 10-20 morning | S26, S27 |
 | 29 | S27 | 5 – 10, plus the demo job (10–30 min) | 10-20 afternoon | W5 10-20 evening | GC-1, DE-4 |
-| 30 | S26 | 10 – 20, plus about 4–6 reference tries and 16 eval jobs run one at a time (3.3–11 h), then about 2 h of review | 10-20 afternoon to 10-21 midday | W6 10-21 morning (likely) or W7 10-21 evening (high) | GC-8, EV-1, EV-2 |
+| 30 | S26 | 10 – 20, plus about 4–6 reference tries and 16–18 eval jobs run one at a time (3.3–12 h), then about 2 h of review | 10-20 afternoon to 10-21 midday | W6 10-21 morning (likely) or W7 10-21 evening (high) | GC-8, EV-1, EV-2 |
 
 | External wait | Needed by story | Lead time | Start by |
 |---|---|---|---|
 | Railway account, buckets, CORS | S01 | under 1 h | now (10-18) |
 | OpenRouter credits, BYOK, Google Cloud budget alert | S06/S07 live tests, S20 | under 1 h | 10-18 evening |
 | Download the 12 test shoots | S20, S26 | under 1 h | 10-18 evening |
-| Pick 2–3 CC songs and write 2–3 preset texts | S21, S25, S26 | a few hours | 10-19 morning |
+| Pick 2–3 CC songs and write 2–3 preset texts | S21, S25, S26 | a few hours | 10-18 evening |
 | Live Veo call on the demo day | S27 | minutes | 10-21 |
 
 | Deadline | Date | Requires | Stories | Done by (high) | Status |
@@ -170,16 +172,19 @@ No design tradeoff (component, technology or module) is proposed: the demos, not
 | `GET /healthz` | route | System-wide contracts → Health | S01 | 2 | S02 (stays open) |
 | labelPhotoshoot (and relabel on app start) | job | Photoshoots → Jobs and messages | S08 | 6, 8 | — |
 | planJob (and re-plan on app start) | job | Jobs → Jobs and messages | S09 | 2, 12 | — |
-| runNextJob (worker loop) | job | Pipeline → Jobs and messages | S12 | 1 | S28, S30 | — |
+| runNextJob (worker loop) | job | Pipeline → Jobs and messages | S12 | 1 | S28, S30 |
 | Startup recovery, worker side | job | Data flows → Startup recovery | S30 | 8 | — |
 | songs seed command | job | Library → `songs` | S03 | 1, 2 | — |
 | `evals import` | job | Evals | S14 | 1 | — |
 | `evals run --suite ev1 / ev2` | job | Evals | S14 | 2, 3 | — |
-| `evals report` | job | Evals | S14 | 5, 6 | — |
+| `evals report` | job | Evals | S14 | 6, 7, 10, 11 | — |
 | Pipeline per-shot steps 1–3 (crop, edit chain, check, retry, image fallback, prompt, clip length) | job | Pipeline → What it does per pending shot | S12 | 2–7 | — |
 | Pipeline per-shot steps 4–5 (clip, check, attempts, video model fallback) | job | Pipeline → What it does per pending shot | S28 | 1–4 | — |
 | Pipeline assembly of passed shots not removed | job | Pipeline → assemble | S30 | 1, 6 | — |
 | submitJob refused with nothing to make | route error | Jobs → API | S10 | 3 | — |
+| Re-export with only re-cut changes (no pending shot) | job | Key decisions; Pipeline | S30 | 10 | S24 (5) |
+| `video_version` +1 on every finished re-run | measurement | `jobs` | S29 | 11 | S23 (7) |
+| Speed change needs a new clip | route rule | Jobs → editShot (see architectural issue 8) | S11 | 15 | S24 (8) |
 | `songs` | table | Database schema | S03 | 1 | — |
 | `styles` | table | Database schema | S03 | 3 | — |
 | `photoshoots` | table | Database schema | S08 | 1 | — |
@@ -198,7 +203,7 @@ No design tradeoff (component, technology or module) is proposed: the demos, not
 | Jobs.setShotState | interface | Jobs → Interface | S29 | 7 | — |
 | Jobs.setShotPhoto | interface | Jobs → Interface | S29 | 5 | — |
 | Jobs.startAttempt | interface | Jobs → Interface | S29 | 3 | — |
-| Jobs.finishAttempt | interface | Jobs → Interface | S29 | 4 | — |
+| Jobs.finishAttempt | interface | Jobs → Interface | S29 | 12 | — |
 | Jobs.setShotResult | interface | Jobs → Interface | S29 | 4 | — |
 | Jobs.finishJob | interface | Jobs → Interface | S29 | 9, 10 | — |
 | Jobs.stopJob | interface | Jobs → Interface | S29 | 6 | — |
@@ -227,8 +232,8 @@ No design tradeoff (component, technology or module) is proposed: the demos, not
 | OpenRouter chat completions (edit, plan, checks, labels) | external | Providers → Calls out | S06 | 1–7 | — |
 | OpenRouter Videos API | external | Providers → Calls out | S07 | 1, 2, 4 | — |
 | Railway Storage Bucket (real) | external | Environments | S20 | 1 | — |
-| Styles screen | screen | HLD §5 Web client | S15 | 1, 2 | — |
-| New video screen (text, song, upload, plan) | screen | HLD §5 Web client | S15 | 2–12 | — |
+| Styles screen (cards, reference mark, Make a reproduction) | screen | HLD §5 Web client | S15 | 1, 2, 17, 18 | — |
+| New video screen (text, song and preview, upload, labels, plan, failed plan) | screen | HLD §5 Web client | S15 | 2–16 | — |
 | Jobs screen | screen | HLD §5 Web client | S16 | 1, 2 | — |
 | Job screen (all states) | screen | HLD §5 Web client | S16 | 3–12 | — |
 | Editor screen | screen | HLD §5 Web client | S17 | 1–10 | — |
@@ -262,7 +267,7 @@ No design tradeoff (component, technology or module) is proposed: the demos, not
 | Library: updating a style never changes a job | Must hold | Library | S09 | 10 | — (the job side holds it; S03 only writes styles) |
 | Photoshoots: no photo over 25 MB or another type | Must hold | Photoshoots | S08 | 2, 5 | — |
 | Photoshoots: a photo's file key never changes | Must hold | Photoshoots | S08 | 12 | — |
-| Photoshoots: photos never in the repository | Must hold | Photoshoots | S01 | 11 | S26 (7) |
+| Photoshoots: photos never in the repository | Must hold | Photoshoots | S01 | 11 | S26 (8) |
 | Jobs: at most one job running | Must hold | Jobs | S01 | 4 | S29 (1) |
 | Jobs: a job's copied shot fields never change | Must hold | Jobs | S09 | 10 | see architectural issue 2 |
 | Jobs: at most 4 attempts per shot per round | Must hold | Jobs | S29 | 3 | — |
@@ -305,16 +310,16 @@ No design tradeoff (component, technology or module) is proposed: the demos, not
 | submitJob, listJobs, getJob, getVideo, "Run next job" ("Make the video") | S22 | Jobs interface, Providers, Media, Files, recordCuts in Pipeline (S12, S28, S30); presignDownload in Jobs; detectCuts and Files.get in recordCuts; Jobs routes behind Jobs and Job; submitJob behind New video | full job with a flagged attempt and a failed shot |
 | restartJob, redoShot, "Startup recovery" | S23 | restartJob and redoShot behind the Job screen | restart, redo, recovery; out of credit, rate limit, refusal |
 | editShot, exportJob | S24 | getJob, getPhotoshoot, editShot, exportJob behind the Editor | edit and export, invalid edit, busy job |
-| updateStyle, setReference, getReproduction ("Reproduce a style and compare") | S25 | routes behind Create a style and Reference and reproduction; Photoshoots in Library; setReferenceJob, Files, Media in Comparison's routes | createStyle, setReference, getReproduction; not-ready reference, no reference |
-| Evals | S26 | importPhotoshoot, createJob, submitJob in Evals | import and run, a stopped job |
-| Production on demo day | S27 | none left | the no-stub check |
+| updateStyle, setReference, getReproduction, createJob with purpose reproduction ("Reproduce a style and compare") | S25 | routes behind Create a style and Reference and reproduction, and the Styles card's "Make a reproduction"; Photoshoots in Library; setReferenceJob, Files, Media in Comparison's routes | createStyle, setReference, getReproduction; not-ready reference, no reference |
+| Evals | S26 | importPhotoshoot, createJob, submitJob in Evals (the last stubs) | import and run, a stopped job; the no-stub check |
+| Production on demo day | S27 | none (only the Evals stubs remain, removed by S26) | the no-stub check outside Evals |
 
 ## Requirement coverage
 | Requirement | Kind | Threshold (quoted) | Story (or milestone) | Criterion |
 |---|---|---|---|---|
 | GC-1 | given | "complete by 2026-10-21, 11:59 PM local time" | Timeline (deadline, no work) | — |
 | GC-2 | given | "One builder" | Timeline (team, no work) | — |
-| GC-3 | given | "No spend limit is set for now" | S06 | 8 |
+| GC-3 | given | "No spend limit is set for now" | S06 | 8, 12 |
 | GC-4 | given | approved list, or a free tier | S01 | 10 |
 | GC-5 | given | "BY-NC or BY-NC-SA, not ND … shown with the video" | S03; S22 | 2; 7 |
 | GC-6 | given | "The 12 PRD test photoshoots are the test set" | S26 | 1, 3 |
@@ -330,7 +335,7 @@ No design tradeoff (component, technology or module) is proposed: the demos, not
 | FR-1.7 | functional | — | S22 | 8 |
 | FR-1.8 | functional | — | S22 | 12 |
 | FR-1.9 | functional | — | S22 | 13 |
-| FR-1.10 | functional | — | S21 | 3, 6 |
+| FR-1.10 | functional | — | S21 | 3, 5, 6, 11 |
 | FR-1.11 | functional | — | S22 | 4 |
 | FR-1.12 | functional | — | S23 | 7 |
 | FR-1.13 | functional | — | S24 | 1 |
@@ -367,13 +372,13 @@ No design tradeoff (component, technology or module) is proposed: the demos, not
 | SC-1 | non-functional | "Supports 1 job at a time … a second job … is queued" | S22 | 3 |
 | SC-2 | non-functional | what changes to run N jobs within PF-1 | S19 | 3, 4 |
 | DE-1 | non-functional | "current desktop Chrome release" | S01 | 1 |
-| DE-2 | non-functional | "JPG and PNG, up to 40 photos and 25 MB each" | S08; S20 | 2, 3; 3, 4 |
+| DE-2 | non-functional | "JPG and PNG, up to 40 photos and 25 MB each" | S08; S20 | 2, 3; 3, 4, 8 |
 | DE-3 | non-functional | "without a GPU requirement" | S01 | 13 |
 | DE-4 | non-functional | live, or "a pre-generated job is shown" | S27 | 2, 3 |
 | DE-5 | non-functional | "1920×1080, 16:9 landscape, at the style's frame rate" | S05; S22 | 6; 5 |
 | EV-1 | non-functional | 12 test shoots, per-video report | S26 | 3 |
 | EV-2 | non-functional | each preset on ≥ 2 other shoots | S26 | 2, 4 |
-| CO-1 | non-functional | cost per call and per job; list price for BYOK | S06; S07; S29 | 8, 9; 5; 9 |
+| CO-1 | non-functional | cost per call and per job; list price for BYOK; an outside-list call stops at its free limit | S06; S07; S29; S01 | 8, 9; 5; 9; 10 (no outside-list service is configured, so the stop case cannot arise) |
 | CH-1 | non-functional | edit one shot "without regenerating the others" | S24 | 4 |
 | CH-2 | non-functional | two jobs on separate capacity, "outputs match single-job runs" | S30 | 9 |
 
@@ -388,6 +393,7 @@ No design tradeoff (component, technology or module) is proposed: the demos, not
 | Cut-time error against the style, VR-2 | `cut_checks.error_s` | S13 | panel 6 | S22 (criterion 10) |
 
 ## Assumptions
+- ARCHITECTURE A-1: Pipeline owns no tables and writes through Jobs — S12, S28, S29, S30.
 - Capacity: 5 agents at once, two demo windows a day and a long window on 10-19 morning — the whole timeline; with one window a day GC-1 is missed.
 - ARCHITECTURE A-2: a style's reference video is the author's approved run on the demo shoot — S13, S25, S26.
 - ARCHITECTURE A-3 and A-10: labelling and planning run in the app process — S08, S09.
@@ -402,6 +408,8 @@ No design tradeoff (component, technology or module) is proposed: the demos, not
 - ARCHITECTURE open question 7 [verify]: BYOK is marked in the response — S06, S07; otherwise the `BYOK_MODELS` setting.
 - The metrics "dashboard" is a report command over the tables, since STACK §13 says every metric is a query over the job log tables — S01, S22, S23, S26.
 - Preset styles are written by the candidate from the wireframe's examples and created through createStyle — S21, S26.
+- `evals import` reuses a shoot already uploaded with the same label, so a preset's demo shoot (uploaded in S21) is the same row EV-2 skips — S14 criterion 1, S21, S26.
+- A speed change remakes the clip, because speed is part of the prompt (Pipeline step 2) — S11 criterion 15, S24 criterion 8.
 - Injected failures are demoed on a local instance with `FAKE_PROVIDERS=1`, since production uses real providers only — S23.
 
 ## Icebox
@@ -415,7 +423,7 @@ No design tradeoff (component, technology or module) is proposed: the demos, not
 - OpenRouter Videos API with Veo 3.1 and Seedance 2.0 makes 1080p clips from a first frame, 12 in flight, 48–88 s each — `VIDEO_RESEARCH.md` §7 and `tools/gen_clip.py`, run 2026-10-17/18.
 - The stack's pieces fit together — STACK.md compatibility check, 2026-10-18.
 - Not checked live: the planner's plan quality (ARCHITECTURE open question 1) and Gemini clip input (open question 2); both are first exercised in S21 and S22.
-- Fresh review of this story set against the documents, 2026-10-18: 17 findings, all applied.
+- Fresh review of this story set, 2026-10-18: round 1, 17 findings, all applied; round 2, 16 findings, all applied except oversized stories (Blocker 7) and a few multi-step Whens.
 
 ## Architectural issues
 1. **FR-1.6 vs assembly.** REQUIREMENTS FR-1.6: "the rest of the video is still delivered with the failed shot marked". ARCHITECTURE Pipeline: "A failed or skipped shot leaves its slot out and the video is marked `ready_with_failures`". The stories mark the failed shot on the Job page beside the player (S16 criterion 7, S23 criterion 6), not inside the video. An amendment would reword FR-1.6 to "marked on the job page" or have assembly keep a marked slot.
@@ -424,3 +432,5 @@ No design tradeoff (component, technology or module) is proposed: the demos, not
 4. **The Evals reviewer sheet has no VR-3 or VR-4 column.** ARCHITECTURE Evals lists `visibly_ai, room_changed, movement_matches, transition_matches`; VR-3 needs "reviewer checks each plan against its text" and VR-4 a side-by-side judgment. S14 adds a "text followed" row per plan and a "looks like the reference" row per reproduction (criterion 5). An amendment would add both to the Evals contract.
 5. **Library → Providers.allowedLengths has no contract.** The summary diagram draws `library -->|allowedLengths| providers` (and `library -->|listPhotos| shoots`), but no Library operation uses clip lengths. The stories stub Photoshoots in Library for the demo shoot check (S03, removed by S25) and do not build the allowedLengths edge. An amendment would remove the edge or name the Library operation that needs it.
 6. **STACK §16 lists an OpenRouter key spend limit**, which conflicts with GC-3 ("No spend limit is set for now"). The stories keep only a budget alert (Blocker 2). An amendment to STACK §16 would drop the limit or mark it as a safety net needing the candidate's OK.
+7. **A preset's demo shoot can only be set when it is created.** ARCHITECTURE updateStyle accepts "any of { name, styleText, songId, songOffsetS, fps }", without `demoPhotoshootId`. The stories create each preset with its demo shoot in S21. An amendment would let updateStyle set the demo shoot.
+8. **Speed is not in editShot's "needs a new clip" list.** ARCHITECTURE editShot marks a new clip "if the photo, movement, prompts or photo edit changed", and FR-1.16 says the same. But speed is part of the clip prompt (Pipeline step 2), so S11 criterion 15 treats a speed change as needing a new clip. An amendment would add speed to the list.

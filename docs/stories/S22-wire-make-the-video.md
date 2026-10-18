@@ -6,7 +6,7 @@
 **Size:** L — first real end-to-end job across five seams: Jobs to the worker, the worker to Providers on OpenRouter, to Media, to Files and the bucket, and to Comparison.recordCuts; plus the job screens to Jobs
 **Wires:** the submitJob, listJobs, getJob, getVideo and "Run next job" traces, and Comparison.recordCuts. Removes the stubs for the Jobs worker interface, Providers, Media, Files and recordCuts in Pipeline (S12, S28, S30); Files.presignDownload in Jobs; Media.detectCuts and Files.get in recordCuts; and the Jobs routes behind the Jobs and Job screens
 **Extends:** none
-**Requirements:** FR-1.3, FR-1.4, FR-1.6, FR-1.7, FR-1.8, FR-1.9, FR-1.11, SC-1, PF-1, PF-2, PF-3, DE-5, GC-5, OB-1, OB-2, CO-1, VR-2, VR-6
+**Requirements:** FR-1.3, FR-1.4, FR-1.7, FR-1.8, FR-1.9, FR-1.11, SC-1, PF-1, PF-3, DE-5, GC-5, OB-1, OB-2, CO-1, VR-2, VR-6
 **Guards:** PF-1, PF-3, QC-2, VR-5, FR-1.7, DE-5
 
 #### Why

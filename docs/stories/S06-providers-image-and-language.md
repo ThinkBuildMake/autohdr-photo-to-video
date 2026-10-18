@@ -62,6 +62,10 @@ pytest with OpenRouter's HTTP answers mocked, and one marked live test per call 
     Given `FAKE_PROVIDERS=1` told to raise `out_of_credit` on the second checkClip
     When checkClip is called twice
     Then the first passes and the second raises `out_of_credit`
+12. Nothing is blocked on cost
+    Given $500 of calls already recorded
+    When another call is made
+    Then it is sent
 
 #### Not in this story
 - Clip generation — picked up by S07
