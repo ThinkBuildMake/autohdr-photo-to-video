@@ -5,3 +5,9 @@
 out/
 .lazy/
 .claude/worktrees/
+.venv/
+data/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+test-results/

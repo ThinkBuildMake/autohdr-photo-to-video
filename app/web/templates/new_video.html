@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}New video{% endblock %}
+{% block content %}
+<h1>New video</h1>
+<p class="muted">Upload a photoshoot, pick a style and a song. The form arrives in a later story.</p>
+<h2>Styles</h2>
+<ul>{% for style in styles %}<li>{{ style.name }}</li>{% endfor %}</ul>
+<h2>Songs</h2>
+<ul>{% for song in songs %}<li>{{ song.credit }}</li>{% endfor %}</ul>
+{% endblock %}

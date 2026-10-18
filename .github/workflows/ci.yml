@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [claude/dazzling-keller-xgo5vz, main]
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    env:
+      FAKE_PROVIDERS: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: 0.11.32
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: uv sync --locked
+      - name: Ruff
+        run: uv run ruff check . && uv run ruff format --check .
+      - name: pytest
+        run: uv run pytest -m "not e2e"
+      - name: Install Chromium
+        run: uv run playwright install --with-deps chromium
+      - name: Playwright
+        run: uv run pytest -m e2e
+
+  docker:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -t autohdr .
+      - run: docker run -d --name app -e FAKE_PROVIDERS=1 -e PORT=8000 -p 8000:8000 autohdr
+      - name: Wait for /healthz
+        run: |
+          for _ in $(seq 1 30); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/healthz)" = "200" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs app
+          exit 1

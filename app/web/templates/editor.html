@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Editor{% endblock %}
+{% block content %}
+{% if error %}
+<h1>Editor</h1>
+<p class="error">{{ error }}</p>
+{% else %}
+<h1>Edit: {{ job.style_name }}</h1>
+<ol>
+  {% for shot in job.shots %}
+  <li>{{ shot.room }}, {{ shot.movement_name }}, {{ shot.length_s }} s</li>
+  {% endfor %}
+</ol>
+<p><a href="/jobs/{{ job.id }}">Back to the job</a></p>
+{% endif %}
+{% endblock %}

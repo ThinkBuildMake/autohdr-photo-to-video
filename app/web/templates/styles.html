@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Styles{% endblock %}
+{% block content %}
+<h1>Styles</h1>
+<div class="cards">
+  {% for style in styles %}
+  <article class="card">
+    <h2>{{ style.name }}</h2>
+    <p class="muted">by {{ style.author_name }}</p>
+    <p>{{ style.style_text }}</p>
+    <p class="muted">Song: {{ style.song.credit }}</p>
+    <p>
+      <a class="button" href="/new?styleId={{ style.id }}">Use this style</a>
+      {% if style.has_reference %}<a href="/styles/{{ style.id }}/reproductions">Compare</a>{% endif %}
+    </p>
+  </article>
+  {% endfor %}
+</div>
+{% endblock %}

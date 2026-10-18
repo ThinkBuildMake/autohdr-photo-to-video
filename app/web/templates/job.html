@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Job{% endblock %}
+{% block content %}
+{% if error %}
+<h1>Job</h1>
+<p class="error">{{ error }}</p>
+{% else %}
+<h1>Job: {{ job.style_name }}</h1>
+<p>Status: {{ job.status }}</p>
+<ol>
+  {% for shot in job.shots %}
+  <li>{{ shot.room }}, {{ shot.movement_name }}: {{ shot.status }}</li>
+  {% endfor %}
+</ol>
+<p><a href="/jobs/{{ job.id }}/edit">Edit</a></p>
+<p class="muted">Song: {{ job.song_credit }}</p>
+{% endif %}
+{% endblock %}

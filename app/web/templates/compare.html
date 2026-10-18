@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Compare{% endblock %}
+{% block content %}
+{% if error %}
+<h1>Reproductions</h1>
+<p class="error">{{ error }}</p>
+{% else %}
+<h1>Reproductions of {{ style.name }}</h1>
+<p class="muted">The side-by-side view arrives in a later story.</p>
+{% endif %}
+{% endblock %}

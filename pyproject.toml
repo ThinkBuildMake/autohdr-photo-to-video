@@ -1,0 +1,45 @@
+[project]
+name = "autohdr-photo-to-video"
+version = "0.1.0"
+description = "AutoHDR photo-to-video"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "fastapi>=0.146",
+    "uvicorn>=0.54",
+    "sqlalchemy>=2.0.55,<2.1",
+    "jinja2>=3.1.6",
+    "python-multipart",
+    "httpx",
+    "boto3",
+    "pillow",
+    "scenedetect==0.6.7.1",
+    "opencv-python-headless<5",
+    "honcho==2.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9",
+    "pytest-playwright>=0.10",
+    "playwright==1.56.0",
+    "ruff",
+    "moto[s3]>=5",
+    "pyyaml",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+extend-exclude = ["tools"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--import-mode=importlib"
+markers = ["e2e: Playwright browser tests"]

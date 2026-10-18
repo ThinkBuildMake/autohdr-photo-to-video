@@ -1,0 +1,57 @@
+"""Stub data for the Library contract. S03 replaces it with the seeded database."""
+
+from app.shared.types import Song, Style, StyleSummary
+
+GOLDEN_HOUR_ID = "11111111-1111-4111-8111-111111111111"
+CRISP_MODERN_ID = "22222222-2222-4222-8222-222222222222"
+STUB_SONG_ID = "33333333-3333-4333-8333-333333333333"
+STUB_DEMO_PHOTOSHOOT_ID = "44444444-4444-4444-8444-444444444444"
+STUB_REFERENCE_JOB_ID = "55555555-5555-4555-8555-555555555555"
+
+STUB_SONG = Song(
+    id=STUB_SONG_ID,
+    title="Sunrise Walk",
+    artist="Example Artist",
+    licence_code="BY-NC",
+    source_url="stub://songs/sunrise-walk",
+    duration_s=120.0,
+    credit="Sunrise Walk, Example Artist, CC BY-NC 4.0, stub://songs/sunrise-walk",
+)
+
+STUB_STYLES = [
+    Style(
+        id=GOLDEN_HOUR_ID,
+        name="Golden hour",
+        author_name="AutoHDR",
+        style_text="Slow, warm and unhurried. Open on the front of the house, "
+        "move through the main rooms with gentle dolly moves, and finish on a wide exterior.",
+        song=STUB_SONG,
+        song_offset_s=0.0,
+        fps=24,
+        demo_photoshoot_id=STUB_DEMO_PHOTOSHOOT_ID,
+        reference_job_id=STUB_REFERENCE_JOB_ID,
+    ),
+    Style(
+        id=CRISP_MODERN_ID,
+        name="Crisp modern",
+        author_name="AutoHDR",
+        style_text="Fast and clean. Short shots on the beat, slider moves and quick cuts, "
+        "every room shown once.",
+        song=STUB_SONG,
+        song_offset_s=4.0,
+        fps=30,
+        demo_photoshoot_id=STUB_DEMO_PHOTOSHOOT_ID,
+        reference_job_id=None,
+    ),
+]
+
+
+def summary(style: Style) -> StyleSummary:
+    return StyleSummary(
+        id=style.id,
+        name=style.name,
+        author_name=style.author_name,
+        style_text=style.style_text,
+        song=style.song,
+        has_reference=style.reference_job_id is not None,
+    )

@@ -1,0 +1,13 @@
+.git
+.venv
+.env
+.env.*
+!.env.example
+data/
+out/
+.lazy/
+.claude/
+tests/
+docs/
+tools/
+__pycache__

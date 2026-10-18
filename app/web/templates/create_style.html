@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Create a style{% endblock %}
+{% block content %}
+<h1>Create a style</h1>
+<p class="muted">Write a style in words and pick a song. The form arrives in a later story.</p>
+<ul>{% for song in songs %}<li>{{ song.credit }}</li>{% endfor %}</ul>
+{% endblock %}
