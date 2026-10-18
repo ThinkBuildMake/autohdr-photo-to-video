@@ -128,7 +128,7 @@ The reviewer's rows stay human judgment, as in `KEY_METRICS.md`; the system rows
 
 ### 7.1 Smoke test, 2026-10-17 (M1 only, 3 shots, 1 shoot)
 
-**Scope.** This is a smoke test of the pipeline, not a comparison. One shoot (`211_Colima_Ct_Ponte_Vedra_Beach_FL_32082`, bright empty apartment), three photos (living room wide, fireplace wall, fireplace/door wall), method M1 (photo as first frame, camera move as prompt text, template from §4), 720p, audio off, one clip per model per movement. M2 was not run, to stay under the $5 cap. Photos were resized to 1600 px wide and sent as base64 data URLs; the requested aspect ratio was 16:9 and the photos are 3:2. Scripts: `tools/gen_clip.py`, `tools/key_usage.py`; logs and clips are under the gitignored `out/`.
+**Scope.** This is a smoke test of the pipeline, not a comparison. One shoot (`211_Colima_Ct_Ponte_Vedra_Beach_FL_32082`, bright empty apartment), three photos (living room wide, fireplace wall, fireplace/door wall), method M1 (photo as first frame, camera move as prompt text, template from §4), 720p, audio off, one clip per model per movement. M2 was not run, to stay under the $5 cap set for this smoke test (the project has no spend limit, GC-3). Photos were resized to 1600 px wide and sent as base64 data URLs; the requested aspect ratio was 16:9 and the photos are 3:2. Scripts: `tools/gen_clip.py`, `tools/key_usage.py`; logs and clips are under the gitignored `out/`.
 
 **Models and dates.** `bytedance/seedance-2.0` and `google/veo-3.1`, through OpenRouter's `POST /videos`, run 2026-10-17. All six submitted at the same time, so times include queueing under six parallel jobs.
 
@@ -268,4 +268,7 @@ Frame notes on the five walkthrough clips: living room push-in and dining pan ho
 | Suno-generated music is not a Creative Commons track | GC-5 requires CC non-commercial tracks with source recorded | Keep repo tracks, or reword GC-5 after reading Suno's free-tier terms |
 | ArtCraft, TapNow, Dreamina as access routes to Seedance: cost and API unknown | Decides how the worker can call the model | Access check, §5 step 1 |
 | Model names and versions change quickly | Results expire | Record the model name and date with every result |
+| The PRD's own starter-kit prompts (12 movements, pp.8–9; Kling-tuned prompts, pp.9–10; cinematic photo prompts, pp.10–12) were not used in §7; the clips used this document's §4 template | The style's movement names come from the PRD list (REQUIREMENTS Definitions), so the build uses those prompts | Run the 12 movement prompts on Veo 3.1 on 3 photos during the build; tune per movement |
+| Kling (O1 or v3.0) was never run, though the PRD tuned prompts for it | It may follow the Kling-tuned slider and dolly prompts better | One Kling run on the same 3 photos if the PRD prompts underperform on Veo; otherwise dropped for time (GC-1) |
+| Photo edits that change angle and lens (PRD p.3–5 example) were not tested | FR-1.8 now asks for them; VR-5 forbids architecture changes | Run the PRD's photo prompts on 3 photos and check VR-5 before the first eval |
 | Reviewer is one person | VR-1 is a human judgment; one rater is a weak sample | Use AutoHDR's reviewers' standard if known; otherwise state the limit |

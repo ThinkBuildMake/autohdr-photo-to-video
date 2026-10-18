@@ -2,7 +2,7 @@
 
 **What this document is.** A comparison of candidate technologies for each module, and the choice for each. `REQUIREMENTS.md` defines what the system must do; requirement IDs (e.g. `PF-1`) appear here only as the reason a choice wins or loses. Which components exist and the load they carry are in `HIGH_LEVEL_DESIGN.md`; how the pieces fit together is designed in `ARCHITECTURE.md`.
 
-**How the shortlist was built.** Each module's options were researched against `REQUIREMENTS.md`, `HIGH_LEVEL_DESIGN.md`, `USERS.md`, `KEY_METRICS.md` and the 25 measured clips in `VIDEO_RESEARCH.md` §7, with deciding facts verified on 2026-10-18. No review meeting is available, so each module takes the recommended option (candidate: "make your best assumptions and move forward"). A separate agent that hadn't seen the research then checked the chosen stack for conflicts. It found that OpenRouter's Veo 3.1 runs on Google's general-release model, not the preview that shuts down on 2026-10-22. It added a shared passphrase, a process supervisor and frame extraction for the quality check, narrowed photo enhancement to light and colour, and raised four requirement conflicts (§18).
+**How the shortlist was built.** Each module's options were researched against `REQUIREMENTS.md`, `HIGH_LEVEL_DESIGN.md`, `USERS.md`, `KEY_METRICS.md` and the 25 measured clips in `VIDEO_RESEARCH.md` §7, with deciding facts verified on 2026-10-18. No review meeting is available, so each module takes the recommended option (candidate: "make your best assumptions and move forward"). A separate agent that hadn't seen the research then checked the chosen stack for conflicts. It found that OpenRouter's Veo 3.1 runs on Google's general-release model, not the preview that shuts down on 2026-10-22. It added a shared passphrase, a process supervisor and frame extraction for the quality check, and raised requirement conflicts (§18). A later audit of every document against the PRD restored the PRD's photo edits (composition, lens, angle and light, architecture preserved), cut style authoring to one method, and set the output to 1080p; those changes are applied here and in `REQUIREMENTS.md`.
 
 **Markers.** **[verify]** = an external fact checked on 2026-10-18 that should be re-confirmed before it's relied on. Go-live prerequisites, open choices and open questions are in the last sections.
 
@@ -17,9 +17,9 @@
 | 3 | Database and job queue | SQLite (WAL) via SQLAlchemy 2.0; job table is the queue | 1 job at a time, < 10,000 rows (SC-1, HLD §5) |
 | 4 | File storage | Railway Storage Bucket (S3 API, presigned links) | Holds 10–55 GB; a volume caps at 5 GB (HLD §2) |
 | 5 | Hosting | Railway Hobby, one service, Dockerfile on `python:3.13-slim-trixie`, honcho running app + worker | Approved provider (GC-4); about $6–8/month |
-| 6 | Video generation | OpenRouter Videos API, `google/veo-3.1` (Vertex, BYOK), 720p, no audio; fallback `bytedance/seedance-2.0` | Measured best fit (VIDEO_RESEARCH §7.4); PF-1 |
-| 7 | Photo enhancement | Pillow crop to 16:9 + `google/gemini-nano-banana-2.1` for light and colour only | Crop fixes bars (§7.2); edit serves FR-1.8 without moving walls (VR-5) |
-| 8 | Quality check and reading a past video | `google/gemini-3.8-flash` given the clip plus frames at 4–8 per second; PySceneDetect 0.6.7.1 for cut times | Catches brief figures (QC-1); cuts to ±0.1 s (VR-2) |
+| 6 | Video generation | OpenRouter Videos API, `google/veo-3.1` (Vertex, BYOK), 1080p, no audio, PRD starter-kit movement prompts; fallback `bytedance/seedance-2.0` | Measured best fit (VIDEO_RESEARCH §7.4); PF-1, DE-5 |
+| 7 | Photo enhancement | Pillow crop to 16:9 + `google/gemini-nano-banana-2.1` with the PRD's cinematic and detail-shot prompts | FR-1.8 (composition, lens, angle, light); architecture preserved (VR-5) |
+| 8 | Quality check and cut detection | `google/gemini-3.8-flash` given the clip plus frames at 4–8 per second; PySceneDetect 0.6.7.1 for cut times in finished videos | Catches brief figures (QC-1); measures cuts to ±0.1 s (VR-2) |
 | 9 | Video assembly | ffmpeg 7.1 (Debian trixie) | The only tool needed to cut to the song (FR-1.4) |
 | 10 | Songs | CC BY-NC or BY-NC-SA tracks from Free Music Archive | Licence recorded and credited per video (GC-5) |
 | 11 | Access | One shared passphrase (HTTP basic auth), no accounts | Stops strangers starting paid jobs; FR-3.2 has no accounts |
@@ -32,9 +32,9 @@
 
 | Item | Cost |
 |---|---|
-| Video, first pass: 8 shots × 4 s × $0.20/s (Veo 3.1 list price; no cheaper 720p price exists; billed by Google Cloud under BYOK) | $6.40 [verify] |
+| Video, first pass: 8 shots × 4 s × $0.20/s (Veo 3.1 list price, the same at 720p and 1080p; billed by Google Cloud under BYOK) | $6.40 [verify] |
 | Video, regenerations: up to 3 more attempts per shot (QC-2) | up to $19.20 more |
-| Photo enhancement: 8 edits × about $0.04 (1K image, billed by OpenRouter) | about $0.32 [verify] |
+| Photo enhancement: 8 to 16 edits (the PRD example uses two edits for a detail shot) × about $0.04 (1K image, billed by OpenRouter) | $0.32–0.64 [verify] |
 | Quality check: 8 to 32 calls × about $0.01 on Gemini 3.8 Flash | $0.08–0.32 [verify] |
 | Hosting: Railway Hobby $5 (includes $5 usage) + about 0.5 GB RAM over that + bucket at $0.015/GB-month × 10–55 GB | $6–8/month [verify] |
 | **Typical job (first pass, 4 s clips)** | **about $6.80** (about $10 if shots need 6 s clips) |
@@ -70,7 +70,7 @@ The fallback Seedance 2.0 measured $0.76 per 5 s clip (§7.1): about $6 per firs
 | ffmpeg | A free command-line program that cuts, joins and re-encodes video and audio files. |
 | Re-encode | Rebuild a video's picture data when cutting it, so a cut can land on any frame rather than only on certain stored frames. |
 | PySceneDetect | A free tool that finds the moments in a video where one shot cuts to the next, and returns their timestamps. |
-| 720p | A video picture 1280 pixels wide and 720 pixels tall. |
+| 1080p | A video picture 1920 pixels wide and 1080 pixels tall, the usual "full HD" size. |
 | Bucket | A storage space for files at a hosting company, reached over the internet rather than from a disk in the server. |
 | Presigned link | A web address that lets a browser upload or download one file directly from the bucket for a few minutes, without a password and without the file passing through our server. |
 
@@ -155,40 +155,42 @@ The fallback Seedance 2.0 measured $0.76 per 5 s clip (§7.1): about $6 per firs
 
 | Option | Pros | Cons |
 |---|---|---|
-| **OpenRouter Videos API, `google/veo-3.1`, 720p, no audio, BYOK Google Cloud key** ✅ | Measured: 19 clips, 0 errors, 48–88 s each, stays closest to the photo (VIDEO_RESEARCH §7.4); OpenRouter serves it from Vertex AI's general-release model, retiring "Nov 17, 2026 or later", not the preview that shuts down 2026-10-22 [verify]; user prefers it | 4, 6 or 8 s and 24 fps only; added people and vents seen in bathroom shots (§7.2–7.3); OpenRouter reports $0 under BYOK, so the real cost sits on the Google Cloud bill; Google Cloud is not named on the approved list (§18) |
-| `bytedance/seedance-2.0` through OpenRouter | Measured: 6 clips, 0 errors; any length 4–15 s; billed by OpenRouter, so cost is in the response (CO-1) | 173–270 s per clip; moves further from the photo and invents detail (§7.2); about $0.76 per 5 s |
-| `google/veo-3.1-lite` or `-fast` | $0.03–0.08/s at 720p, 3–7× cheaper [verify] | Not tested on our photos |
+| **OpenRouter Videos API, `google/veo-3.1`, 1080p, no audio, BYOK Google Cloud key** ✅ | Measured at 720p: 19 clips, 0 errors, 48–88 s each, stays closest to the photo (VIDEO_RESEARCH §7.4); 1080p costs the same (DE-5); OpenRouter serves it from Vertex AI's general-release model, retiring "Nov 17, 2026 or later", not the preview that shuts down 2026-10-22 [verify]; user prefers it | 4, 6 or 8 s and 24 fps only; added people and vents seen in bathroom shots (§7.2–7.3); OpenRouter reports $0 under BYOK, so the real cost sits on the Google Cloud bill; Google Cloud is not named on the approved list (§18) |
+| `bytedance/seedance-2.0` through OpenRouter | Measured: 6 clips, 0 errors; any length 4–15 s; billed by OpenRouter, so cost is in the response (CO-1) | 173–270 s per clip; moves further from the photo and invents detail (§7.2); about $0.76 per 5 s at 720p and more at 1080p [verify] |
+| `google/veo-3.1-lite` or `-fast` | $0.05–0.10/s at 1080p, 2–4× cheaper [verify] | Not tested on our photos |
 
 **Choice: Veo 3.1 through OpenRouter, with the model id read from configuration so Seedance 2.0 can replace it without a code change.** It is the measured working choice; Seedance covers shots longer than 8 s and a Veo outage.
 
-**Needs from the design.** A job's shots are submitted in parallel: one after another, the worst case is about 59 min on Veo and the first pass alone is 25–35 min on Seedance, against PF-1's 30 min (§7.1). Each clip is requested at the next allowed length up from its cut and trimmed (VR-2). Photos are cropped to 16:9 first (§7.2). Under BYOK the call cost is recorded as clip seconds × the listed price, since the response says $0 (CO-1). OpenRouter's "out of budget" (402) and "rate limited" (429) answers become a shot's stop reason within 60 s (RL-1).
+**Needs from the design.** Each style shot's movement prompt starts from the PRD's starter-kit prompt for its movement name (PRD pp.8–9); 1080p 16:9 is requested (DE-5). A job's shots are submitted in parallel: one after another, the worst case is about 59 min on Veo and the first pass alone is 25–35 min on Seedance, against PF-1's 30 min (§7.1). Each clip is requested at the next allowed length up from its cut and trimmed (VR-2). Photos are cropped to 16:9 first (§7.2). Under BYOK the call cost is recorded as clip seconds × the listed price, since the response says $0 (CO-1). OpenRouter's "out of budget" (402) and "rate limited" (429) answers become a shot's stop reason within 60 s (RL-1).
 
 ## 7. Photo enhancement
 
+**Why it exists.** The PRD's creator takes "a mediocre photo" and changes "their composition, their lens, the angle they'd get … the lighting for the time of day" (PRD p.3); its worked example makes a close-up detail shot from a wide kitchen photo in two edits (pp.4–5). Each style shot stores that edit as a prompt (FR-1.8).
+
 | Option | Pros | Cons |
 |---|---|---|
-| **Pillow crop and resize, then `google/gemini-nano-banana-2.1` for light and colour only** ✅ | The crop is required anyway (§7.2); the edit improves light toward the style (FR-1.8) without asking the model to redraw geometry (VR-5); about $0.04 per 1K image [verify] | Released 2026-10-06 and untested on our photos; only served through Google AI Studio, so it bills OpenRouter credits, not the BYOK key; does not change angle or lens |
-| Pillow only (crop, exposure, colour) | Cannot change a room (VR-5); free | Weaker light correction |
+| **Pillow crop and resize, then `google/gemini-nano-banana-2.1` with the style shot's photo-edit prompt** ✅ | The crop is required anyway (§7.2); the PRD's own example uses Nano Banana (pp.4–5), and its cinematic and detail-shot prompts (pp.10–12) each end "preserve all architectural and interior details"; about $0.04 per 1K image [verify] | Released 2026-10-06 and untested on our photos; a new angle can invent geometry (VR-5); only served through Google AI Studio, so it bills OpenRouter credits, not the BYOK key |
+| Pillow only (crop, exposure, colour) | Cannot change a room (VR-5); free | Cannot change lens or angle, so FR-1.8 is not met |
 | `google/gemini-3.1-flash-image` | Older, more used | About twice the price per image |
 | `openai/gpt-5.4-image-2` | Strong editing | Several times the price per image; slower |
 
-**Choice: Pillow crop always, then Nano Banana 2.1 limited to lighting and colour, with `gemini-3.1-flash-image` as a configured fallback.** Asking for a new angle or lens makes the model invent walls and fixtures, which VR-5 forbids; that part of FR-1.8 is an open question (§18).
+**Choice: Pillow crop always, then Nano Banana 2.1 running the style shot's photo-edit prompt, with `gemini-3.1-flash-image` as a configured fallback.** It is the model the PRD's example uses and the only option that meets FR-1.8 in full.
 
-**Needs from the design.** The original photo is kept next to the edited one so the check and the reviewer can compare them (VR-5), and a shot can fall back to the crop-only photo.
+**Needs from the design.** The original photo is kept next to the edited one, and the quality check compares them for added or removed fixtures before the edit is used (VR-5). An edit that fails the check is retried, then falls back to the crop-only photo with the reason recorded. A style shot may chain more than one edit, as the PRD example does.
 
-## 8. Quality check and reading a past video
+## 8. Quality check and cut detection
 
-**Why it exists.** Flags visibly AI shots before delivery (FR-1.7, QC-1), and turns a creator's past video into style shots (FR-2.1).
+**Why it exists.** Flags visibly AI shots and changed rooms before delivery (FR-1.7, QC-1, VR-5), and measures a reproduction's cut times against the original (VR-2, FR-2.4).
 
 | Option | Pros | Cons |
 |---|---|---|
-| **`google/gemini-3.8-flash` given the clip plus frames extracted at 4–8 per second; PySceneDetect 0.6.7.1 (headless OpenCV) for cut times** ✅ | Sees the whole clip and dense frames: a six-frame look missed a person in a mirror (§7.2), and the model samples video at about 1 frame per second by default [verify]; about $0.01 per check [verify]; a cut detector gives exact timestamps (VR-2 ±0.1 s) | Model judgement is unproven against the reviewer (QC-1 is [tbd]); the cut detector misses crossfades, so detected cuts need the creator's edit |
+| **`google/gemini-3.8-flash` given the clip plus frames extracted at 4–8 per second; PySceneDetect 0.6.7.1 (headless OpenCV) for cut times** ✅ | Sees the whole clip and dense frames: a six-frame look missed a person in a mirror (§7.2), and the model samples video at about 1 frame per second by default [verify]; about $0.01 per check [verify]; a cut detector gives exact timestamps (VR-2 ±0.1 s) | Model judgement is unproven against the reviewer (QC-1 is [tbd]); the cut detector misses crossfades, so a transition the style says is a crossfade is checked against the style's own timing |
 | Claude via the Anthropic API with extracted frames | Strong image reasoning; approved | Sees frames, not motion |
 | `google/gemini-3.1-pro-preview` | Stronger reasoning | Preview model; slower and several times the price |
 
-**Choice: Gemini 3.8 Flash for checking clips and labelling movements; PySceneDetect for cut times.** A language model is not reliable for timestamps to a tenth of a second; a cut detector is. PySceneDetect is pinned to 0.6.7.1 with headless OpenCV below 5.0 because the slim image has no graphics libraries.
+**Choice: Gemini 3.8 Flash for checking clips and edited photos; PySceneDetect for cut times in finished videos.** A language model is not reliable for timestamps to a tenth of a second; a cut detector is. PySceneDetect is pinned to 0.6.7.1 with headless OpenCV below 5.0 because the slim image has no graphics libraries.
 
-**Needs from the design.** Video is sent inline, so a creator's past video is shrunk to 480p or split per shot before sending. The check also compares counts of people, vents and fixtures between the clip and the source photo (VR-5).
+**Needs from the design.** The check compares counts of people, vents and fixtures between the clip or edited photo and the source photo (VR-5).
 
 ## 9. Video assembly
 
@@ -264,22 +266,24 @@ The fallback Seedance 2.0 measured $0.76 per 5 s clip (§7.1): about $6 per firs
 | Choice | Current lean | Settled by |
 |---|---|---|
 | Veo 3.1 vs Veo 3.1 Lite or Fast | Veo 3.1 | One clip on each cheaper tier on the same three photos (§7.2), judged by the reviewer |
-| Nano Banana edit on or off by default | On, light and colour only, with crop-only fallback | First 12 test videos: does the edit ever change a room (VR-5)? |
+| How far photo edits may move the angle | Full PRD edits, with crop-only fallback per shot | First 12 test videos: does the edit ever change a room (VR-5)? |
+| Style as stored data or a trained model | Stored data (REQUIREMENTS Definitions: "a style is stored data, not a trained model") | Confirmed 2026-10-18; revisit only if reproductions miss VR-4 |
+| Seedance fallback at 1080p or 720p | 1080p to meet DE-5 | Its 1080p price on the first fallback call |
 | Quality-check score cut-off and frame rate | Unset (QC-1 is [tbd]); 4–8 frames per second | First 12 test videos against the reviewer's marks |
 
 ## 18. Open questions
 
-Defaults below are this document's best assumptions, used until the owner says otherwise.
+The defaults below are best assumptions taken without a meeting. They are now written into `REQUIREMENTS.md` and `HIGH_LEVEL_DESIGN.md`, and the owner can overturn any of them.
 
-| Kind | Issue | Proposed change (default) |
+| Kind | Issue | Decision applied |
 |---|---|---|
-| Requirements conflict (Gate) | BYOK makes Google Cloud (Vertex AI) bill the user's own project; the approved list names "Google One", a consumer plan, not Google Cloud (GC-4) | Default: keep BYOK, because the user set it up and prefers it; record in GC-4 that Google Cloud via OpenRouter BYOK is allowed. If not allowed, turn BYOK off and pay through OpenRouter (approved) at the same list price |
-| Requirements conflict | No logins (FR-3.2) on a public address with no spend limit (GC-3) lets anyone start paid jobs | Default: a shared passphrase (module 11); amend FR-3.2 to "no accounts; one shared demo passphrase" |
-| Requirements conflict | A reproduction must use the original's song (VR-2), but songs must be CC non-commercial (GC-5); a real creator's video almost always has a commercial song | Default: demo-style originals are made by the builder with a CC track; amend FR-2.3 or VR-2 to say so |
-| Requirements conflict | FR-1.8 asks to change angle and lens; redrawing the angle invents geometry, which VR-5 forbids | Default: enhancement changes light, colour and crop only; amend FR-1.8 |
-| Requirements gap | Under BYOK, OpenRouter returns $0 for Veo (§7.1), so CO-1 cannot read the real cost per call | Amend CO-1: BYOK calls record clip seconds × list price |
-| Requirements gap | The 12 test shoots are real AutoHDR customer photos; they go to OpenRouter, Google and, on fallback, ByteDance; no requirement says that is allowed | Add a GC row: test photos may be sent to the approved video and image providers, and are never committed (the repo is public) |
-| Design change | Veo clips are 4, 6 or 8 s; the HLD assumes clips match cut lengths, and a single job's shots must run in parallel to meet PF-1 | Add to HLD §4.2 and §4.3: shots of a job are generated in parallel; clip length is the next allowed length up, trimmed at assembly; shots over 8 s use the fallback model |
+| Requirements conflict (Gate) | BYOK makes Google Cloud (Vertex AI) bill the user's own project; the approved list names "Google One", not Google Cloud (GC-4) | GC-4: Google models through OpenRouter, BYOK included, count as OpenRouter use. If not allowed, turn BYOK off and pay through OpenRouter at the same list price |
+| Requirements conflict | No logins (FR-3.2) on a public address with no spend limit (GC-3) lets anyone start paid jobs | FR-3.2: no accounts, one shared passphrase (module 11) |
+| Requirements conflict | A reproduction must use the original's song (VR-2), but songs must be CC (GC-5); a real creator's video almost always has a commercial song | GC-5: each demo style's original is made by the builder with a BY-NC or BY-NC-SA track |
+| Requirements conflict, resolved for the PRD | Changing angle and lens (FR-1.8) risks inventing geometry (VR-5) | FR-1.8 keeps composition, lens, angle and light as the PRD asks (pp.3–5); VR-5 is enforced by the check (module 7). If edits fail VR-5 too often, they narrow per shot and the narrowing is recorded |
+| Requirements gap | Under BYOK, OpenRouter returns $0 for Veo (§7.1) | CO-1: BYOK calls record seconds × list price |
+| Requirements gap | The 12 test shoots are real customer photos sent to OpenRouter, Google and ByteDance | GC-9: allowed for approved providers, never committed |
+| Design change | Veo clips are 4, 6 or 8 s; a job's shots must run in parallel for PF-1 | HLD §2 and §4: shots run in parallel; clip length is the next allowed length up, trimmed at assembly |
 
 ---
 

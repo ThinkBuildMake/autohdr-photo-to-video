@@ -8,7 +8,7 @@
 - **Design:** One app server, one background worker, one database, file storage, and three outside AI services (video, photo enhancement, quality check). The job queue is a table in the database.
 - **Wireframe:** [Photo to Video wireframe](https://claude.ai/artifact/Y9f7bkitn6dqRLvP5sN5vH), clickable: Styles, New video (upload), Jobs, Job (running, waiting, stopped, partly failed, ready), Create a style, Original vs reproduction. Use the Tweaks panel to jump to each state.
 - **Next as it grows:** final for the demo. The scaling write-up (GC-7) names two pieces for more than one user: a real queue with more workers, and a paid tier at the outside services. Triggers are in §5.
-- **Cost:** no spend limit for now (GC-3). Own boxes about $0 to $25/month; the video service is the cost driver, estimated in §6 and recorded per job (CO-1).
+- **Cost:** no spend limit for now (GC-3). Own boxes about $6–8/month; the video service is the cost driver: about $7 per job first pass, up to $26–52 worst case (§6, from `STACK.md`), recorded per job (CO-1).
 
 ```mermaid
 ---
@@ -48,16 +48,18 @@ flowchart LR
 | I-5 | Check job status (browser polls) | R | every 5 s while a job page is open | 0.2 | ≤ 1 s | Job, Job shot | — | FR-1.3 |
 | I-6 | List jobs, open a past job | R | a few per session | <0.1 | ≤ 1 s | Job | No (demo job kept) | FR-1.3 |
 | I-7 | Play and download the video | R | ~1 per job | <0.1 | Starts in a few seconds | Video | Only through the demo | FR-1.9 |
-| I-8 | Create a style (three methods) | W | 2–3 per project | <0.1 | Save ≤ 1 s; reading a past video runs in the background, minutes are fine | Style, Style shot, Song | Kept through the demo | FR-2.1, FR-2.2 |
-| I-9 | Reproduce a style on its demo shoot, compare side by side | W then R | once per style | <0.1 | Same as I-4 | Style, Job, Video | Kept through the demo | FR-2.3, FR-2.4 |
+| I-8 | Create a style (demo-photoshoot method) | W | 2–3 per project | <0.1 | Save ≤ 1 s | Style, Style shot, Song, Photoshoot | Kept through the demo | FR-2.1, FR-2.2 |
+| I-9 | Reproduce a style on its demo shoot or another shoot, compare side by side | W then R | about 3 per style | <0.1 | Same as I-4 | Style, Job, Video | Kept through the demo | FR-2.3, FR-2.4 |
+| I-11 | See and change which photo fills each shot slot before submitting | W | ~1 per job | <0.1 | ≤ 1 s | Job, Job shot, Photo | Only through the demo | FR-1.10 |
+| I-12 | Redo one shot of a finished video | W | a few per project | <0.1 | One shot plus re-cut, about 2 min | Job shot, Attempt, Video | Only through the demo | FR-1.12 |
 | I-10 | Apply a saved style to another photoshoot | W | same as I-3 | — | same as I-3 | Style, Job | — | FR-2.5 |
 
 **Arithmetic.**
 - Browser requests: 1 user × 1 poll per 5 s = 0.2/s while a job page is open. Everything else is a few per minute. Total peak under 1/s.
 - Jobs: 12 test jobs (GC-6) + about 3 demo styles × 2 runs + about 20 retries of whole jobs while building = under 50 jobs.
 - Files per job (upper bound from DE-2): 40 photos × 25 MB = 1 GB. Typical shoot: 28 photos × 5 MB = 140 MB. A video of 6–8 shots: about 50 MB. So worst case under 50 jobs × 1.1 GB = 55 GB; typical about 10 GB. Both fit a free file-storage tier or local disk with room to spare; the worst case does not, so the worker deletes a job's source photos after the demo (see §7).
-- Calls to outside services per job, worst case, with 8 shots and up to 3 regenerations each (QC-2): photo enhancement 8 (one per shot), video generation 8 × 4 = 32, quality check 32. First pass only: 8 + 8 + 8. A job's time is then dominated by video generation, which is in the minutes per clip. At 4 clips in flight at once (an assumption on the provider's limit), 32 clips at about 2 minutes each is 16 minutes, inside the 30-minute limit (PF-1). That arithmetic rests on assumed clip times; it is checked on the first real run (§7).
-- Provider rate limits and per-second price are the real ceiling, not our servers. 12 test jobs × up to 32 clips = up to 384 clips. At an assumed $0.05 to $0.25 per second of video and 5-second clips, that is about $96 to $480 for the worst case, and about a quarter of that for first passes only. Prices are third-party and unconfirmed; `STACK.md` replaces them.
+- Calls to outside services per job, worst case, with 8 shots and up to 3 regenerations each (QC-2): photo enhancement 8 (one per shot), video generation 8 × 4 = 32, quality check 32. First pass only: 8 + 8 + 8. A job's time is dominated by video generation. Measured: Veo 3.1 takes 48–88 s per clip and 12 clips in parallel all finished within 4.5 min (`VIDEO_RESEARCH.md` §7). With a job's shots in parallel, 4 rounds of about 110 s (clip plus check) is about 8 min, inside PF-1. One after another, the worst case is about 59 min, so shots of a job run in parallel.
+- Provider rate limits and per-second price are the real ceiling, not our servers. Cost per job is in §6, from `STACK.md`.
 
 Load is a single browser and a few jobs. One small app server and one database handle it with more than 100× headroom. The design is shaped by the long wait on outside services, not by traffic.
 
@@ -67,11 +69,11 @@ Load is a single browser and a few jobs. One small app server and one database h
 |---|---|---|---|---|---|
 | Song | A Creative Commons non-commercial track | title, artist, license, source URL (GC-5) | 1 to n Style | keep through demo | <10 |
 | Style | A saved storyboard plus its song | name, song, demo photoshoot, original video | has Style shots; belongs to a Song | keep through demo | 2–3 |
-| Style shot | One slot in a style | order, camera-movement description, place in song, cut time | belongs to Style | keep through demo | 5–8 per style |
+| Style shot | One slot in a style | order, room or subject, photo-edit prompt, movement name, movement prompt, speed, model, place in song, cut time, transition into the next shot | belongs to Style | keep through demo | 5–8 per style |
 | Photoshoot | The photos uploaded for one property | uploaded at | has Photos | disposable | <50 |
 | Photo | One uploaded image | file reference, type, size | belongs to Photoshoot | disposable | ≤ 40 per shoot |
 | Job | One run of photoshoot + style | status, style, photoshoot, submitted, finished, total time, stop reason | has Job shots, one Video | disposable (demo job kept) | <50 |
-| Job shot | One shot of a job | style shot, photo, enhanced photo reference, status, failure reason | belongs to Job; has Attempts | disposable | 5–8 per job |
+| Job shot | One shot of a job | style shot, photo (assigned, changeable before submit), enhanced photo reference, status, failure reason | belongs to Job; has Attempts | disposable | 5–8 per job |
 | Attempt | One try at making a shot | prompt, model used, clip reference, check score, pass or fail | belongs to Job shot | disposable | up to 4 per shot (OB-1, OB-2) |
 | Video | The finished file | file reference, length | belongs to Job | disposable (demo job kept) | <50 |
 
@@ -112,12 +114,11 @@ config:
   layout: elk
 ---
 flowchart LR
-  client[Web client] -->|listStyles, getStyle, createStyle, createUpload, createJob, listJobs, getJob, getVideo, createReproduction, getReproduction| app[App server]
+  client[Web client] -->|listStyles, getStyle, createStyle, createUpload, createJob, updateJobShots, submitJob, listJobs, getJob, redoShot, getVideo, createReproduction, getReproduction| app[App server]
   client -->|upload photos, download video| files[(File storage)]
   worker[Background worker] -->|enhancePhoto| img[Photo enhancement service]
   worker -->|generateClip, getClip| vid[Video generation service]
   worker -->|scoreClip| qc[Quality check service]
-  worker -->|describeVideo| qc
 ```
 
 ### 4.1 App server
@@ -127,15 +128,19 @@ flowchart LR
 | `listStyles` — `GET /styles` | Web client | — | styles with song and shot count | R | ≤ 1 s | sync | I-1, FR-1.2 |
 | `getStyle` — `GET /styles/{id}` | Web client | style id | style, its shots, its song | R | ≤ 1 s | sync | I-1, I-9 |
 | `listSongs` — `GET /songs` | Web client | — | tracks with license and source | R | ≤ 1 s | sync | I-8, GC-5 |
-| `createStyle` — `POST /styles` | Web client | name, song, method, shots or source files | Style (draft) | W | ≤ 1 s | sync save; reading a past video is async | I-8, FR-2.1, FR-2.2 |
+| `createStyle` — `POST /styles` | Web client | name, song, demo photoshoot, original video | Style (draft) | W | ≤ 1 s | sync | I-8, FR-2.1, FR-2.2 |
 | `updateStyleShots` — `PUT /styles/{id}/shots` | Web client | edited shot rows | Style | W | ≤ 1 s | sync | I-8 |
 | `createUpload` — `POST /photoshoots` | Web client | file names, sizes, types | Photoshoot, signed upload links; refusal reasons for bad files | W | ≤ 1 s | sync | I-2, FR-1.1, DE-2 |
-| `createJob` — `POST /jobs` | Web client | photoshoot, style | Job (queued, or refused with message if a job is running) | W | ≤ 1 s | sync accept; the work is async | I-3, FR-1.3, SC-1 |
+| `createJob` — `POST /jobs` | Web client | photoshoot, style | Job (draft) with a proposed photo for each shot slot, and which slots reuse a photo or are skipped | W | ≤ 1 s | sync | I-3, I-11, FR-1.10 |
+| `updateJobShots` — `PUT /jobs/{id}/shots` | Web client | photo per shot slot | Job (draft) | W | ≤ 1 s | sync | I-11, FR-1.10 |
+| `submitJob` — `POST /jobs/{id}/submit` | Web client | job id | Job (queued; says it is waiting if another job runs) | W | ≤ 1 s | sync accept; the work is async | I-3, FR-1.3, SC-1 |
+| `restartJob` — `POST /jobs/{id}/restart` | Web client | stopped job id | Job (queued; finished shots kept) | W | ≤ 1 s | sync accept | FR-1.5 |
+| `redoShot` — `POST /jobs/{id}/shots/{n}/redo` | Web client | job id, shot | Job shot (queued) | W | ≤ 1 s | sync accept; work async | I-12, FR-1.12 |
 | `listJobs` — `GET /jobs` | Web client | — | jobs with status | R | ≤ 1 s | sync | I-6, FR-1.3 |
 | `getJob` — `GET /jobs/{id}` | Web client | job id | status, shots with status and failure reason, stop reason, time taken | R | ≤ 1 s | sync | I-5, FR-1.5, RL-1 |
 | `getVideo` — `GET /jobs/{id}/video` | Web client | job id | signed download link | R | ≤ 1 s | sync | I-7, FR-1.9 |
-| `createReproduction` — `POST /styles/{id}/reproduction` | Web client | style id | Job on the style's demo photoshoot | W | ≤ 1 s | sync accept; work async | I-9, FR-2.3 |
-| `getReproduction` — `GET /styles/{id}/reproduction` | Web client | style id | original and reproduction links, match checks (song, cuts, movement) | R | ≤ 1 s | sync | I-9, FR-2.4 |
+| `createReproduction` — `POST /styles/{id}/reproductions` | Web client | style id, photoshoot (the demo shoot or another) | Job on that photoshoot | W | ≤ 1 s | sync accept; work async | I-9, FR-2.3 |
+| `getReproduction` — `GET /styles/{id}/reproductions/{job}` | Web client | style id, job id | original and reproduction links, per-shot checks (song, cut time, movement name, transition, flagged) | R | ≤ 1 s | sync | I-9, FR-2.4 |
 
 **Inside the app server (no caller):** none; it does no work on its own.
 
@@ -147,19 +152,17 @@ The worker does not take calls. It reads the database for work.
 
 | Work | Trigger | Does | Serves |
 |---|---|---|---|
-| Run next job | A queued job exists and no job is running | Picks the oldest queued job, marks it running. Per shot: enhance the photo, generate the clip, score it, regenerate up to 3 times if flagged, record every attempt. Cuts the clips to the style's cut times over the song. Marks the job ready, or ready with failed shots, or stopped. | I-4, FR-1.4–1.8, QC-2, RL-3 |
+| Run next job | A queued job (or redo) exists and no job is running | Picks the oldest queued job, marks it running. All shots in parallel: edit the photo, generate the clip, score it, regenerate up to 3 times if flagged, record every attempt. Cuts the clips to the style's cut times and transitions over the song. Marks the job ready, or ready with failed shots, or stopped. A redo runs one shot, then re-cuts. | I-4, I-12, FR-1.4–1.8, QC-2, RL-3, PF-1 |
 | Report provider failure | An outside service returns an error or a limit | Marks the shot or job with the reason within 60 s, keeps finished shots, stops without retrying into a charge | RL-1, RL-2, CO-1 |
-| Read a past video | A style was created from a video | Describes each shot's camera movement and cut time into Style shots for the creator to edit | FR-2.1, I-8 |
-| Compare reproduction | A reproduction job is ready | Compares song, cut times and movement type with the original and stores the result | VR-2, VR-3, FR-2.4 |
+| Compare reproduction | A reproduction job is ready | Detects the cut times in both videos and compares them, the song, the movement names and the transitions; stores the per-shot result | VR-2, VR-3, VR-6, FR-2.4 |
 
 ### 4.3 External services
 
 | Operation | Called by | Input | Output | Latency class | Serves |
 |---|---|---|---|---|---|
-| `enhancePhoto` | Worker (run next job) | photo, style's composition and lighting notes | enhanced photo | seconds to a minute | FR-1.8 |
-| `generateClip` / `getClip` | Worker (run next job) | enhanced photo (first and last frame if the service supports them), movement prompt | clip, delivered later; the worker polls | minutes | FR-1.4 |
-| `scoreClip` | Worker (run next job) | clip, source photo | score for "looks AI-generated" and "matches source" | seconds | FR-1.7, QC-1 |
-| `describeVideo` (same vision-capable service as the quality check) | Worker (read a past video) | past video | shots with movement type and cut times | minutes | FR-2.1 |
+| `enhancePhoto` | Worker (run next job) | photo, the style shot's photo-edit prompt (composition, lens, angle, light) | edited photo | seconds to a minute | FR-1.8 |
+| `generateClip` / `getClip` | Worker (run next job) | edited photo as first frame, movement prompt, length (the next allowed length up from the cut: 4, 6 or 8 s on Veo) | clip, delivered later; the worker polls | about 1 min | FR-1.4 |
+| `scoreClip` | Worker (run next job) | clip, frames from it, source photo | score for "looks AI-generated" and "matches source", counts of people and fixtures | seconds | FR-1.7, QC-1, VR-5 |
 
 ## 5. Components
 
@@ -167,16 +170,16 @@ The worker does not take calls. It reads the database for work.
 
 **Why it exists:** the photographer works in a desktop browser (FR-1.1, DE-1). **Wireframe:** [Photo to Video wireframe](https://claude.ai/artifact/Y9f7bkitn6dqRLvP5sN5vH). **Screens:**
 - **Styles:** cards for each style with song and a "Use this style" button, a "See reproduction" link and a "Create a style" link. Only demo styles exist; no empty state is needed.
-- **New video (upload):** the chosen style, a drop zone, the photo grid. States: empty, photos ready, invalid files (names the file and the reason; submit stays off and says why).
+- **New video (upload):** the chosen style, a drop zone, the photo grid. States: empty, photos ready, invalid files (names the file and the reason; submit stays off and says why). Then the shot-slot list: each slot's proposed photo, changeable, and which slots reuse a photo or are skipped (FR-1.10).
 - **Jobs:** every job with its status; opens a job.
-- **Job:** running (which shot, attempts), waiting (another job is running), stopped (names the shot and the reason, no charge), ready with failed shot marked, ready. Shot table with status and reason. Player and download once there is a video.
-- **Create a style:** pick a method, name, song (with its license), editable shot table, save and run reproduction.
-- **Original and reproduction:** two players, a play-both button, a table of checks (song, cuts, movement, flagged shots), keep or edit.
-- No sign-in, no phone layout (FR-3.2, FR-3.4).
+- **Job:** running (which shot, attempts), waiting (another job is running), stopped (names the shot and the reason, "Start again" keeps finished shots), ready with failed shot marked, ready. Shot table with status and reason, and "Redo this shot". Player, download and the song's credit once there is a video.
+- **Create a style:** upload the demo photoshoot, name, song (with its licence), the original video, and an editable shot table (photo, photo edit, movement name, speed, cut time, transition); save and run a reproduction. The wireframe still shows three methods; v1 builds only this one (REQUIREMENTS 0a #5).
+- **Original and reproduction:** pick the reproduction (demo shoot or another shoot), two players, a play-both button, a per-shot table of checks (song, cut time, movement name, transition, flagged), keep or edit.
+- No accounts (one shared passphrase), no phone layout (FR-3.2, FR-3.4).
 
 ### App server
 
-**Why it exists:** serves the operations in §4.1 and refuses a second job while one runs (SC-1). **Holds / does:** no state of its own, no long work. **Provided by platform:** HTTPS and restarts on a managed host; on the builder's machine, neither is needed for the demo.
+**Why it exists:** serves the operations in §4.1; a second job is queued and shown as waiting (SC-1). **Holds / does:** no state of its own, no long work. **Provided by platform:** HTTPS and restarts on a managed host; on the builder's machine, neither is needed for the demo.
 
 ### Background worker
 
@@ -207,22 +210,23 @@ For one user at a time the demo design is final. SC-2 asks for the written expla
 
 | Component | Now | At horizon |
 |---|---|---|
-| App server, worker, database, file storage | $0 to $25/month: builder's machine or a small hosted plan | same |
-| Photo enhancement, quality check | about $0.05 to $0.50 per job [assumed] | same |
-| Video generation | first pass of 8 five-second clips: about $2 (Veo 3.1 Lite at $0.05/s) to $3 (Seedance 2.0 at 480p, $0.067/s) to $8 (Veo 3.1 at 1080p without audio, $0.20/s); with up to 3 regenerations per shot, up to 4× | whole project, about 12 clips per job on average × 50 jobs × 5 s = 3,000 s: about $150 (Lite) to $200 (Seedance 480p) to $600 (Veo 3.1 1080p) |
-| **Total** | **about $3 to $12 per job** | **about $150 to $650 over the project — no limit set (GC-3)** |
+| App server, worker, database, file storage | about $6–8/month (Railway Hobby plus bucket) | same |
+| Photo enhancement, quality check | about $0.40–0.65 per job | same |
+| Video generation | first pass of 8 four-second Veo 3.1 clips at $0.20/s: $6.40 (about $9.60 with 6 s clips); with up to 3 regenerations per shot, up to $25.60 (4 s) or $51.20 (8 s) | under 50 jobs: about $320–480 typical |
+| **Total** | **about $7 per job typical, up to $26–52 worst case** | **about $340–500 over the project plus about $25 hosting — no limit set (GC-3)** |
 
-Per-second prices are OpenRouter's "from" prices read on 2026-10-17 (`VIDEO_RESEARCH.md` §2). Resolution and audio change them, and 720p and 1080p Seedance prices were not found. Cost per job is recorded (CO-1) so a limit can be added. Exact prices are in `STACK.md`.
+Prices are OpenRouter's listed prices read on 2026-10-18; `STACK.md` holds the breakdown. Veo 3.1 costs the same at 720p and 1080p, so output is 1080p (DE-5). Cost per job is recorded (CO-1) so a limit can be added.
 
 ## 7. Open questions and upstream fixes
 
 | Item | Why it matters | Resolved by |
 |---|---|---|
-| [assumed] Providers allow about 4 clips in flight at once, and a clip takes about 2 minutes | Sizes the 16-minute estimate against PF-1 | First real run; adds a measured number to PF-1's check |
-| [assumed] Source photos are deleted after the demo to keep storage small | Worst case is 55 GB | `choose-stack` after storage prices are known |
-| [assumed] A second job is queued, not refused; the wireframe shows both messages | Decides one screen state | Add to SC-1 which of the two |
-| **Upstream fix** — FR: the photographer can see a list of their jobs and reopen one | The wireframe's Jobs screen; FR-1.3 says "come back", which needs a list | REQUIREMENTS.md, new FR-1.10 |
-| **Upstream fix** — FR: a stopped job keeps its finished shots and offers "Start again" | Wireframe error state; RL-3 says remaining shots finish but not what the user can do | REQUIREMENTS.md, add to FR-1.5 |
-| **Upstream fix** — FR: the creator can edit the shot rows of a new style before saving | Wireframe create-style screen; FR-2.1 says only that a style can be created | REQUIREMENTS.md, add to FR-2.1 |
-| **Upstream fix** — FR: the comparison screen lists song, cuts, movement and flagged shots | Wireframe; VR-2 to VR-4 need somewhere to show their result | REQUIREMENTS.md, add to FR-2.4 |
+| Measured: 12 clips in flight at once, 48–88 s each on Veo 3.1 (`VIDEO_RESEARCH.md` §7) | Sizes the parallel-shot estimate against PF-1 | Recheck on the first full job |
+| Source photos need not be deleted for space: 55 GB in the bucket is under $1/month (`STACK.md` §4) | Worst case is 55 GB | Resolved |
+| A second job is queued, not refused | Decides one screen state | Resolved: SC-1 says queued |
+| Jobs list | The wireframe's Jobs screen | Applied: REQUIREMENTS FR-1.11 |
+| "Start again" on a stopped job | Wireframe error state | Applied: REQUIREMENTS FR-1.5 |
+| Editable shot rows before saving a style | Wireframe create-style screen | Applied: REQUIREMENTS FR-2.1 |
+| Comparison screen checks | Wireframe; VR-2 to VR-6 need somewhere to show their result | Applied: REQUIREMENTS FR-2.4 |
+| The wireframe still shows three authoring methods, no shot-slot assignment and no "Redo this shot" | Screens drift from FR-1.10, FR-1.12, FR-2.1 | Update the wireframe before stories are written |
 | Spend limit may be set later | Changes the cost check and may need a "stop at limit" row | User; add a requirement row and a cost-per-video metric (KEY_METRICS.md) when it is set |
