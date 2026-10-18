@@ -1,13 +1,14 @@
 ### S11 — A finished or stopped job can be started again, have one shot redone, or be edited and re-exported
 
 **Kind:** module
-**Blocked by:** S09, S10
+**Blocked by:** S09, S29
 **Review gate:** agents
 **Size:** M — four routes that set shots back to pending
 **Builds:** restartJob `POST /api/jobs/{id}/restart`; redoShot `POST /api/jobs/{id}/shots/{position}/redo`; editShot `PATCH /api/jobs/{id}/shots/{position}`; exportJob `POST /api/jobs/{id}/export`; the `removed`, `needs_new_clip` and `edited_at` write paths; each shot's pending change (new clip, re-cut only, none)
-**Extends:** S10's shot state rules (passed or failed back to pending with round + 1); S09's plan validation, reused for editor edits
+**Extends:** S29's shot state rules (passed or failed back to pending with round + 1); S09's plan validation, reused for editor edits
 **Stubs:** none beyond S01's
-**Requirements:** FR-1.5, FR-1.12, FR-1.13, FR-1.14, FR-1.15, FR-1.16, CH-1
+**Requirements:** CH-1
+**Supports:** FR-1.5, FR-1.12, FR-1.13, FR-1.14, FR-1.15, FR-1.16 (shown in S23 and S24)
 **Guards:** CH-1, QC-2
 
 #### Why
@@ -45,27 +46,35 @@ pytest against the routes with seeded finished and stopped jobs.
    Given a ready job
    When `PATCH` shot 1 sets a length of 3.5 s
    Then shot 1 is re-cut only and keeps its clip
-8. Remove and put back a room
+8. Remove a room
    Given a ready job
-   When shot 5 is marked removed and then unmarked
+   When shot 5 is marked removed
+   Then shot 5 is left out of the export plan
+9. Put a room back
+   Given a ready job with shot 5 removed
+   When shot 5 is unmarked
    Then shot 5 is back in the export plan unchanged
-9. A bad edit names the field
-   Given a ready job
-   When `PATCH` sets a photo from another shoot
-   Then the answer is 400 `invalid_edit` naming the photo
-10. Re-export makes only what changed
+10. A bad edit names the field
+    Given a ready job
+    When `PATCH` sets a photo from another shoot
+    Then the answer is 400 `invalid_edit` naming the photo
+11. Re-export makes only what changed
     Given edits that need a new clip for shot 2 and a re-cut for shot 1
     When `POST /api/jobs/{id}/export` is sent
     Then only shot 2 is `pending` and the job is `queued`
-11. Nothing to export
+12. Nothing to export
     Given a ready job with no edits since its last video
     When `POST /api/jobs/{id}/export` is sent
     Then the answer is 409 `nothing_to_export`
-12. Untouched shots never change
+13. Untouched shots never change
     Given a re-export of a 6-shot job where only shot 2 was edited
     When the export is queued
     Then shots 1 and 3–6 keep the same final attempt
+14. Re-export starts a new run clock
+    Given a ready job first submitted at 09:00
+    When it is re-exported at 14:00
+    Then its current submit time is 14:00 and its first submit time stays 09:00
 
 #### Not in this story
-- Making the pending shots and the new video version — done by S12, joined in S23 and S24
+- Making the pending shots and the new video version — done by S12, S28 and S30, joined in S23 and S24
 - The editor screen — picked up by S17

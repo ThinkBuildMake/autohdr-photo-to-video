@@ -3,11 +3,12 @@
 **Kind:** module
 **Blocked by:** S01
 **Review gate:** agents
-**Size:** S — the key layout and five operations against moto
+**Size:** M — the key layout and five operations against moto
 **Builds:** Files interface presignUpload, presignDownload, put, get, headObject; the bucket key layout; Files' Must holds
 **Extends:** none
 **Stubs:** none
-**Requirements:** FR-1.1, FR-1.9, DE-2
+**Requirements:** DE-2
+**Supports:** FR-1.1, FR-1.9 (shown in S20 and S22)
 **Guards:** DE-2
 
 #### Why

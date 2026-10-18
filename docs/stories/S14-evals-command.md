@@ -33,22 +33,34 @@ pytest running each command against stubbed imports and seeded finished jobs, on
    Given finished jobs with 30 attempts, 4 of them flagged
    When the run writes the reviewer sheet
    Then it has 30 rows with clip links and empty columns for visibly AI, room changed, movement matches and transition matches
-5. The report adds up the sheet
+5. The sheet asks about each plan and each reproduction
+   Given EV-2 reproductions of one style on 2 shoots
+   When the run writes the reviewer sheet
+   Then it has one row per plan for "text followed" and one row per reproduction for "looks like the reference"
+6. The report adds up the sheet
    Given a filled sheet marking 2 shots visibly AI in video 1
    When `evals report` runs
    Then video 1's row shows 2 visibly AI shots, its rooms changed, its worst cut error and its job time
-6. The check's catch rate is reported
+7. The check's catch rate is reported
    Given the reviewer failed 5 attempts and the check flagged 3 of them
    When `evals report` runs
    Then the report shows 3 of 5 caught
-7. A stopped job is reported, and the run goes on
+8. A stopped job is reported, and the run goes on
    Given one of 12 jobs stops with `out_of_credit`
    When the report is written
    Then that job is listed with its reason and the other 11 are reported
-8. No photos in the reports
+9. No photos in the reports
    Given a written report
    When the report folder is listed
    Then it holds only text and number files
+10. The report gives the style checks
+    Given a filled sheet with one reproduction judged not like its reference
+    When `evals report` runs
+    Then that style's row shows 1 of 2 reproductions matching and its plans' text-followed count
+11. The report gives the median job time
+    Given EV-1 jobs of 8, 10 and 14 minutes
+    When `evals report` runs
+    Then it shows a median job time of 10 minutes
 
 #### Not in this story
 - Running against the 12 real test shoots — picked up by S26

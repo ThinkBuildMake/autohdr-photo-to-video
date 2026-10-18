@@ -7,7 +7,8 @@
 **Builds:** the Create a style screen (name, author, style text, song with its licence, frame rate, demo photoshoot; "Try it" makes a plan and a video; revise and try again; "Use as reference video"); the Reference and reproduction screen (pick a reproduction, two players, play both, both shot plans side by side with shot count, lengths, movements, transitions and flagged shots, and cut checks against each plan)
 **Extends:** none
 **Stubs:** listSongs, createStyle, updateStyle, createJob, submitJob, getJob, setReference, getReproduction — removed by S25
-**Requirements:** FR-2.1, FR-2.2, FR-2.3, FR-2.4, FR-3.6, DE-1
+**Requirements:** DE-1
+**Supports:** FR-2.1, FR-2.2, FR-2.3, FR-2.4, FR-3.6 (shown in S25)
 **Guards:** FR-3.6, GC-5
 
 #### Why

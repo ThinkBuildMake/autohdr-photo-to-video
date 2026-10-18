@@ -1,7 +1,7 @@
 ### S20 — Upload a real photoshoot and see each photo labelled with its room
 
 **Kind:** wiring
-**Blocked by:** S02, S04, S06, S08, S15
+**Blocked by:** S02, S04, S05, S06, S08, S15
 **Review gate:** human demo
 **Size:** M — four seams: screen to Photoshoots, Photoshoots to Files and the real bucket, to Media, and to labelling on OpenRouter
 **Wires:** the "Upload a photoshoot" trace (createUpload, browser upload, completeUpload, labelPhotos, getPhotoshoot). Removes the stubs for Files, Media.probe and thumbnail and Providers.labelPhotos in Photoshoots, and the Photoshoots routes behind the New video screen
@@ -47,7 +47,7 @@ The human demo, on the deployed app, with one of the 12 test shoots:
 7. The seams join the gate
    Given the regression gate
    When it runs
-   Then it holds integration cases for upload, complete and label across Photoshoots, Files on moto and the fake labeller, including a labeller error
+   Then it holds integration cases for upload, complete and label across the real Photoshoots, Files on moto and Providers on mocked OpenRouter answers, including a labelling error
 
 #### Not in this story
 - Writing a plan from these photos — picked up by S21

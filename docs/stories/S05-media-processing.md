@@ -7,7 +7,8 @@
 **Builds:** Media interface crop16x9, thumbnail, extractFrames, probe, assemble, detectCuts; Media's Must hold (re-encoded cuts)
 **Extends:** none
 **Stubs:** none
-**Requirements:** FR-1.4, DE-5, VR-2, VR-6
+**Requirements:** DE-5, VR-2, VR-6
+**Supports:** FR-1.4 (shown in S22)
 **Guards:** VR-2, DE-5
 
 #### Why

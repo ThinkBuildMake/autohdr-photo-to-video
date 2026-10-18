@@ -4,7 +4,7 @@
 **Blocked by:** none
 **Review gate:** human demo
 **Size:** L — deploy, the regression gate, every table and every module and route as a contract stub
-**Builds:** the database schema (all nine tables: `songs`, `styles`, `photoshoots`, `photos`, `jobs`, `job_shots`, `attempts`, `provider_calls`, `cut_checks`, with their constraints and indexes, created empty); every API route and every module interface as a contract stub; `GET /healthz`; the system-wide contracts Error format, Times, Database, Blocking work, Processes and Configuration (`.env.example`); the Local, Test and CI, and Production environments; the regression gate (ruff, pytest, Playwright in GitHub Actions; Railway deploys only after it passes); the metrics report with one panel per metric in `KEY_METRICS.md`
+**Builds:** the database schema (all nine tables: `songs`, `styles`, `photoshoots`, `photos`, `jobs`, `job_shots`, `attempts`, `provider_calls`, `cut_checks`, with their constraints and indexes, created empty); every API route and every module interface as a contract stub; `GET /healthz`; the system-wide contracts Error format, Database, Blocking work, Processes and Configuration (`.env.example`); the Local, Test and CI, and Production environments; the regression gate (ruff, pytest, Playwright in GitHub Actions; Railway deploys only after it passes); the metrics report with one panel per metric in `KEY_METRICS.md`
 **Extends:** none
 **Stubs:** none (this story makes the stubs)
 **Requirements:** DE-1, DE-3, GC-4, GC-9

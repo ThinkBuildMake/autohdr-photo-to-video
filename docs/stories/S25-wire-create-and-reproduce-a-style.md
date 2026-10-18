@@ -3,7 +3,7 @@
 **Kind:** wiring
 **Blocked by:** S18, S22
 **Review gate:** human demo
-**Size:** L — two real jobs and four seams: Create a style to Library and Jobs, Library to Photoshoots, setReference to Library, getReproduction to Jobs, Files and cut checks
+**Size:** M — four seams, plus three real jobs counted as generation time: Create a style to Library and Jobs, Library to Photoshoots, setReference to Library, getReproduction to Jobs, Files and cut checks
 **Wires:** the createStyle, updateStyle, setReference, getReproduction and "Reproduce a style and compare" traces. Removes the stubs behind the Create a style and Reference and reproduction screens, Photoshoots in Library, and Library.setReferenceJob, Files and Media in Comparison's routes
 **Extends:** none
 **Requirements:** FR-2.1, FR-2.2, FR-2.3, FR-2.4, FR-3.6, VR-2, VR-4, VR-6, GC-5
@@ -52,7 +52,7 @@ The human demo, on the deployed app with real providers:
 8. The seams join the gate
    Given the regression gate
    When it runs
-   Then it holds integration cases for createStyle, setReference and getReproduction across the real Library, Jobs and Comparison with fakes, including a not-ready reference and a style with no reference
+   Then it holds integration cases for createStyle, setReference and getReproduction across the real Library, Jobs and Comparison, including a not-ready reference and a style with no reference
 
 #### Not in this story
 - Reproductions on every preset and the VR-4 judgment — picked up by S26

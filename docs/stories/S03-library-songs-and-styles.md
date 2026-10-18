@@ -7,7 +7,8 @@
 **Builds:** `songs` and `styles` write paths; listStyles `GET /api/styles`; getStyle `GET /api/styles/{id}`; listSongs `GET /api/songs`; createStyle `POST /api/styles`; updateStyle `PUT /api/styles/{id}`; Library interface getStyle and setReferenceJob; the songs seed command; Library's Must holds
 **Extends:** none
 **Stubs:** Files.presignDownload for song previews and the reference video — removed by S21; Photoshoots for `demoPhotoshootId` checks — removed by S25
-**Requirements:** FR-1.2, FR-2.1, FR-2.2, FR-2.5, GC-5, FR-3.6
+**Requirements:** GC-5
+**Supports:** FR-1.2, FR-2.1, FR-2.2, FR-2.5, FR-3.6 (shown in S21 and S25)
 **Guards:** GC-5, FR-3.6, CH-1
 
 #### Why
@@ -57,6 +58,10 @@ pytest against the routes with a test database, and the seed command run against
     Given the style "Golden hour"
     When setReferenceJob is called with a job id
     Then getStyle returns that job as its reference
+11. A style holds text and a song only
+    Given `POST /api/styles` sent with an extra field `videoUrl`
+    When the style is created
+    Then getStyle returns no video field
 
 #### Not in this story
 - Checking the reference job is ready and made from the style's text — picked up by S13

@@ -13,11 +13,13 @@
 Failures are shown, never hidden, and fixing one never costs the shots that already worked.
 
 #### How it's checked
-The human demo, on the deployed app:
-1. Turn on the fake provider's out-of-credit answer on the third clip and submit a job; within a minute the page says the video service is out of credit, the finished shots are kept, and "Start again" shows.
-2. Turn the fake off and click "Start again"; only the unfinished shots are made, and the video arrives.
-3. Restart the container while a job runs; the job shows "the worker restarted" and "Start again" finishes it.
-4. On a finished video from S22, click "Redo this shot" on one shot; only that shot is made again and a new version of the video appears.
+The human demo. Injected failures run on a local instance with `FAKE_PROVIDERS=1`, because production uses only real providers; the rest runs on the deployed app:
+1. Local: tell the fake provider to answer out of credit on the third clip and submit a job; within a minute the page says the video service is out of credit, the finished shots are kept, and "Start again" shows.
+2. Local: clear the injected error and click "Start again"; only the unfinished shots are made, and the video arrives.
+3. Local: tell the fake to flag one shot on every check; the video arrives without it and the shot is marked beside the player.
+4. Local: run the metrics report; panel 3 shows the time from each injected error to the page.
+5. Deployed: restart the container while a real job runs; the job shows "the worker restarted" and "Start again" finishes it.
+6. Deployed: on the finished video from S22, click "Redo this shot" on one shot; only that shot is made again and a new version of the video appears.
 
 #### Acceptance criteria
 1. An out-of-credit stop is shown within a minute
@@ -39,19 +41,27 @@ The human demo, on the deployed app:
 5. One failed shot does not stop the others
    Given one shot set to fail every check
    When the job runs
-   Then the other shots pass and the failed one is marked with "flagged every attempt"
-6. Redo one shot
+   Then the video plays with the other shots
+6. The failed shot is marked
+   Given the same job
+   When its Job page opens
+   Then the failed shot is marked "flagged every attempt" beside the player
+7. Redo one shot
    Given a ready video
    When "Redo this shot" is clicked on shot 2
    Then only shot 2 is made again and the video's version goes up by one
-7. Interrupted labelling and planning resume
+8. Interrupted labelling and planning resume
    Given a shoot labelling and a job planning when the app restarted
    When the app comes back
    Then both finish without the photographer doing anything
-8. The seams join the gate
+9. The seams join the gate
    Given the regression gate
    When it runs
-   Then it holds integration cases for restart, redo and startup recovery across the real Jobs and Pipeline with fakes, including out of credit, rate limit and refusal
+   Then it holds integration cases for restart, redo and startup recovery across the real Jobs, Pipeline and Providers on mocked OpenRouter answers, including out of credit, rate limit and refusal
+10. The error-time panel shows real numbers
+    Given the injected errors above
+    When the metrics report runs
+    Then panel 3 shows each error's time to the page, all under 60 s
 
 #### Not in this story
 - Editor edits — picked up by S24

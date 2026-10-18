@@ -7,7 +7,8 @@
 **Builds:** Providers interface labelPhotos, planShots, editPhoto, checkEdit, checkClip; the `provider_calls` write path for those calls; the error mapping to `ProviderErrorKind`; the cost rule (reported cost, or list price under BYOK); FakeProviders for these five calls, with error injection; the OpenRouter chat external contract
 **Extends:** none
 **Stubs:** none
-**Requirements:** FR-1.7, FR-1.8, FR-1.10, QC-1, CO-1, GC-3
+**Requirements:** QC-1, CO-1, GC-3
+**Supports:** FR-1.7, FR-1.8, FR-1.10 (shown in S21 and S22)
 **Guards:** VR-5, CO-1, RL-1
 
 #### Why

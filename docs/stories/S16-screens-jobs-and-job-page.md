@@ -7,7 +7,8 @@
 **Builds:** the Jobs screen (every job with its status, opening a job); the Job screen in each state (running with which shot and its attempt, waiting behind another job, stopped with the shot and reason and "Start again", ready with failed shots marked, ready), the shot table with status, reason, crop-only and fallback notes and "Redo this shot", the player, the download link and the song credit
 **Extends:** none
 **Stubs:** listJobs, getJob, getVideo, restartJob and redoShot — removed by S22 and S23
-**Requirements:** FR-1.3, FR-1.5, FR-1.6, FR-1.9, FR-1.11, FR-1.12, SC-1, GC-5, RL-2, DE-1
+**Requirements:** SC-1, GC-5, RL-2, DE-1
+**Supports:** FR-1.3, FR-1.5, FR-1.6, FR-1.9, FR-1.11, FR-1.12 (shown in S22 and S23)
 **Guards:** RL-1, RL-2, GC-5
 
 #### Why
@@ -57,11 +58,15 @@ Playwright in Chromium against the app with stubbed routes returning each job st
     Given a ready job with song "Track A" by "Artist A", BY-NC
     When the Job page opens
     Then the credit shows title, artist, licence and source link
-11. Start again and Redo call their routes
-    Given a stopped job and a ready job
-    When "Start again" and "Redo this shot" on shot 2 are clicked
-    Then the stubbed restartJob and redoShot for shot 2 are called
-12. Times show in local time
+11. Start again calls its route
+    Given a stopped job
+    When "Start again" is clicked
+    Then the stubbed restartJob is called for that job
+12. Redo calls its route
+    Given a ready job
+    When "Redo this shot" is clicked on shot 2
+    Then the stubbed redoShot is called for shot 2
+13. Times show in local time
     Given a job submitted at 17:00 UTC
     When the Job page opens in a browser set to UTC−7
     Then it shows the submit time as 10:00

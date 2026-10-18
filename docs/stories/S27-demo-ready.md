@@ -1,10 +1,10 @@
 ### S27 — The demo is ready: live run rehearsed, a pre-made video kept offline, deploys frozen
 
 **Kind:** wiring
-**Blocked by:** S23, S24, S26
+**Blocked by:** S23, S24, S25
 **Review gate:** human demo
 **Size:** S — no new seam; checks the deployed system as the demo will use it
-**Wires:** the Production environment on demo day: the live flow end to end and the Backup and restore contract (the demo job's video kept offline). Removes no stubs (none are left)
+**Wires:** the Production environment on demo day, and makes the pre-generated demo job (DE-4): the live flow end to end and the Backup and restore contract (the demo job's video kept offline). Removes no stubs (none are left)
 **Extends:** none
 **Requirements:** DE-4, PF-1
 **Guards:** PF-1, GC-3
@@ -16,7 +16,7 @@ The demo must work whether or not a live job finishes in the time slot.
 The human demo, a rehearsal:
 1. A live Veo call confirms the route still works today.
 2. Run the demo flow live: style, upload, plan, video, editor, comparison.
-3. Play the pre-generated demo job from the offline copy.
+3. Make the demo job on the deployed app, download it, and play the offline copy.
 4. Show Railway's auto-deploy frozen.
 
 #### Acceptance criteria
@@ -25,11 +25,11 @@ The human demo, a rehearsal:
    When one 4 s clip is requested
    Then it returns a clip
 2. The live flow runs
-   Given the deployed app
-   When the demo flow is walked from style to comparison
-   Then each step works on a test shoot
+   Given the deployed app and a test shoot
+   When the demo flow is walked: preset, upload, plan, Make my video, play, editor re-export, comparison
+   Then the comparison page shows the new reproduction beside its reference
 3. The fallback video plays offline
-   Given the pre-generated demo job
+   Given the demo job made on the deployed app and downloaded
    When its offline copy is played with no network
    Then it plays in full with its song
 4. Deploys are frozen

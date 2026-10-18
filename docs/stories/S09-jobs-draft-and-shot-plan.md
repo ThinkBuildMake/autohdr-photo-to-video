@@ -7,7 +7,8 @@
 **Builds:** the `jobs` insert path and the `job_shots` plan fields' write path; createJob `POST /api/jobs`; replanJob `POST /api/jobs/{id}/plan`; updateJobShots `PUT /api/jobs/{id}/shots`; the planJob background job, including planning again any job left `planning` on app start; the plan validation rules (movement names, lengths that fit the model's longest clip, total length within the song, photos in the shoot)
 **Extends:** none
 **Stubs:** Library.getStyle, Photoshoots.listPhotos, Providers.planShots and Providers.allowedLengths — removed by S21
-**Requirements:** FR-1.2, FR-1.10, FR-2.3, FR-2.5, OB-1
+**Requirements:** OB-1
+**Supports:** FR-1.2, FR-1.10, FR-2.3, FR-2.5 (shown in S21 and S25)
 **Guards:** CH-1, OB-1
 
 #### Why
@@ -65,7 +66,11 @@ pytest against the routes with a stub planner that answers fixed plans, valid an
     Given a job left `planning` when the app stopped
     When the app starts
     Then planning runs again for that job
+13. A reproduction is marked as one
+    Given the preset "Golden hour"
+    When `POST /api/jobs` is sent with its id, its text unchanged and purpose `reproduction`
+    Then the job's purpose is `reproduction`
 
 #### Not in this story
-- Submitting and the queue — picked up by S10
+- Submitting and the queue — picked up by S10 and S29
 - The plan screen — picked up by S15

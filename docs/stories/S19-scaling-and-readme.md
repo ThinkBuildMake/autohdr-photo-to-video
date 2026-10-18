@@ -27,12 +27,12 @@ An agent follows the README's setup on a clean checkout, and checks the scaling 
    Then it names every module and outside service in ARCHITECTURE.md
 3. Scaling says what changes for N jobs
    Given the scaling explanation
-   When it is read
-   Then it states what changes to run N jobs at once with each job within 30 min and outputs unchanged
+   When its headings are listed
+   Then it has a section on running N jobs at once that names the 30 min limit per job and says outputs stay the same
 4. Scaling names its triggers
    Given the scaling explanation
-   When it is read
-   Then each change carries the measurable trigger from HIGH_LEVEL_DESIGN.md "What to add next"
+   When its sections are listed
+   Then there is one section per row of HIGH_LEVEL_DESIGN.md "What to add next", each quoting that row's trigger
 
 #### Not in this story
 - The README's results on the 12 test shoots — picked up by S26

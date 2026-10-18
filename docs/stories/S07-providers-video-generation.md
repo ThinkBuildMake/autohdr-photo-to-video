@@ -7,7 +7,8 @@
 **Builds:** Providers interface generateClip, allowedLengths, recoverCalls; the `provider_calls` write path for clip calls; FakeProviders' generateClip with a short generated test clip and error injection; the OpenRouter Videos API external contract
 **Extends:** the `provider_calls` write path and error mapping owned by S06
 **Stubs:** none
-**Requirements:** FR-1.4, CO-1, DE-5
+**Requirements:** CO-1, DE-5
+**Supports:** FR-1.4 (shown in S22)
 **Guards:** RL-1, CO-1, DE-5
 
 #### Why
@@ -49,6 +50,10 @@ pytest with the Videos API mocked, and one live test run by hand that makes one 
    Given `FAKE_PROVIDERS=1`
    When generateClip runs for 4 s
    Then the clip probes as a 4 s video and its row has cost 0
+9. The key never leaks
+   Given a failed clip call
+   When its error message, its row and the logs are read
+   Then none contains the API key
 
 #### Not in this story
-- Choosing the fallback model for a shot — picked up by S12
+- Choosing the fallback model for a shot — picked up by S28

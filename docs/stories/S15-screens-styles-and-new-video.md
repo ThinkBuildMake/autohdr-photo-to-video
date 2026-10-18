@@ -6,8 +6,9 @@
 **Size:** M — two screens with uploads, polling and an editable plan
 **Builds:** the Styles screen (preset cards with text, author and song; "Use this style"; "See reproductions"; "Create a style"); the New video screen (style text field filled from a preset and editable, song picker with credit, "Save as my style", drop zone and photo grid with refused files and their reasons, the shot plan as one editable card per shot with its plan note, the planner's notes for missing rooms, "Make my video")
 **Extends:** none
-**Stubs:** the Library, Photoshoots and Jobs routes (listStyles, getStyle, listSongs, createStyle, createUpload, completeUpload, getPhotoshoot, createJob, replanJob, updateJobShots, getJob, submitJob) — removed by S20 and S21
-**Requirements:** FR-1.1, FR-1.2, FR-1.10, FR-2.5, DE-1
+**Stubs:** the Library, Photoshoots and Jobs routes (listStyles, getStyle, listSongs, createStyle, createUpload, completeUpload, getPhotoshoot, createJob, replanJob, updateJobShots, getJob, submitJob) — removed by S20, S21 and S22 (submitJob)
+**Requirements:** DE-1
+**Supports:** FR-1.1, FR-1.2, FR-1.10, FR-2.5 (shown in S20 and S21)
 **Guards:** DE-1, DE-2
 
 #### Why
@@ -49,15 +50,19 @@ Playwright in Chromium against the app with stubbed routes.
    Given the plan cards
    When shot 3's movement is set to Crane Up and saved
    Then the stubbed updateJobShots receives shot 3 with `crane_up`
-9. Shots are added and removed
-   Given the plan cards
-   When one shot is removed and a new one added
-   Then the saved plan has the same count with the new shot in it
-10. Missing rooms are shown
+9. A shot is removed
+   Given 6 plan cards
+   When shot 4 is removed and the plan saved
+   Then the saved plan has 5 shots
+10. A shot is added
+    Given 6 plan cards
+    When a shot is added with movement Dolly Out and the plan saved
+    Then the saved plan has 7 shots ending with Dolly Out
+11. Missing rooms are shown
     Given a plan note "the text asks for a pool; no pool photo"
     When the plan appears
     Then a banner shows that note above the cards
-11. Make my video
+12. Make my video
     Given a ready plan
     When "Make my video" is clicked
     Then the stubbed submitJob is called and the Job page opens

@@ -47,7 +47,15 @@ The human demo, on the deployed app with real providers, on the video from S22:
 7. The seams join the gate
    Given the regression gate
    When it runs
-   Then it holds integration cases for edit and export through the real Jobs and Pipeline with fakes, including an invalid edit and a busy job
+   Then it holds integration cases for edit and export across the real Jobs, Pipeline and Providers on mocked OpenRouter answers, including an invalid edit and a busy job
+8. Speed and transition edits are used
+   Given shot 6 set to speed fast and a crossfade
+   When the video is re-exported
+   Then shot 6 is remade fast and enters on a crossfade
+9. A removed shot can be put back
+   Given shot 5 removed in the editor
+   When it is put back before re-exporting
+   Then the new version still holds shot 5 with its old clip
 
 #### Not in this story
 - Comparing with a style's reference video — picked up by S25

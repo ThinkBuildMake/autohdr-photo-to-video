@@ -3,11 +3,12 @@
 **Kind:** module
 **Blocked by:** S01
 **Review gate:** agents
-**Size:** S — one wrapper on every route and one log filter
+**Size:** M — a wrapper on every route and a log filter, six criteria
 **Builds:** Access (the shared passphrase on every route except `/healthz`); the Scrubbing system-wide contract
 **Extends:** none
 **Stubs:** none
-**Requirements:** FR-3.2
+**Requirements:** none
+**Supports:** FR-3.2 (shown in S20)
 **Guards:** GC-3
 
 #### Why

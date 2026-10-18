@@ -1,10 +1,10 @@
 ### S22 — Make a real video: the worker generates every shot and the photographer plays and downloads it
 
 **Kind:** wiring
-**Blocked by:** S05, S07, S10, S12, S13, S16, S21
+**Blocked by:** S05, S07, S10, S12, S13, S16, S21, S28, S29, S30
 **Review gate:** human demo
 **Size:** L — first real end-to-end job across five seams: Jobs to the worker, the worker to Providers on OpenRouter, to Media, to Files and the bucket, and to Comparison.recordCuts; plus the job screens to Jobs
-**Wires:** the submitJob, listJobs, getJob, getVideo and "Run next job" traces, and Comparison.recordCuts. Removes the stubs for the Jobs worker interface, Providers, Media, Files and recordCuts in Pipeline; Files.presignDownload in Jobs; Media.detectCuts and Files.get in recordCuts; and the Jobs routes behind the Jobs and Job screens
+**Wires:** the submitJob, listJobs, getJob, getVideo and "Run next job" traces, and Comparison.recordCuts. Removes the stubs for the Jobs worker interface, Providers, Media, Files and recordCuts in Pipeline (S12, S28, S30); Files.presignDownload in Jobs; Media.detectCuts and Files.get in recordCuts; and the Jobs routes behind the Jobs and Job screens
 **Extends:** none
 **Requirements:** FR-1.3, FR-1.4, FR-1.6, FR-1.7, FR-1.8, FR-1.9, FR-1.11, SC-1, PF-1, PF-2, PF-3, DE-5, GC-5, OB-1, OB-2, CO-1, VR-2, VR-6
 **Guards:** PF-1, PF-3, QC-2, VR-5, FR-1.7, DE-5
@@ -64,11 +64,15 @@ The human demo, on the deployed app with real providers, using the plan from S21
 11. The seams join the gate
     Given the regression gate
     When it runs
-    Then it holds integration cases for a full job across the real Jobs, Pipeline, Media, Files on moto and Comparison with fake providers, including a flagged attempt and a failed shot
+    Then it holds integration cases for a full job across the real Jobs, Pipeline, Providers on mocked OpenRouter answers, Media, Files on moto and Comparison, including a flagged attempt and a failed shot
 12. Photos are edited toward the style
     Given a shot with photo-edit prompts
     When the job finishes
     Then the Job page shows the shot edited, or crop only with the reason
+13. The video plays and downloads
+    Given the finished job
+    When the photographer presses play and then the download link
+    Then the video plays in the page and the downloaded file has the same length
 
 #### Not in this story
 - Stops, Start again and Redo — picked up by S23

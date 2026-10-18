@@ -7,7 +7,8 @@
 **Builds:** `photoshoots` and `photos` write paths; createUpload `POST /api/photoshoots`; completeUpload `POST /api/photoshoots/{id}/complete`; getPhotoshoot `GET /api/photoshoots/{id}`; the labelPhotoshoot background job, including relabelling a shoot left `labelling` on app start; Photoshoots interface listPhotos and importPhotoshoot; Photoshoots' Must holds
 **Extends:** none
 **Stubs:** Files (presignUpload, headObject, get, put, presignDownload), Media (probe, thumbnail) and Providers.labelPhotos — removed by S20
-**Requirements:** FR-1.1, FR-1.10, DE-2, FR-3.6, GC-9
+**Requirements:** DE-2, GC-9
+**Supports:** FR-1.1, FR-1.10, FR-3.6 (shown in S20)
 **Guards:** DE-2, FR-3.6, GC-9
 
 #### Why
@@ -41,7 +42,7 @@ pytest against the routes with stubbed Files, Media and labelling.
    Given a shoot `labelling` and a stub labeller answering `kitchen`
    When labelling finishes
    Then `GET /api/photoshoots/{id}` shows the shoot `ready` and each photo's room and subject
-7. Labelling failure still lets a job start
+7. Labelling failure is recorded
    Given the labeller raises `failed`
    When labelling runs
    Then the shoot is `label_failed`

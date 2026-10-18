@@ -7,7 +7,8 @@
 **Builds:** the `cut_checks` write path; Comparison interface recordCuts; setReference `POST /api/styles/{id}/reference`; getReproduction `GET /api/styles/{id}/reproductions/{jobId}`; Comparison's Must holds; the measurement record for cut-time error
 **Extends:** none
 **Stubs:** Media.detectCuts, Files.get and Files.presignDownload — removed by S22 (recordCuts) and S25 (both routes); Library.setReferenceJob — removed by S25
-**Requirements:** FR-2.2, FR-2.4, VR-2, VR-6
+**Requirements:** VR-2, VR-6
+**Supports:** FR-2.2, FR-2.4 (shown in S25)
 **Guards:** VR-2, FR-3.6
 
 #### Why
@@ -57,6 +58,10 @@ pytest with seeded jobs, shots and a stub cut detector.
     Given a style with no reference video
     When the comparison is requested
     Then the answer is 409 `no_reference`
+11. The song and text are compared
+    Given a reproduction made with the style's text and song unchanged
+    When the comparison is read
+    Then it says the same song and the same text were used, with the song's credit
 
 #### Not in this story
 - The comparison screen — picked up by S18
