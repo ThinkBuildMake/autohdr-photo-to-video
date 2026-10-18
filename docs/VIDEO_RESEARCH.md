@@ -209,6 +209,25 @@ All 12 calls succeeded, no errors, no retries. OpenRouter key usage went from $1
 - **Reviewer verdict so far (user, 2026-10-18):** apart from the person with a camera in the Veo bathroom pan, the clips are "good enough". This is one person's view of the 12 clips; the added person is a VR-5 failure on that clip.
 - **Still untested:** a truly dark room, M2 to M5, regeneration counts (QC-2), the cheaper tiers, and the automatic quality check.
 
+### 7.3 Prompt-fix retries and a stitched walkthrough, 2026-10-18 (Veo 3.1, 7 clips)
+
+Model `google/veo-3.1` via OpenRouter, BYOK Google, 4 s, 720p, no audio, M1. All 7 calls succeeded in 49 to 59 s each, no retries; cost in the response $0 (BYOK, Google bill not read). Frames viewed by me are a pre-screen only; VR-1 is the human reviewer's call.
+
+**Can a stronger prompt correct the two failures? One retry each, so this is one sample, not a rate.** The same §4 template plus: "There are no people anywhere in the frame, and no reflections of people, cameras or photographers in any mirror or glass. Reflections in mirrors and glass must show only the same room contents as the photo. Keep exactly the same number of ceiling vents, lights and fixtures as the photo; do not add any."
+
+| Retry | Result in the frames I viewed (12 frames each) |
+|---|---|
+| Bathroom pan (was: person with a camera) | No person seen in 12 frames and the mirror contents stay stable. Camera movement is very small, closer to a drift than a pan. One clean sample; not proof the fix works. |
+| Bathroom tilt up (was: extra vent plus keystone skew) | **Not fixed.** A second, louvered vent grille again appears at the top next to the original small vent, and the same keystone skew of walls and mirror returns. |
+
+So the extra-lock sentence did not stop the vent or the skew on this shot, and may have stopped the person (n = 1). The "no added vent" instruction was ignored. Whether a detection step plus a re-prompt can fix this still needs a test: the first step would be an automatic check that counts ceiling vents and people against the source photo and compares with the reviewer's marks.
+
+**Walkthrough: yes, it can be stitched.** Method: one M1 clip per photo (five photos from `205-locke-st` : living room, dining room, kitchen, hallway with stairs, bedroom), push-in or pan only (tilt up avoided after 7.2), same template plus the extra-lock sentence, then cut together with ffmpeg crossfades of 0.4 s. Result: `out/walkthrough_locke.mp4`, 18.4 s, not committed. This is "photos to clips to cut", the same as the product design (a style gives the shots, each is generated alone, and we cut to the song); there is no single multi-image generation here. OpenRouter's model list shows first and last frame inputs for Veo 3.1, so one clip sees one room; a continuous walk through a doorway would need first-and-last-frame (M2) or chaining a clip's last frame into the next, neither tested.
+
+Frame notes on the five walkthrough clips: living room push-in and dining pan hold furniture and chairs steady; the kitchen push-in holds the sliding door, stove and fridge; the hallway push-in is the least interesting (a blank wall fills half the frame) but shows no warping; the bedroom pan holds the bed and plant. I saw no added people or objects, with the same caution that my six-frame pre-screen missed a person once.
+
+**What this adds.** Cost for the five-clip walkthrough at Veo list price is about $4.00 (5 x 4 s x $0.20), and about 1 minute of wall time if all five are submitted together. A video of eight shots is therefore about $6.40 per attempt at list price. This is still an easy house (bright, mostly empty or lightly furnished) and cuts between rooms rather than a continuous walk.
+
 ## 8. What the result changes elsewhere
 
 | If the winner is … | Changes |
