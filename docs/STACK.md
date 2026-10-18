@@ -2,7 +2,7 @@
 
 **What this document is.** A comparison of candidate technologies for each module, and the choice for each. `REQUIREMENTS.md` defines what the system must do; requirement IDs (e.g. `PF-1`) appear here only as the reason a choice wins or loses. Which components exist and the load they carry are in `HIGH_LEVEL_DESIGN.md`; how the pieces fit together is designed in `ARCHITECTURE.md`.
 
-**How the shortlist was built.** Each module's options were researched against `REQUIREMENTS.md`, `HIGH_LEVEL_DESIGN.md`, `USERS.md`, `KEY_METRICS.md` and the 25 measured clips in `VIDEO_RESEARCH.md` §7, with deciding facts verified on 2026-10-18. No review meeting is available, so each module takes the recommended option (candidate: "make your best assumptions and move forward"). A separate agent that hadn't seen the research then checked the chosen stack for conflicts; CHECK_RESULT
+**How the shortlist was built.** Each module's options were researched against `REQUIREMENTS.md`, `HIGH_LEVEL_DESIGN.md`, `USERS.md`, `KEY_METRICS.md` and the 25 measured clips in `VIDEO_RESEARCH.md` §7, with deciding facts verified on 2026-10-18. No review meeting is available, so each module takes the recommended option (candidate: "make your best assumptions and move forward"). A separate agent that hadn't seen the research then checked the chosen stack for conflicts. It found that OpenRouter's Veo 3.1 runs on Google's general-release model, not the preview that shuts down on 2026-10-22. It added a shared passphrase, a process supervisor and frame extraction for the quality check, narrowed photo enhancement to light and colour, and raised four requirement conflicts (§18).
 
 **Markers.** **[verify]** = an external fact checked on 2026-10-18 that should be re-confirmed before it's relied on. Go-live prerequisites, open choices and open questions are in the last sections.
 
@@ -12,36 +12,36 @@
 
 | # | Module | Choice | Main reason |
 |---|---|---|---|
-| 1 | Language and web framework | Python 3.13, FastAPI 0.136, uv | One language with the research scripts and ffmpeg (GC-2) |
+| 1 | Language and web framework | Python 3.13, FastAPI (current release, pinned in `uv.lock`), uv | One language with the research scripts and ffmpeg (GC-2) |
 | 2 | Web client | Server-rendered Jinja2 pages + HTMX 2 | No build step; polling built in (FR-1.3, GC-1) |
 | 3 | Database and job queue | SQLite (WAL) via SQLAlchemy 2.0; job table is the queue | 1 job at a time, < 10,000 rows (SC-1, HLD §5) |
-| 4 | File storage | Railway Storage Bucket (S3 API, presigned links) | Holds 10–55 GB; volume caps at 5 GB (HLD §2) |
-| 5 | Hosting | Railway Hobby, one service, Dockerfile | Approved provider (GC-4); about $5/month |
-| 6 | Video generation | OpenRouter Videos API, `google/veo-3.1`, 720p, no audio; fallback `bytedance/seedance-2.0` | Measured best fit (VIDEO_RESEARCH §7.4); PF-1 |
-| 7 | Photo enhancement | Pillow crop to 16:9 + `google/gemini-nano-banana-2.1` | Crop fixes bars (§7.2); edit serves FR-1.8 |
-| 8 | Quality check and reading a past video | `google/gemini-3.8-flash` (video input) + PySceneDetect for cut times | Watches the clip itself (QC-1); cuts to ±0.1 s (VR-2) |
-| 9 | Video assembly | ffmpeg 7 | The only tool needed to cut to the song (FR-1.4) |
-| 10 | Songs | CC BY-NC tracks from Free Music Archive | License recorded per track (GC-5) |
-| 11 | Sign-in | None | No accounts (FR-3.2); see open questions |
-| 12 | Secrets | Environment variables (Railway variables, `.env` locally) | Two secrets in total |
+| 4 | File storage | Railway Storage Bucket (S3 API, presigned links) | Holds 10–55 GB; a volume caps at 5 GB (HLD §2) |
+| 5 | Hosting | Railway Hobby, one service, Dockerfile on `python:3.13-slim-trixie`, honcho running app + worker | Approved provider (GC-4); about $6–8/month |
+| 6 | Video generation | OpenRouter Videos API, `google/veo-3.1` (Vertex, BYOK), 720p, no audio; fallback `bytedance/seedance-2.0` | Measured best fit (VIDEO_RESEARCH §7.4); PF-1 |
+| 7 | Photo enhancement | Pillow crop to 16:9 + `google/gemini-nano-banana-2.1` for light and colour only | Crop fixes bars (§7.2); edit serves FR-1.8 without moving walls (VR-5) |
+| 8 | Quality check and reading a past video | `google/gemini-3.8-flash` given the clip plus frames at 4–8 per second; PySceneDetect 0.6.7.1 for cut times | Catches brief figures (QC-1); cuts to ±0.1 s (VR-2) |
+| 9 | Video assembly | ffmpeg 7.1 (Debian trixie) | The only tool needed to cut to the song (FR-1.4) |
+| 10 | Songs | CC BY-NC or BY-NC-SA tracks from Free Music Archive | Licence recorded and credited per video (GC-5) |
+| 11 | Access | One shared passphrase (HTTP basic auth), no accounts | Stops strangers starting paid jobs; FR-3.2 has no accounts |
+| 12 | Secrets | Environment variables (Railway variables, `.env` locally) | Three secrets in total |
 | 13 | Observability | Job log tables + platform stdout logs | OB-1, OB-2, CO-1 are rows, not dashboards |
-| 14 | Testing | pytest + fake providers; Playwright; eval script | Paid calls never run in tests; EV-1, EV-2 |
-| 15 | CI/CD | GitHub Actions + Railway deploy from GitHub | Free at this size |
+| 14 | Testing | pytest + fake providers + moto (fake bucket); Playwright; eval script | Paid calls never run in tests; EV-1, EV-2 |
+| 15 | CI/CD | GitHub Actions + Railway deploy from GitHub, "wait for CI" on | Free for this public repo |
 
 **Cost (per job and per month; no limit is set, GC-3):**
 
 | Item | Cost |
 |---|---|
-| Video, first pass: 8 shots × 4 s × $0.20/s (Veo 3.1 list price, no audio; billed by Google under BYOK) | $6.40 [verify] |
+| Video, first pass: 8 shots × 4 s × $0.20/s (Veo 3.1 list price; no cheaper 720p price exists; billed by Google Cloud under BYOK) | $6.40 [verify] |
 | Video, regenerations: up to 3 more attempts per shot (QC-2) | up to $19.20 more |
-| Photo enhancement: 8 edits × about $0.034 (1K image) | about $0.27 [verify] |
-| Quality check: up to 32 short video calls on Gemini 3.8 Flash | under $0.10 [verify] |
-| Hosting: Railway Hobby (includes $5 of usage) + bucket at $0.015/GB-month × 10–55 GB | $5–6/month [verify] |
-| **Typical job (first pass)** | **about $6.80** |
-| **Worst case job (every shot regenerated 3 times)** | **about $26** — no limit is set; driven entirely by video seconds |
-| **Project (under 50 jobs, HLD §2)** | **about $340 typical, $1,300 if every job were worst case**, plus about $20 hosting |
+| Photo enhancement: 8 edits × about $0.04 (1K image, billed by OpenRouter) | about $0.32 [verify] |
+| Quality check: 8 to 32 calls × about $0.01 on Gemini 3.8 Flash | $0.08–0.32 [verify] |
+| Hosting: Railway Hobby $5 (includes $5 usage) + about 0.5 GB RAM over that + bucket at $0.015/GB-month × 10–55 GB | $6–8/month [verify] |
+| **Typical job (first pass, 4 s clips)** | **about $6.80** (about $10 if shots need 6 s clips) |
+| **Worst case job (every shot regenerated 3 times)** | **about $26 with 4 s clips, about $52 with 8 s clips** — no limit is set; driven entirely by video seconds |
+| **Project (under 50 jobs, HLD §2)** | **about $340–500 typical**, plus about $25 hosting |
 
-If a shot's cut is longer than 4 s, it needs a 6 s or 8 s clip, which raises that shot's cost by 50% or 100%. The fallback Seedance 2.0 measured $0.76 per 5 s clip (§7.1), about the same per shot.
+The fallback Seedance 2.0 measured $0.76 per 5 s clip (§7.1): about $6 per first pass and $24 worst case, billed by OpenRouter.
 
 ---
 
@@ -54,12 +54,13 @@ If a shot's cut is longer than 4 s, it needs a 6 s or 8 s clip, which raises tha
 | Term | Meaning |
 |---|---|
 | OpenRouter | A company that resells many AI models behind one account and one key. We send it a request naming the model; it passes the request on and returns the result. |
-| BYOK ("bring your own key") | An OpenRouter setting where the user stores their own key for a provider (here Google). Requests still go through OpenRouter, but the provider bills the user's own account directly. |
+| BYOK ("bring your own key") | An OpenRouter setting where the user stores their own key for a provider (here Google Cloud). Requests still go through OpenRouter, but the provider bills the user's own account directly. |
+| Vertex AI | Google Cloud's paid service for running Google's AI models, billed to a Google Cloud project. |
 | Veo 3.1 | Google's model that turns a photo plus a written instruction into a short video clip of 4, 6 or 8 seconds. |
 | Seedance 2.0 | ByteDance's model that does the same job, with clips of 4 to 15 seconds. |
 | First frame | The photo given to the video model as the clip's opening picture, so the clip starts in the real room. |
 | Nano Banana 2.1 | The nickname for Google's image-editing model: it takes a photo and an instruction and returns an edited photo. |
-| Gemini 3.8 Flash | A fast Google model that can watch a video and a photo and answer questions about them in text, such as "does a person appear?" |
+| Gemini 3.8 Flash | A fast Google model that can watch a video and look at photos, then answer questions about them in text, such as "does a person appear?" |
 | Preview model | A version a provider offers before it is final. Providers can switch preview versions off on a set date. |
 
 **Video and files**
@@ -67,6 +68,7 @@ If a shot's cut is longer than 4 s, it needs a 6 s or 8 s clip, which raises tha
 | Term | Meaning |
 |---|---|
 | ffmpeg | A free command-line program that cuts, joins and re-encodes video and audio files. |
+| Re-encode | Rebuild a video's picture data when cutting it, so a cut can land on any frame rather than only on certain stored frames. |
 | PySceneDetect | A free tool that finds the moments in a video where one shot cuts to the next, and returns their timestamps. |
 | 720p | A video picture 1280 pixels wide and 720 pixels tall. |
 | Bucket | A storage space for files at a hosting company, reached over the internet rather than from a disk in the server. |
@@ -79,9 +81,12 @@ If a shot's cut is longer than 4 s, it needs a 6 s or 8 s clip, which raises tha
 | Railway | A hosting company that runs our code from the GitHub repository and gives it a public web address. |
 | Volume | A disk attached to a server at Railway that keeps its files when the server restarts. |
 | Dockerfile | A short recipe file that lists what to install (Python, ffmpeg) so the server is built the same way every time. |
+| honcho | A small program that starts several programs together (here the web app and the worker) and stops them all if one dies, so the host restarts the lot. |
 | SQLite | A database stored as one file on disk, run inside our own program rather than as a separate server. |
 | HTMX | A small browser script that lets a page refresh one part of itself from the server (for example, a job's status every 5 seconds) without writing a separate front-end app. |
+| HTTP basic auth | The browser's built-in password box. One shared word lets a visitor in; there are no user accounts. |
 | Fake provider | A stand-in for an outside AI service, used in tests, that returns canned answers instantly and costs nothing. |
+| moto | A library that pretends to be an S3 bucket inside tests, so tests never touch real storage. |
 
 ---
 
@@ -89,18 +94,20 @@ If a shot's cut is longer than 4 s, it needs a 6 s or 8 s clip, which raises tha
 
 | Option | Pros | Cons |
 |---|---|---|
-| **Python 3.13 + FastAPI 0.136** ✅ | Same language as the working clip scripts (`tools/gen_clip.py`); best libraries for images (Pillow), scene detection (PySceneDetect) and S3 (boto3); one builder knows one language (GC-2) | Two languages if the client ever needs a rich front-end app; FastAPI is pre-1.0 and changes minor APIs between releases |
+| **Python 3.13 + FastAPI** ✅ | Same language as the working clip scripts (`tools/gen_clip.py`); best libraries for images (Pillow), scene detection (PySceneDetect) and S3 (boto3); one builder knows one language (GC-2) | FastAPI is pre-1.0 and changes minor APIs between releases (current is 0.146, 2026-10-18 [verify]) |
 | TypeScript + Next.js | One language for browser and server; large ecosystem | Image and scene-detection libraries are weaker; research code would be rewritten; a front-end build step to maintain before GC-1 |
-| Python + Django | Admin screens and ORM included | Heavier than one user needs; sync-first, while the worker spends its time waiting on outside services |
+| Python + Django | Admin screens and ORM included | Heavier than one user needs |
 
-**Choice: Python 3.13 with FastAPI 0.136, packages pinned with uv.** The pipeline is images, video and HTTP calls to AI services, and Python already runs it end to end (§7). Python 3.13 gets security fixes until 2029 [verify].
+**Choice: Python 3.13 with FastAPI, exact versions pinned with uv.** The pipeline is images, video and HTTP calls to AI services, and Python already runs it end to end (§7). Python 3.13 gets security fixes until 2029 [verify].
+
+**Needs from the design.** Routes that call SQLite or boto3 (both blocking) must not block the web server's event loop, or status pages stall while a job runs (I-5, ≤ 1 s).
 
 ## 2. Web client
 
 | Option | Pros | Cons |
 |---|---|---|
-| **Jinja2 pages + HTMX 2 (file in the repo)** ✅ | No build step and no second codebase; status polling every 5 s is one attribute (FR-1.3, I-5); one builder, 3 days (GC-1, GC-2) | Richer editing later (UC-3 web editor) would want a component framework |
-| React + Vite single-page app | Best for the later editor; large component ecosystem | A build, a router and an API client to write before the first screen works |
+| **Jinja2 pages + HTMX 2 (file in the repo, 0BSD licence)** ✅ | No build step and no second codebase; status polling every 5 s is one attribute (FR-1.3, I-5); one builder, 3 days (GC-1, GC-2) | Richer editing later (UC-3 web editor) would want a component framework |
+| React + Vite single-page app | Best for the later editor | A build, a router and an API client to write before the first screen works |
 
 **Choice: Jinja2 + HTMX.** Every v1 screen (HLD §5 wireframe) is a form, a table or a video player; none needs client-side state. The "play both" button is a few lines of plain JavaScript.
 
@@ -108,13 +115,13 @@ If a shot's cut is longer than 4 s, it needs a 6 s or 8 s clip, which raises tha
 
 | Option | Pros | Cons |
 |---|---|---|
-| **SQLite (WAL mode) via SQLAlchemy 2.0** ✅ | No server to run or pay for; one file; fine for < 10,000 rows and one writer at a time (HLD §5, SC-1) | App and worker must run on the same machine; must be replaced for several workers on several machines (HLD §5 "What to add next") |
+| **SQLite (WAL mode) via SQLAlchemy 2.0** ✅ | No server to run or pay for; one file; fine for < 10,000 rows (HLD §5, SC-1) | App and worker must share one machine; parallel shot threads writing at once can hit "database is locked" |
 | Railway Postgres | Survives moving the worker to its own service; the next step for SC-2 | A second service to pay for and run; nothing at this load needs it |
-| Redis queue (RQ, Celery) | Standard job queue | A broker the HLD left out on purpose (HLD §5 background worker) |
+| Redis queue (RQ, Celery) | Standard job queue | A broker the HLD left out on purpose (HLD §5) |
 
 **Choice: SQLite.** The job table is the queue, as the HLD decided, and one worker polls it. SQLAlchemy keeps the move to Postgres a connection-string change when SC-2's trigger is hit.
 
-**Needs from the design.** App server and worker share one SQLite file, so they run in the same container; a job claimed by the worker must not be claimed twice after a restart (SC-1).
+**Needs from the design.** App and worker share one SQLite file, so they run in one container. Writes from parallel shots must be short and wait on a lock rather than fail (a busy timeout of several seconds). A job left "running" by a crash or redeploy must be marked stopped with a reason on startup (RL-1, RL-2).
 
 ## 4. File storage
 
@@ -122,23 +129,25 @@ If a shot's cut is longer than 4 s, it needs a 6 s or 8 s clip, which raises tha
 
 | Option | Pros | Cons |
 |---|---|---|
-| **Railway Storage Bucket** ✅ | S3-compatible with presigned links, which the HLD's direct upload and download need (HLD §4.1 `createUpload`, `getVideo`); $0.015/GB-month, egress free [verify]; same provider as hosting (GC-4) | Bucket CORS must be set for browser uploads; public buckets not supported, so every file goes through a presigned link |
+| **Railway Storage Bucket** ✅ | S3-compatible with presigned links, which the HLD's direct upload and download need (HLD §4.1 `createUpload`, `getVideo`); $0.015/GB-month, so 55 GB is under $1/month [verify]; same provider as hosting (GC-4) | Bucket CORS must be set; no automatic expiry of old files; files the worker uploads count as billed egress (about $0.05/GB [verify]) |
 | Railway volume (local disk) | Simplest code; no presigning | Capped at 5 GB on Hobby, below the typical 10 GB (HLD §2) [verify] |
 | DigitalOcean Spaces | Approved provider; S3-compatible | $5/month minimum and a second provider account |
 
-**Choice: Railway Storage Bucket.** It is the only approved option that holds the HLD's file sizes without a second account. Local development uses a separate dev bucket, so there is one code path.
+**Choice: Railway Storage Bucket.** It is the only approved option that holds the HLD's file sizes without a second account. Local development uses a separate dev bucket with localhost in its CORS list, so there is one code path.
 
-**Needs from the design.** The worst case (55 GB) still fits the bucket, so the HLD's "delete source photos after the demo" assumption is not needed for space; it can stay as tidy-up.
+**Needs from the design.** Uploads must refuse files over 25 MB at the bucket, not only in the page (DE-2). Download links must tell the browser to save the file, since a cross-site download link is otherwise ignored (FR-1.9). OpenRouter's clip links need our API key, so the worker downloads each clip and stores it itself, promptly, because OpenRouter keeps the clip until it is downloaded. The 55 GB worst case fits, so deleting photos is tidy-up, not a need.
 
 ## 5. Hosting
 
 | Option | Pros | Cons |
 |---|---|---|
-| **Railway Hobby, one service from a Dockerfile** ✅ | Approved (GC-4); deploys from GitHub; HTTPS and a public address included; about $5/month [verify]; Dockerfile installs ffmpeg | 5 GB volume cap (only SQLite lives there); one service means app and worker restart together |
-| Builder's machine only | $0; nothing to deploy | Demo depends on one laptop being on; nobody at AutoHDR can open it (DE-4 rehearsal) |
+| **Railway Hobby, one service from a Dockerfile (`python:3.13-slim-trixie`), honcho starting app + worker** ✅ | Approved (GC-4); deploys from GitHub; HTTPS and a public address included; about $6–8/month [verify]; trixie ships ffmpeg 7.1 (bookworm has 5.1) | 5 GB volume (SQLite only); a service with a volume has brief downtime on every redeploy, which kills a running job; Hobby terms say "personal projects", borderline for work shown to a company [verify] |
+| Builder's machine only | $0; nothing to deploy | Demo depends on one laptop being on; nobody at AutoHDR can open it |
 | DigitalOcean App Platform | Approved | Separate worker component billed separately; more setup for the same result |
 
-**Choice: Railway Hobby, one service running both the app process and the worker process.** One container is what SQLite needs (module 3), and the build runs the same locally (DE-3).
+**Choice: Railway Hobby, one service; honcho runs the app and the worker and exits if either dies, so Railway restarts the container.** One container is what SQLite needs (module 3). Without the supervisor a dead worker leaves a healthy-looking site whose jobs never move, and RL-1's 60 s report never fires.
+
+**Needs from the design.** Temporary video files go on the container's own disk, not the 5 GB volume. Auto-deploy is frozen on demo day (DE-4).
 
 ## 6. Video generation
 
@@ -146,25 +155,26 @@ If a shot's cut is longer than 4 s, it needs a 6 s or 8 s clip, which raises tha
 
 | Option | Pros | Cons |
 |---|---|---|
-| **OpenRouter Videos API, `google/veo-3.1`, 720p, no audio, BYOK** ✅ | Measured: 19 clips, 0 errors, 48–88 s each, stays closest to the photo (VIDEO_RESEARCH §7.4); PF-1 met with parallel shots; user prefers it | 4, 6 or 8 s only; Google's preview Veo 3.1 is listed to shut down 2026-10-22, the day after GC-1 [verify, see §16]; added people and vents seen in bathroom shots (§7.2–7.3); real cost sits on the Google bill |
-| `bytedance/seedance-2.0` through OpenRouter | Measured: 6 clips, 0 errors; any length 4–15 s; billed by OpenRouter so cost is in the response (CO-1) | 173–270 s per clip; moves further from the photo and invents detail (§7.2); about $0.76 per 5 s |
-| `google/veo-3.1-lite` or `-fast` | $0.03–0.08/s, 4–7× cheaper [verify] | Not tested on our photos; same shutdown risk |
+| **OpenRouter Videos API, `google/veo-3.1`, 720p, no audio, BYOK Google Cloud key** ✅ | Measured: 19 clips, 0 errors, 48–88 s each, stays closest to the photo (VIDEO_RESEARCH §7.4); OpenRouter serves it from Vertex AI's general-release model, retiring "Nov 17, 2026 or later", not the preview that shuts down 2026-10-22 [verify]; user prefers it | 4, 6 or 8 s and 24 fps only; added people and vents seen in bathroom shots (§7.2–7.3); OpenRouter reports $0 under BYOK, so the real cost sits on the Google Cloud bill; Google Cloud is not named on the approved list (§18) |
+| `bytedance/seedance-2.0` through OpenRouter | Measured: 6 clips, 0 errors; any length 4–15 s; billed by OpenRouter, so cost is in the response (CO-1) | 173–270 s per clip; moves further from the photo and invents detail (§7.2); about $0.76 per 5 s |
+| `google/veo-3.1-lite` or `-fast` | $0.03–0.08/s at 720p, 3–7× cheaper [verify] | Not tested on our photos |
 
-**Choice: Veo 3.1 through OpenRouter, with the model id read from configuration so Seedance 2.0 can replace it without a code change.** It is the measured working choice; the shutdown date makes the fallback a requirement, not a nicety.
+**Choice: Veo 3.1 through OpenRouter, with the model id read from configuration so Seedance 2.0 can replace it without a code change.** It is the measured working choice; Seedance covers shots longer than 8 s and a Veo outage.
 
-**Needs from the design.** Clips come in fixed lengths, so each clip is generated at the next length up from its cut and trimmed (FR-1.4, VR-2). Shots of one job are submitted in parallel; sequential Seedance would miss PF-1 (§7.1). Photos are cropped to 16:9 before submission (§7.2).
+**Needs from the design.** A job's shots are submitted in parallel: one after another, the worst case is about 59 min on Veo and the first pass alone is 25–35 min on Seedance, against PF-1's 30 min (§7.1). Each clip is requested at the next allowed length up from its cut and trimmed (VR-2). Photos are cropped to 16:9 first (§7.2). Under BYOK the call cost is recorded as clip seconds × the listed price, since the response says $0 (CO-1). OpenRouter's "out of budget" (402) and "rate limited" (429) answers become a shot's stop reason within 60 s (RL-1).
 
 ## 7. Photo enhancement
 
 | Option | Pros | Cons |
 |---|---|---|
-| **Pillow crop and resize, then `google/gemini-nano-banana-2.1`** ✅ | The crop is required anyway (§7.2); the edit can change light and framing toward the style (FR-1.8); about $0.034 per 1K image [verify] | A generative edit can add or remove fixtures (VR-5); untested on our photos |
-| Pillow only (crop, exposure, colour) | Cannot change a room (VR-5); free | Cannot change angle or lens (FR-1.8 not fully met) |
+| **Pillow crop and resize, then `google/gemini-nano-banana-2.1` for light and colour only** ✅ | The crop is required anyway (§7.2); the edit improves light toward the style (FR-1.8) without asking the model to redraw geometry (VR-5); about $0.04 per 1K image [verify] | Released 2026-10-06 and untested on our photos; only served through Google AI Studio, so it bills OpenRouter credits, not the BYOK key; does not change angle or lens |
+| Pillow only (crop, exposure, colour) | Cannot change a room (VR-5); free | Weaker light correction |
+| `google/gemini-3.1-flash-image` | Older, more used | About twice the price per image |
 | `openai/gpt-5.4-image-2` | Strong editing | Several times the price per image; slower |
 
-**Choice: Pillow crop always, then Nano Banana 2.1 for the light-and-framing edit.** FR-1.8 asks for more than a crop; the quality check (module 8) compares the edited photo with the original so a changed room is caught.
+**Choice: Pillow crop always, then Nano Banana 2.1 limited to lighting and colour, with `gemini-3.1-flash-image` as a configured fallback.** Asking for a new angle or lens makes the model invent walls and fixtures, which VR-5 forbids; that part of FR-1.8 is an open question (§18).
 
-**Needs from the design.** The original photo must be kept next to the edited one so the check and the reviewer can compare them (VR-5), and a shot must be able to fall back to the crop-only photo.
+**Needs from the design.** The original photo is kept next to the edited one so the check and the reviewer can compare them (VR-5), and a shot can fall back to the crop-only photo.
 
 ## 8. Quality check and reading a past video
 
@@ -172,38 +182,48 @@ If a shot's cut is longer than 4 s, it needs a 6 s or 8 s clip, which raises tha
 
 | Option | Pros | Cons |
 |---|---|---|
-| **`google/gemini-3.8-flash` (watches video) + PySceneDetect (cut times)** ✅ | Takes the whole clip, not a few frames, which matters because a six-frame look missed a person (§7.2); about a cent per check [verify]; scene detection gives exact cut timestamps (VR-2 ±0.1 s) | Model judgement is unproven against the reviewer (QC-1 is [tbd]) |
-| Claude via the Anthropic API with extracted frames | Strong image reasoning; approved | Sees frames, not motion; the frame approach already missed a figure |
+| **`google/gemini-3.8-flash` given the clip plus frames extracted at 4–8 per second; PySceneDetect 0.6.7.1 (headless OpenCV) for cut times** ✅ | Sees the whole clip and dense frames: a six-frame look missed a person in a mirror (§7.2), and the model samples video at about 1 frame per second by default [verify]; about $0.01 per check [verify]; a cut detector gives exact timestamps (VR-2 ±0.1 s) | Model judgement is unproven against the reviewer (QC-1 is [tbd]); the cut detector misses crossfades, so detected cuts need the creator's edit |
+| Claude via the Anthropic API with extracted frames | Strong image reasoning; approved | Sees frames, not motion |
 | `google/gemini-3.1-pro-preview` | Stronger reasoning | Preview model; slower and several times the price |
 
-**Choice: Gemini 3.8 Flash for watching clips and labelling movements; PySceneDetect for cut times.** A language model is not reliable for timestamps to a tenth of a second; a cut detector is.
+**Choice: Gemini 3.8 Flash for checking clips and labelling movements; PySceneDetect for cut times.** A language model is not reliable for timestamps to a tenth of a second; a cut detector is. PySceneDetect is pinned to 0.6.7.1 with headless OpenCV below 5.0 because the slim image has no graphics libraries.
+
+**Needs from the design.** Video is sent inline, so a creator's past video is shrunk to 480p or split per shot before sending. The check also compares counts of people, vents and fixtures between the clip and the source photo (VR-5).
 
 ## 9. Video assembly
 
-**Choice: ffmpeg 7 (the Debian package), called from the worker.** It trims each clip to its cut, joins them and lays the song; nothing else in the stack does that, and every Python video library calls ffmpeg underneath.
+**Choice: ffmpeg 7.1 from Debian trixie, called from the worker.** It trims each clip to its cut, joins them and lays the song; every Python video library calls ffmpeg underneath. Debian's build is GPL, which is fine because we run it, not redistribute it.
+
+**Needs from the design.** Cuts are re-encoded, not copied, and converted from Veo's 24 fps to the original's frame rate, or cuts snap up to a second off (VR-2).
 
 ## 10. Songs
 
 | Option | Pros | Cons |
 |---|---|---|
-| **Free Music Archive (CC BY-NC tracks)** ✅ | Licence and artist shown per track (GC-5); free | Catalogue varies; each track's licence must be read |
+| **Free Music Archive tracks under CC BY-NC or BY-NC-SA** ✅ | Licence and artist shown per track (GC-5); free | Each track's licence must be read; BY-NC-SA makes the finished video BY-NC-SA too |
 | ccMixter | Same licence family | Smaller catalogue of upbeat tracks |
 | Suno or other generated music | Made to length | Not on the approved list; licence terms are not CC (GC-4, GC-5) |
 
-**Choice: Free Music Archive tracks under CC BY-NC, stored in the bucket with title, artist, licence and source URL (GC-5).**
+**Choice: Free Music Archive tracks under BY-NC or BY-NC-SA only.** Putting music under video counts as an adaptation, so "NoDerivatives" (ND) tracks are not allowed. The licence code, artist and source URL are stored per track, and the credit line appears on the video page (GC-5).
 
-## 11. Sign-in
+## 11. Access
 
-**Choice: none.** FR-3.2 rules out accounts. The public address plus paid calls is a conflict; see open questions.
+| Option | Pros | Cons |
+|---|---|---|
+| **One shared passphrase via HTTP basic auth, set as an environment variable** ✅ | Stops anyone who finds the address from starting paid jobs on the user's bill (GC-3 sets no limit); no accounts, so FR-3.2 still holds; a few lines | One word shared by everyone; no per-person record |
+| Open address (literal FR-3.2) | Nothing to build | Up to $52 per stranger's job with nothing stopping it |
+| Private address only (never shared) | No code | AutoHDR cannot try it |
+
+**Choice: one shared passphrase.** It reads FR-3.2 ("no accounts or logins") as "no accounts"; §18 asks for that reading to be confirmed.
 
 ## 12. Secrets
 
 | Option | Pros | Cons |
 |---|---|---|
-| **Environment variables: Railway service variables; `.env` locally (gitignored, `.env.example` committed)** ✅ | Two secrets (OpenRouter key, bucket keys); nothing extra to run | No rotation or audit; fine for a demo |
-| A secrets manager (Doppler, 1Password) | Rotation, audit | Another account for two values |
+| **Environment variables: Railway service variables; `.env` locally (gitignored, `.env.example` committed)** ✅ | Three secrets (OpenRouter key, bucket keys, passphrase); nothing extra to run | No rotation or audit; fine for a demo |
+| A secrets manager (Doppler, 1Password) | Rotation, audit | Another account for three values |
 
-**Choice: environment variables.** The Google key is stored only in OpenRouter's BYOK settings and never reaches our code.
+**Choice: environment variables.** The Google Cloud key is stored only in OpenRouter's BYOK settings and never reaches our code. The repository is public, so photos, clips and `out/` stay gitignored.
 
 ## 13. Observability
 
@@ -213,56 +233,66 @@ If a shot's cut is longer than 4 s, it needs a 6 s or 8 s clip, which raises tha
 
 | Option | Pros | Cons |
 |---|---|---|
-| **pytest + FastAPI TestClient + fake providers; Playwright (Chromium) for screens; an eval script for EV-1 and EV-2** ✅ | Tests never spend money or wait minutes; failure injection for RL-1 to RL-3 is a fake that returns errors | Fakes can drift from the real APIs; a small live check before the demo covers that |
+| **pytest + FastAPI TestClient + fake providers + moto for the bucket; Playwright (Chromium) for screens; an eval script for EV-1 and EV-2** ✅ | Tests never spend money or wait minutes; failure injection for RL-1 to RL-3 is a fake that returns errors | Fakes can drift from the real APIs; a small live check before the demo covers that |
 | Recorded real responses (VCR-style) | Closer to the real APIs | Video responses are large files; recordings go stale as models change |
+| MinIO instead of moto | A real S3 server, so browser uploads run end to end | A second service in CI |
 
-**Choice: pytest with fakes, Playwright for screens, and a separate eval script that makes real calls only when run by hand.**
+**Choice: pytest with fakes and moto, Playwright for screens, and a separate eval script that makes real calls only when run by hand.** The existing `tools/gen_clip.py` already uses the right request shape and is the reference for the real provider code.
 
 ## 15. CI/CD
 
 | Option | Pros | Cons |
 |---|---|---|
-| **GitHub Actions (ruff, pytest, Playwright) + Railway deploy from the branch** ✅ | Repo is already on GitHub; free minutes cover this size [verify]; Railway deploys on push | Deploy is not gated on CI unless Railway's "wait for CI" is turned on |
+| **GitHub Actions (ruff, pytest, Playwright) + Railway deploy from the branch with "wait for CI"** ✅ | Repo is public, so Actions minutes are free [verify]; Railway deploys on push | One more workflow file |
 | Railway deploy only, no CI | Nothing to set up | Broken builds reach the demo address |
 
-**Choice: GitHub Actions for checks, Railway's GitHub deploy with "wait for CI" on.**
+**Choice: GitHub Actions for checks; Railway deploys only after CI passes.**
 
 ## 16. Go-live prerequisites
 
 | Prerequisite | Lead time | Blocks |
 |---|---|---|
-| Confirm which Google model OpenRouter's `google/veo-3.1` calls, and that it works after 2026-10-22; otherwise switch `VIDEO_MODEL` to Seedance 2.0 before showing the product after that date | Minutes (one call on 2026-10-22) | Any run after 2026-10-21 |
-| Railway Hobby account, one bucket per environment, bucket CORS for the app's address | Under an hour | Uploads and downloads (FR-1.1, FR-1.9) |
-| OpenRouter: BYOK Google key set, enough credit for Seedance fallback and Gemini calls | Minutes | Every job |
-| Pick 2–3 demo songs and record their licences (GC-5) | An hour | Styles (FR-2.2) |
-| Pre-generate the demo job (DE-4) | One job, about 10 min | The demo if live generation is slow |
+| Decide the two Gate conflicts in §18 (Google Cloud billing under GC-4; passphrase vs FR-3.2) | Minutes, the user | Making the address public |
+| OpenRouter: key spend limit with "include BYOK" on; credits for Nano Banana, Gemini and the Seedance fallback; Google Cloud budget alert on the BYOK project | Under an hour | Every job; protects against runaway cost (GC-3) |
+| One Veo call on 2026-10-21 and on the demo day, to confirm the route still works [verify] | Minutes | Live demo (DE-4) |
+| Railway Hobby account, one bucket per environment, bucket CORS for the app's address and localhost | Under an hour | Uploads and downloads (FR-1.1, FR-1.9) |
+| Pick 2–3 BY-NC or BY-NC-SA demo songs, record licences, and make each demo style's original with that song (§18) | A few hours | Styles and reproductions (FR-2.2, VR-2) |
+| Pre-generate the demo job and keep a copy offline (DE-4) | One job, about 10 min | The demo if live generation is slow |
 
 ## 17. Open choices
 
 | Choice | Current lean | Settled by |
 |---|---|---|
 | Veo 3.1 vs Veo 3.1 Lite or Fast | Veo 3.1 | One clip on each cheaper tier on the same three photos (§7.2), judged by the reviewer |
-| Nano Banana edit on or off by default | On, with crop-only fallback | First 12 test videos: does the edit ever change a room (VR-5)? |
-| Quality-check score cut-off | Unset (QC-1 is [tbd]) | First 12 test videos against the reviewer's marks |
+| Nano Banana edit on or off by default | On, light and colour only, with crop-only fallback | First 12 test videos: does the edit ever change a room (VR-5)? |
+| Quality-check score cut-off and frame rate | Unset (QC-1 is [tbd]); 4–8 frames per second | First 12 test videos against the reviewer's marks |
 
 ## 18. Open questions
 
-| Kind | Issue | Proposed change |
+Defaults below are this document's best assumptions, used until the owner says otherwise.
+
+| Kind | Issue | Proposed change (default) |
 |---|---|---|
-| Requirements conflict | No sign-in (FR-3.2) on a public address means anyone with the link can start paid jobs; no spend limit (GC-3) means nothing stops them | Add a single shared access code for the demo (not an account), or keep the address private; amend FR-3.2 |
-| Requirements conflict | BYOK makes Google bill the user's own account; the approved list names "Google One", not Google Cloud or AI Studio (GC-4) | Confirm BYOK Google counts as approved, or turn BYOK off so OpenRouter (approved) bills it; record in GC-4 |
-| Requirements gap | Veo cost under BYOK does not come back in OpenRouter's response (§7.1), so CO-1 can only record the list price for Veo | Let CO-1 accept "list price × seconds" for BYOK calls |
-| Design change | Veo clips are 4, 6 or 8 s; the HLD assumes clips match cut lengths | Add to HLD §4.3 `generateClip`: clip length is the next allowed length up, trimmed at assembly |
+| Requirements conflict (Gate) | BYOK makes Google Cloud (Vertex AI) bill the user's own project; the approved list names "Google One", a consumer plan, not Google Cloud (GC-4) | Default: keep BYOK, because the user set it up and prefers it; record in GC-4 that Google Cloud via OpenRouter BYOK is allowed. If not allowed, turn BYOK off and pay through OpenRouter (approved) at the same list price |
+| Requirements conflict | No logins (FR-3.2) on a public address with no spend limit (GC-3) lets anyone start paid jobs | Default: a shared passphrase (module 11); amend FR-3.2 to "no accounts; one shared demo passphrase" |
+| Requirements conflict | A reproduction must use the original's song (VR-2), but songs must be CC non-commercial (GC-5); a real creator's video almost always has a commercial song | Default: demo-style originals are made by the builder with a CC track; amend FR-2.3 or VR-2 to say so |
+| Requirements conflict | FR-1.8 asks to change angle and lens; redrawing the angle invents geometry, which VR-5 forbids | Default: enhancement changes light, colour and crop only; amend FR-1.8 |
+| Requirements gap | Under BYOK, OpenRouter returns $0 for Veo (§7.1), so CO-1 cannot read the real cost per call | Amend CO-1: BYOK calls record clip seconds × list price |
+| Requirements gap | The 12 test shoots are real AutoHDR customer photos; they go to OpenRouter, Google and, on fallback, ByteDance; no requirement says that is allowed | Add a GC row: test photos may be sent to the approved video and image providers, and are never committed (the repo is public) |
+| Design change | Veo clips are 4, 6 or 8 s; the HLD assumes clips match cut lengths, and a single job's shots must run in parallel to meet PF-1 | Add to HLD §4.2 and §4.3: shots of a job are generated in parallel; clip length is the next allowed length up, trimmed at assembly; shots over 8 s use the fallback model |
 
 ---
 
 ## Sources (checked 2026-10-18)
 
-- [OpenRouter models API](https://openrouter.ai/api/v1/models) and [videos models API](https://openrouter.ai/api/v1/videos/models): model ids, durations, frame inputs, per-second and per-token prices
-- [Gemini API deprecations](https://ai.google.dev/gemini-api/docs/deprecations): Veo 3.1 preview shutdown 2026-10-22 (snapshots disagree)
-- [OpenRouter Veo 3.1 API page](https://openrouter.ai/google/veo-3.1/api): video generation listed as alpha
-- [Railway volumes reference](https://docs.railway.com/volumes/reference): Hobby volume 5 GB
-- [Railway Storage Buckets](https://docs.railway.com/storage-buckets) and [billing](https://docs.railway.com/storage-buckets/billing.md): S3 API, presigned URLs, $0.015/GB-month, free egress
-- [Nano Banana 2.1 pricing](https://tokencost.app/blog/nano-banana-2-1-pricing): about $0.034 per 1K image
-- [FastAPI 0.136.1 package listing](https://simple-repository.app.cern.ch/project/fastapi): Python 3.10–3.14
+- [OpenRouter models API](https://openrouter.ai/api/v1/models) and [videos models API](https://openrouter.ai/api/v1/videos/models): model ids, durations, frame inputs, per-second and per-token prices; `/models/{id}/endpoints` for `google/veo-3.1` (Vertex) and `google/gemini-nano-banana-2.1` (AI Studio only)
+- [OpenRouter BYOK](https://openrouter.ai/docs/guides/overview/auth/byok) and [limits](https://openrouter.ai/docs/api/reference/limits): BYOK fee and allowance, `include_byok_in_limit`, 402 and 429 answers
+- [Gemini API deprecations](https://ai.google.dev/gemini-api/docs/deprecations): Veo 3.1 preview shutdown 2026-10-22
+- [Vertex AI Veo 3.1](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/veo/3-1-generate): `veo-3.1-generate-001` general release, retirement "November 17, 2026 or later", 24 fps
+- [Railway volumes](https://docs.railway.com/volumes/reference): Hobby volume 5 GB, no replicas with a volume
+- [Railway Storage Buckets](https://docs.railway.com/storage-buckets) and [billing](https://docs.railway.com/storage-buckets/billing.md): S3 API, presigned URLs, $0.015/GB-month, no lifecycle rules
+- [Railway terms](https://railway.com/legal/terms): Hobby use terms
+- [Nano Banana 2.1 pricing](https://tokencost.app/blog/nano-banana-2-1-pricing): about $0.034–0.04 per 1K image
+- PyPI: fastapi, scenedetect (0.6.7.1, 0.7.2), SQLAlchemy, opencv-python-headless; [Debian ffmpeg](https://sources.debian.org/src/ffmpeg/) (trixie 7.1, bookworm 5.1)
+- [CC BY-NC-ND 4.0 legal code](https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode): music synced to video is adapted material
 - `VIDEO_RESEARCH.md` §7: measured clip times, costs and failures
