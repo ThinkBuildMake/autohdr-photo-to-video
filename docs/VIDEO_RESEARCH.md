@@ -193,7 +193,7 @@ All 12 calls succeeded, no errors, no retries. OpenRouter key usage went from $1
 | Veo tilt up, kitchen | Tilt to the ceiling light works; the ceiling texture and cabinets hold. The camera also drifts right, so it is not a pure tilt. |
 | Seedance push-in, kitchen | Moves much further in than Veo (table fills the frame), with strong parallax. New content comes into view on the right (open shelves, window) as the camera turns; plausible but invented. Chairs and bin hold. |
 | Veo push-in, bathroom | Mirror reflection stays consistent; a dark vertical strip (a door or shower edge) grows on the left that I cannot match to the photo. |
-| Veo pan, bathroom | A small fixture appears at the top left and white edge objects appear at the right edge. Mirror content changes slightly. |
+| Veo pan, bathroom | A small fixture appears at the top left and white edge objects appear at the right edge. Mirror content changes slightly. **Correction from the human reviewer (2026-10-18): a person holding a camera appears (most likely in the mirror reflection). My frame pre-screen missed this and described it only as edge objects, so the six-frame pre-screen is not reliable for small added figures. The prompt already said "no people".** |
 | Veo tilt up, bathroom | The worst clip. Strong keystone skew: the mirror and wall lean, an air vent appears at the top, and the mirror's reflection changes. Looks like warped geometry. |
 | Seedance push-in, bathroom | A glass shower door with a handle appears on the left and the reflection shows a shower; plausible reading of the mirror, but it is invented detail. Faucet and plant hold. |
 | Veo push-in, living | Small objects (shelves, clock, TV, table, sofa pillows) stay in place with correct parallax. Strongest of the Veo clips. |
@@ -206,6 +206,7 @@ All 12 calls succeeded, no errors, no retries. OpenRouter key usage went from $1
 - **Furnished living room worked well on both models**, including small objects. Simple push-ins were the cleanest Veo moves; tilt up was the weakest movement on Veo in all three rooms (drift, skew, or both).
 - **Veo and Seedance are close enough on quality here that cost and access decide.** With BYOK Veo costs nothing on OpenRouter and ran 48 to 88 s a clip, against 173 to 246 s and about $0.76 for Seedance. Seedance moves further and shows stronger parallax; Veo stays closer to the photo. That matches the "Seedance moves more, Veo more faithful" claim in §2, on three rooms only.
 - **PF-1:** all 12 jobs ran in parallel and finished in under 4.5 min, so an 8-shot video fits 30 min if shots are submitted in parallel.
+- **Reviewer verdict so far (user, 2026-10-18):** apart from the person with a camera in the Veo bathroom pan, the clips are "good enough". This is one person's view of the 12 clips; the added person is a VR-5 failure on that clip.
 - **Still untested:** a truly dark room, M2 to M5, regeneration counts (QC-2), the cheaper tiers, and the automatic quality check.
 
 ## 8. What the result changes elsewhere
