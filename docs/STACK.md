@@ -106,8 +106,8 @@ The fallback Seedance 2.0 measured $0.76 per 5 s clip (§7.1): about $6 per firs
 
 | Option | Pros | Cons |
 |---|---|---|
-| **Jinja2 pages + HTMX 2 (file in the repo, 0BSD licence)** ✅ | No build step and no second codebase; status polling every 5 s is one attribute (FR-1.3, I-5); one builder, 3 days (GC-1, GC-2) | Richer editing later (UC-3 web editor) would want a component framework |
-| React + Vite single-page app | Best for the later editor | A build, a router and an API client to write before the first screen works |
+| **Jinja2 pages + HTMX 2 (file in the repo, 0BSD licence)** ✅ | No build step and no second codebase; status polling every 5 s is one attribute (FR-1.3, I-5); the editor (FR-1.13–1.16) is a shot list with a form per shot, which HTMX swaps in place; one builder, 3 days (GC-1, GC-2) | A drag-and-drop timeline would want a component framework; v1 needs none |
+| React + Vite single-page app | Best for a drag-and-drop editor | A build, a router and an API client to write before the first screen works |
 
 **Choice: Jinja2 + HTMX.** Every v1 screen (HLD §5 wireframe) is a form, a table or a video player; none needs client-side state. The "play both" button is a few lines of plain JavaScript.
 

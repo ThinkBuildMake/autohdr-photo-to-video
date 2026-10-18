@@ -59,7 +59,7 @@ If a row names a library, a component, or a way of meeting a threshold, it is in
 | 3 | Failed shots are surfaced, not silently replaced | Fallback shots that hide the failure | FR-1.5, RL-2 |
 | 4 | Photo edits change composition, lens, angle and light as the PRD asks (pp.3–5), but never architecture, rooms or fixtures | Limiting edits to light and colour | FR-1.8, VR-5 |
 | 5 | Styles are authored by one method: the demo-photoshoot method (PRD p.3, first example). Past-video upload and storyboard outline are later iterations | Building all three methods | FR-2.1 |
-| 6 | The web editor (PRD p.7, "optional") is deferred; shots stay separable so it can be added (CH-1). One cheap part of it is kept: redo a single shot | Building the editor now | FR-3.1, FR-1.12, CH-1 |
+| 6 | The web editor (PRD p.7, "optional") is built in v1: swap a room, change a shot, remove a room, re-export, regenerating only the changed shots [src candidate, 2026-10-18: "That was the easiest part"] | Deferring the editor | FR-1.12–FR-1.16, CH-1 |
 | 7 | One shared demo passphrase, no accounts, because a public address with no spend limit lets anyone start paid jobs *(assumed, 2026-10-18)* | Fully open address | FR-3.2, GC-3 |
 
 ---
@@ -105,7 +105,11 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.7.
 | FR-1.9 | The photographer plays the finished video in the browser and downloads it. | F3 | Must |
 | FR-1.10 | Each shot slot is filled with the photo that best matches the slot's room or subject. Before submitting, the photographer sees the assignment and can change it. If there are fewer suitable photos than slots, the job says which slots reuse a photo or are skipped. | PRD p.3 "the clips they're applied to, the order of the clips" | Must |
 | FR-1.11 | The photographer sees a list of their jobs with status and can reopen any of them. | F3, FR-1.3 | Must |
-| FR-1.12 | The photographer can redo one shot of a finished video without regenerating the others. | PRD p.7, CH-1 | Should |
+| FR-1.12 | The photographer can redo one shot of a finished video without regenerating the others. | PRD p.7, CH-1 | Must |
+| FR-1.13 | In the web editor, the photographer swaps the room of a shot by choosing another photo from the photoshoot. | F10, PRD p.7 | Must |
+| FR-1.14 | In the web editor, the photographer changes a shot: its camera movement (one of the movement names), speed, movement prompt, photo edit, length or transition. | F10, PRD p.7 | Must |
+| FR-1.15 | In the web editor, the photographer removes a room (a shot) from the video, and can put it back before re-exporting. | F10, PRD p.7 | Must |
+| FR-1.16 | The photographer re-exports the edited video. Only shots whose photo, movement, prompts or photo edit changed are made again; the others are reused, and the video is re-cut to the song. Shots the photographer did not touch never change. | F10, PRD p.7, CH-1 | Must |
 
 ### FR-2 Create and reproduce a style (UC-2)
 
@@ -121,7 +125,6 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.7.
 
 | ID | Requirement | Trace | Priority |
 |---|---|---|---|
-| FR-3.1 | The full web editor (swap a room, change a shot, remove a room, re-export; PRD p.7, "optional") is deferred to later iteration 1 (UC-3); FR-1.12 and CH-1 keep the way open. | U§6 later #1, 0a #6 | Must |
 | FR-3.2 | No accounts. The product is behind one shared demo passphrase (0a #7). | U§7 | Must |
 | FR-3.3 | No creator ratings, reviews, payments or credits *(assumed)*. | U§7 | Must |
 | FR-3.4 | No phone layout; desktop only. | U§7 | Must |
@@ -151,6 +154,7 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.7.
 | PF-1 | A finished video is available within **30 min** of submitting a job, including every shot regeneration [src user, 2026-10-17]. | Time 12 test jobs from submit to playable; max ≤ 30 min | FR-1.3, FR-1.4 | Must |
 | PF-2 | Typical jobs finish within **10 min**; 30 min is the limit, not the aim [src user: "10–30 min is perfectly fine"]. | Median job time over the 12 test jobs | FR-1.3 | Should |
 | PF-3 | Generation time and regeneration time share the 30 min of PF-1; regeneration may use at most **the remainder** after the first pass. | Job log shows first-pass and regeneration time sum ≤ 30 min | FR-1.7 | Must |
+| PF-4 | A re-export from the editor with up to 2 changed shots is playable within **10 min** [prop]. | Time re-exports on 3 test videos | FR-1.16 | Should |
 
 ### 3.3 Reliability and failure modes (RL-)
 
@@ -208,7 +212,7 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.7.
 
 | ID | Requirement | Verified by | Trace | Priority |
 |---|---|---|---|---|
-| CH-1 | A finished job's shots, their order and their cut times are stored, so a later editor could swap or remove one shot without regenerating the others [prop]. | Inspect a stored job; it lists each shot separately | U§6 later #1 | Should |
+| CH-1 | A finished job's shots, their order and their cut times are stored, so the editor can swap, change or remove one shot without regenerating the others [prop]. | Inspect a stored job; it lists each shot separately; an edit of one shot leaves the others' clips unchanged | F10 | Must |
 | CH-2 | Two jobs can run at once without changing outputs once capacity is added, with 0 changes to a style [prop]. | Run two jobs with the same style on separate capacity; outputs match single-job runs | U§6 later #2 | Should |
 
 ---
@@ -228,7 +232,7 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.7.
 | Environment and output (DE) | ✓ | ✓ | user; PRD p.2 |
 | Evaluation (EV) | ✓ | ✓ | PRD p.3 |
 | Cost (CO) | ✓ | ✓ | GC-3 |
-| Change (CH) | UC-3 (later) | | USERS.md §6; PRD p.7 |
+| Change (CH) | UC-3 | | USERS.md §6; PRD p.7 |
 
 ---
 
@@ -246,6 +250,7 @@ Every **[prop]** and **[tbd]** number. [prop] rows not commented on at review ar
 | QC-2 | 3 attempts | Bounded so regeneration stays inside PF-1 | Accepted |
 | DE-1 | current desktop Chrome | User said assume desktop | Accepted |
 | DE-2 | JPG/PNG, 40 photos, 25 MB | Covers a typical shoot with room to spare; the 12 test shoots set the real size | Accepted |
+| PF-4 | re-export ≤ 10 min for ≤ 2 changed shots | One round of a few clips in parallel plus a re-cut, measured at about 1–2 min per clip (VIDEO_RESEARCH §7) | Proposed 2026-10-18 |
 | DE-5 | 1920×1080, 16:9, original frame rate | Listing videos are landscape HD; Veo 3.1 costs the same at 720p and 1080p (STACK §6) | Proposed 2026-10-18 |
 | GC-8 | README with setup, design, results | The PRD judges engineering and problem solving | Proposed 2026-10-18 |
 | CO-1 | cost recorded per call and per job; list price for BYOK | No spend limit now (user, 2026-10-17); recording lets one be added | Accepted |

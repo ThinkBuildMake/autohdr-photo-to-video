@@ -6,7 +6,7 @@
 
 - **Load:** 1 user, 1 job at a time (SC-1). About 12 test jobs plus a few demo runs in total, so under 50 jobs over the project. Peak is about 0.2 browser requests/s. Each job is 10–30 minutes of work that is almost all waiting on outside AI services. About 10 GB of files in total (55 GB worst case, §2).
 - **Design:** One app server, one background worker, one database, file storage, and three outside AI services (video, photo enhancement, quality check). The job queue is a table in the database.
-- **Wireframe:** [Photo to Video wireframe](https://claude.ai/artifact/Y9f7bkitn6dqRLvP5sN5vH), clickable: Styles, New video (upload), Jobs, Job (running, waiting, stopped, partly failed, ready), Create a style, Original vs reproduction. Use the Tweaks panel to jump to each state.
+- **Wireframe:** [Photo to Video wireframe](https://claude.ai/artifact/Y9f7bkitn6dqRLvP5sN5vH), clickable: Styles, New video (upload, then which photo fills each shot), Jobs, Job (running, waiting, stopped, partly failed, ready) with shot cards and "Redo this shot", Editor (swap a room, change a shot, remove a room, re-export), Create a style (demo-shoot method), Original vs reproduction (same house or a different house). Use the Tweaks panel to jump to each state.
 - **Next as it grows:** final for the demo. The scaling write-up (GC-7) names two pieces for more than one user: a real queue with more workers, and a paid tier at the outside services. Triggers are in §5.
 - **Cost:** no spend limit for now (GC-3). Own boxes about $6–8/month; the video service is the cost driver: about $7 per job first pass, up to $26–52 worst case (§6, from `STACK.md`), recorded per job (CO-1).
 
@@ -52,6 +52,7 @@ flowchart LR
 | I-9 | Reproduce a style on its demo shoot or another shoot, compare side by side | W then R | about 3 per style | <0.1 | Same as I-4 | Style, Job, Video | Kept through the demo | FR-2.3, FR-2.4 |
 | I-11 | See and change which photo fills each shot slot before submitting | W | ~1 per job | <0.1 | ≤ 1 s | Job, Job shot, Photo | Only through the demo | FR-1.10 |
 | I-12 | Redo one shot of a finished video | W | a few per project | <0.1 | One shot plus re-cut, about 2 min | Job shot, Attempt, Video | Only through the demo | FR-1.12 |
+| I-13 | Edit a finished video (swap a room, change a shot, remove a room) and re-export | W | a few per job | <0.1 | Each edit saves ≤ 1 s; re-export ≤ 10 min (PF-4) | Job shot, Attempt, Video | Only through the demo | FR-1.13–FR-1.16 |
 | I-10 | Apply a saved style to another photoshoot | W | same as I-3 | — | same as I-3 | Style, Job | — | FR-2.5 |
 
 **Arithmetic.**
@@ -136,6 +137,8 @@ flowchart LR
 | `submitJob` — `POST /jobs/{id}/submit` | Web client | job id | Job (queued; says it is waiting if another job runs) | W | ≤ 1 s | sync accept; the work is async | I-3, FR-1.3, SC-1 |
 | `restartJob` — `POST /jobs/{id}/restart` | Web client | stopped job id | Job (queued; finished shots kept) | W | ≤ 1 s | sync accept | FR-1.5 |
 | `redoShot` — `POST /jobs/{id}/shots/{n}/redo` | Web client | job id, shot | Job shot (queued) | W | ≤ 1 s | sync accept; work async | I-12, FR-1.12 |
+| `editShot` — `PATCH /jobs/{id}/shots/{n}` | Web client (editor) | photo, movement, speed, prompts, photo edit, length, transition, or removed | Job shot (draft edit) | W | ≤ 1 s | sync | I-13, FR-1.13–FR-1.15 |
+| `exportJob` — `POST /jobs/{id}/export` | Web client (editor) | job id | Job (queued: changed shots regenerate, then re-cut) | W | ≤ 1 s | sync accept; work async | I-13, FR-1.16 |
 | `listJobs` — `GET /jobs` | Web client | — | jobs with status | R | ≤ 1 s | sync | I-6, FR-1.3 |
 | `getJob` — `GET /jobs/{id}` | Web client | job id | status, shots with status and failure reason, stop reason, time taken | R | ≤ 1 s | sync | I-5, FR-1.5, RL-1 |
 | `getVideo` — `GET /jobs/{id}/video` | Web client | job id | signed download link | R | ≤ 1 s | sync | I-7, FR-1.9 |
@@ -174,6 +177,7 @@ The worker does not take calls. It reads the database for work.
 - **Jobs:** every job with its status; opens a job.
 - **Job:** running (which shot, attempts), waiting (another job is running), stopped (names the shot and the reason, "Start again" keeps finished shots), ready with failed shot marked, ready. Shot table with status and reason, and "Redo this shot". Player, download and the song's credit once there is a video.
 - **Create a style:** upload the demo photoshoot, name, song (with its licence), the original video, and an editable shot table (photo, photo edit, movement name, speed, cut time, transition); save and run a reproduction. The wireframe still shows three methods; v1 builds only this one (REQUIREMENTS 0a #5).
+- **Editor:** a timeline of the shots over the song bar; pick a shot to swap its photo, change its movement (the 12 names), speed, prompt, photo edit, length or transition, or remove it; each card says whether it will be made again, only re-cut, or is unchanged; "Re-export video".
 - **Original and reproduction:** pick the reproduction (demo shoot or another shoot), two players, a play-both button, a per-shot table of checks (song, cut time, movement name, transition, flagged), keep or edit.
 - No accounts (one shared passphrase), no phone layout (FR-3.2, FR-3.4).
 
@@ -228,5 +232,5 @@ Prices are OpenRouter's listed prices read on 2026-10-18; `STACK.md` holds the b
 | "Start again" on a stopped job | Wireframe error state | Applied: REQUIREMENTS FR-1.5 |
 | Editable shot rows before saving a style | Wireframe create-style screen | Applied: REQUIREMENTS FR-2.1 |
 | Comparison screen checks | Wireframe; VR-2 to VR-6 need somewhere to show their result | Applied: REQUIREMENTS FR-2.4 |
-| The wireframe still shows three authoring methods, no shot-slot assignment and no "Redo this shot" | Screens drift from FR-1.10, FR-1.12, FR-2.1 | Update the wireframe before stories are written |
+| Wireframe matches FR-1.10, FR-1.12–FR-1.16, FR-2.1 and FR-2.4 | Screens and requirements agree | Resolved 2026-10-18 (wireframe version 3) |
 | Spend limit may be set later | Changes the cost check and may need a "stop at limit" row | User; add a requirement row and a cost-per-video metric (KEY_METRICS.md) when it is set |

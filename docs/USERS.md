@@ -66,7 +66,7 @@ How to shoot video on site, how to use a gimbal, and how to train staff are diff
 
 **What they need from it:** a way to pick a style from a creator Dana trusts, upload the 28 photos, and walk away. → **UC-1**
 
-**What they do with the output:** Dana watches the finished video, sends it to the agent if it looks professional, and notices any shot that looks fake. If the agent asks to swap a room, Dana wants to change just that. → **UC-1**, later **UC-3**
+**What they do with the output:** Dana watches the finished video, sends it to the agent if it looks professional, and notices any shot that looks fake. If the agent asks to swap a room, Dana wants to change just that. → **UC-1**, **UC-3**
 
 **Behind the scenes:** a top videographer once built the style Dana picked, by choosing shot movements, a song and the cut timing. → **UC-2**
 
@@ -113,9 +113,11 @@ This use case serves UC-1: without a style, there is nothing for the novice to p
 
 ---
 
-### UC-3: Revise a finished video (later iteration)
+### UC-3: Revise a finished video
 
-The PRD describes an optional web editor for swapping a room, changing a shot or removing a room, because agents and homeowners "often have subjective revision requests." It is not in the first iteration; see Section 6.
+The PRD describes a web editor for swapping a room, changing a shot or removing a room, then re-exporting, because agents and homeowners "often have subjective revision requests" (PRD p.7). The PRD marks it optional; it is in the first iteration (candidate, 2026-10-18: the web UI is the easy part). Only the changed shots are made again; the rest are reused and the video is re-cut to the song.
+
+**Must never:** change a shot the photographer did not touch.
 
 ---
 
@@ -134,6 +136,7 @@ The PRD describes an optional web editor for swapping a room, changing a shot or
 | F7 | Improve mediocre photos toward the creator's composition, lens, angle and lighting | UC-1 | Makes a novice's photo look like the creator's shot | Same "visibly AI" line; composition, lens, angle and light may change as the PRD's example does (pp.4–5), architecture, rooms and fixtures must not *(assumed)* |
 | F8 | Show which shot failed and why | UC-1 | Lets the user see a failure instead of a hidden defect | Never hidden; the rest of the video is still delivered with the failed shot marked *(assumed)* |
 | F9 | Automatically catch visibly AI-looking shots and regenerate them | UC-1 | Fewer bad shots reach the user | Wanted if possible; v1 may let 1–2 slip through |
+| F10 | Web editor: swap a room, change a shot, remove a room, re-export | UC-3 | Handles agent and homeowner revisions without starting over | Only changed shots are regenerated; same visibly-AI line |
 
 The owner's demo can run live if generation is fast enough, and otherwise is shown from a pre-generated run. The owner also expects to be able to explain how it would scale beyond one user at a time.
 
@@ -141,7 +144,7 @@ The owner's demo can run live if generation is fast enough, and otherwise is sho
 
 | # | Feature | Use case | What it adds for the user | Why not first |
 |---|---|---|---|---|
-| 1 | Web editor: swap a room, change a shot, remove a room, re-export | UC-3 | Handles agent and homeowner revisions without starting over | The PRD marks it optional; it needs the minimum working first *(assumed not expected for this submission)* |
+| 1 | (moved into the first iteration as F10, 2026-10-18) | | | |
 | 2 | Several photoshoots at once / more than one user | UC-1 | The product holds up beyond a demo | Demo is one user at a time |
 
 ---
@@ -209,5 +212,6 @@ No one at AutoHDR is available to ask, so these were decided instead of asked. E
 | Failed shot | The video is still delivered with the failed shot marked and the reason shown. |
 | What must not be lost | Uploads, saved styles and finished videos need only last through the demo. |
 | Deadline and deliverable | 2026-10-21, 11:59 PM local time; a working demo plus the repo. |
-| Web editor and marketplace | Not expected for this submission. |
+| Web editor | In the first iteration (F10), candidate 2026-10-18. |
+| Marketplace | Not expected for this submission. |
 | Hardware | No GPU relied on; hosted APIs. |
