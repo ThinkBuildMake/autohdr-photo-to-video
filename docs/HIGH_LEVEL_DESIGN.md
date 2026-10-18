@@ -142,7 +142,7 @@ flowchart LR
 | `createReproduction` — `POST /styles/{id}/reproductions` | Web client | style id, photoshoot (the demo shoot or another) | Job on that photoshoot | W | ≤ 1 s | sync accept; work async | I-9, FR-2.3 |
 | `getReproduction` — `GET /styles/{id}/reproductions/{job}` | Web client | style id, job id | original and reproduction links, per-shot checks (song, cut time, movement name, transition, flagged) | R | ≤ 1 s | sync | I-9, FR-2.4 |
 
-**Inside the app server (no caller):** none; it does no work on its own.
+**Inside the app server (no caller):** labelling a new photoshoot's rooms in the background through the quality-check service, so slots can be filled (FR-1.10). `ARCHITECTURE.md` holds the contracts, including renamed external operations (`editPhoto`, `checkClip`) and the supporting operations added there (`completeUpload`, `getPhotoshoot`, `setOriginal`).
 
 ### 4.2 Background worker
 
@@ -179,7 +179,7 @@ The worker does not take calls. It reads the database for work.
 
 ### App server
 
-**Why it exists:** serves the operations in §4.1; a second job is queued and shown as waiting (SC-1). **Holds / does:** no state of its own, no long work. **Provided by platform:** HTTPS and restarts on a managed host; on the builder's machine, neither is needed for the demo.
+**Why it exists:** serves the operations in §4.1; a second job is queued and shown as waiting (SC-1). **Holds / does:** no state of its own; one background task, labelling photos. An Evals command-line process of the same codebase runs the EV-1 and EV-2 jobs. **Provided by platform:** HTTPS and restarts on a managed host; on the builder's machine, neither is needed for the demo.
 
 ### Background worker
 

@@ -7,7 +7,10 @@
 App server and background worker are two processes of one Python codebase in one container (STACK §3, §5). Modules marked *(worker)* run only in the worker process; *(both)* are libraries both processes call.
 
 ```mermaid
-%%{init: {"layout": "elk", "flowchart": {"nodeSpacing": 40, "rankSpacing": 60}}}%%
+---
+config:
+  layout: elk
+---
 flowchart LR
   client[Web client: Chrome, Jinja2 + HTMX pages]
   subgraph app[App server and worker: one Python codebase]
@@ -32,9 +35,15 @@ flowchart LR
   client -->|getReproduction, setOriginal| compare
   client -->|presigned upload and download| bucket
   shoots -->|labelPhotos| providers
-  shoots -->|presign upload, check objects| files
+  shoots -->|thumbnail, probe| media
+  shoots -->|presign upload and download, get, head| files
+  library -->|listPhotos| shoots
+  library -->|allowedLengths| providers
   jobs -->|getStyleForJob| library
   jobs -->|listPhotos| shoots
+  jobs -->|presign download| files
+  compare -->|setOriginalJob| library
+  compare -->|get video, presign download| files
   pipeline -->|claimNextJob, attempt and shot updates, finishJob| jobs
   pipeline -->|editPhoto, checkEdit, generateClip, checkClip| providers
   pipeline -->|crop, frames, assemble| media
@@ -46,6 +55,7 @@ flowchart LR
   files --> bucket
   library & shoots & jobs & compare & providers -->|own tables| db
   evals -->|createJob, submitJob, reads tables| jobs
+  evals -->|importPhotoshoot| shoots
 ```
 
 Every client route also passes through **Access** (the shared passphrase); those arrows are left off.
@@ -54,12 +64,12 @@ Every client route also passes through **Access** (the shared passphrase); those
 |---|---|---|---|---|
 | Access | Checks the shared demo passphrase on every request | none | every route | every route |
 | Library | Songs, styles and their shots | `songs`, `styles`, `style_shots` | listStyles, getStyle, listSongs, createStyle, updateStyleShots | client; Jobs; Comparison |
-| Photoshoots | Uploads and labels photos | `photoshoots`, `photos` | createUpload, completeUpload, getPhotoshoot | client; Jobs |
+| Photoshoots | Uploads and labels photos | `photoshoots`, `photos` | createUpload, completeUpload, getPhotoshoot | client; Jobs; Library; Evals |
 | Jobs | A job's life: draft, slot assignment, queue, shots, attempts, finished video | `jobs`, `job_shots`, `attempts` | createJob, updateJobShots, submitJob, restartJob, redoShot, listJobs, getJob, getVideo | client; Pipeline; Comparison; Evals |
 | Pipeline *(worker)* | Runs the next queued job end to end | none | none (no caller) | worker loop |
-| Providers *(both)* | Every call to an outside AI service, and its cost record | `provider_calls` | none | Pipeline; Photoshoots |
-| Media *(both)* | Image and video processing (crop, frames, assemble, detect cuts) | none | none | Pipeline; Comparison |
-| Files *(both)* | Bucket key layout, presigned links, object reads and writes | none (bucket objects) | none | Photoshoots; Jobs; Pipeline; Library |
+| Providers *(both)* | Every call to an outside AI service, and its cost record | `provider_calls` | none | Pipeline; Photoshoots; Library |
+| Media *(both)* | Image and video processing (crop, frames, assemble, detect cuts) | none | none | Pipeline; Comparison; Photoshoots |
+| Files *(both)* | Bucket key layout, presigned links, object reads and writes | none (bucket objects) | none | Photoshoots; Jobs; Pipeline; Comparison; Library (song links) |
 | Comparison | Cut times detected in finished videos; original vs reproduction | `cut_checks` | getReproduction, setOriginal | client; Pipeline |
 | Evals | Runs EV-1 and EV-2 and writes their reports | none (report files) | command line only | builder |
 
@@ -85,7 +95,7 @@ HLD entity mapping: HLD *Video* is the `video_*` columns of `jobs` (one video pe
 | getStyle | client → Library.getStyle → read `styles`, `style_shots`, `songs` | sync | n/a |
 | listSongs | client → Library.listSongs → read `songs` | sync | n/a |
 | createStyle | client → Library.createStyle → Photoshoots.listPhotos (validate) → insert `styles` + `style_shots` | sync | yes |
-| updateStyleShots | client → Library.updateStyleShots → replace `style_shots` for the style | sync | yes |
+| updateStyleShots | client → Library.updateStyleShots → update, add and remove `style_shots` rows for the style (jobs keep their copies) | sync | yes |
 | createUpload | client → Photoshoots.createUpload → insert `photoshoots`, `photos` (status `awaiting_upload`) → Files.presignUpload per photo → links | sync | yes |
 | (browser upload) | client → bucket, one presigned POST per photo | sync, browser to bucket | n/a |
 | completeUpload | client → Photoshoots.completeUpload → Files.headObject per photo → update `photos` → background: Providers.labelPhotos → update `photos.room` | sync accept, labels async | upload status yes, labels later |
@@ -95,13 +105,13 @@ HLD entity mapping: HLD *Video* is the `video_*` columns of `jobs` (one video pe
 | submitJob | client → Jobs.submitJob → `jobs` draft → queued | sync | yes |
 | listJobs, getJob | client polls every 5 s → read `jobs`, `job_shots`, latest `attempts` | sync | n/a |
 | getVideo | client → Jobs.getVideo → Files.presignDownload | sync | n/a |
-| restartJob | client → Jobs.restartJob → stopped job's unfinished shots → `pending`, job → queued | sync | yes |
+| restartJob | client → Jobs.restartJob → every shot not `passed` → `pending`, round + 1; job → queued | sync | yes |
 | redoShot | client → Jobs.redoShot → one shot → `pending`, round + 1, job → queued | sync | yes |
 | Run next job | worker loop → Jobs.claimNextJob → per pending shot in parallel: Media.crop, Providers.editPhoto + checkEdit, Providers.generateClip + checkClip, Jobs attempt updates → Media.assemble → Files.put → Jobs.finishJob → Comparison.recordCuts | async | each step committed as it happens |
-| Startup recovery | worker start → Jobs.recoverInterrupted → `running` → `stopped` (reason `worker_restarted`) | async | yes |
+| Startup recovery | worker start → Jobs.recoverInterrupted (running job → `stopped`, open attempts closed) → Providers.recoverCalls (finished clips downloaded, open calls closed); app start → Photoshoots relabels any shoot left `labelling` | async | yes |
 | setOriginal | client → Comparison.setOriginal → Library.setOriginalJob → update `styles.original_job_id` | sync | yes |
 | getReproduction | client → Comparison.getReproduction → read `cut_checks` for both jobs, `job_shots`, `attempts` | sync | n/a |
-| Evals | builder runs command → Jobs.createJob + submitJob per shoot → waits → reads tables → writes report files | async, hours | n/a |
+| Evals | builder runs command → Photoshoots.importPhotoshoot per test shoot (once) → Jobs.createJob + submitJob per shoot → waits → reads tables → writes report files | async, hours | n/a |
 
 ### Upload a photoshoot
 
@@ -144,7 +154,7 @@ sequenceDiagram
   par every pending shot at once
     W->>F: get photo
     W->>M: crop to 16:9
-    W->>PR: editPhoto (shot's photo-edit prompt)
+    W->>PR: editPhoto, once per prompt in the shot's photo-edit chain
     W->>PR: checkEdit (original vs edited)
     W->>J: setShotPhoto (edited or crop_only with reason)
     loop up to 4 attempts, while time remains (QC-2, PF-3)
@@ -164,7 +174,7 @@ sequenceDiagram
   W->>CMP: recordCuts (detect cuts in the video)
 ```
 
-A provider error is written to the shot by `finishAttempt` as soon as it returns, so `getJob` shows it within one poll (RL-1). An out-of-credit answer stops the whole job (see Pipeline → Failure behaviour).
+A provider error is written to the shot by `finishAttempt` as soon as it returns, so `getJob` shows it within one poll (RL-1: reported "within 60 s of occurring"). An out-of-credit answer stops the whole job (see Pipeline → Failure behaviour).
 
 ### Reproduce a style and compare
 
@@ -180,7 +190,7 @@ sequenceDiagram
   C->>J: POST /api/jobs/{id}/submit
   Note over J: worker runs it as in the flow above, then Comparison records its cuts
   C->>CMP: GET /api/styles/{id}/reproductions/{jobId}
-  CMP->>CMP: join cut_checks of the original job and this job by slot
+  CMP->>CMP: join cut_checks of the original job and this job by shot position
   CMP-->>C: two video links, per-shot checks
 ```
 
@@ -191,7 +201,10 @@ SQLite, one file, WAL mode, foreign keys on. Types are SQLite storage classes: i
 ### Library tables
 
 ```mermaid
-%%{init: {"layout": "elk"}}%%
+---
+config:
+  layout: elk
+---
 erDiagram
   songs {
     TEXT id PK
@@ -245,14 +258,15 @@ A saved storyboard plus its song.
 |---|---|---|---|---|
 | id | TEXT | no | | UUID |
 | name | TEXT | no | | Shown in the library |
-| creator_name | TEXT | no | | Who made it; any name, since there are no accounts (FR-1.2) |
+| creator_name | TEXT | no | | Who made it; any name, since there are no accounts (FR-3.2). The library shows creators' and the photographer's own styles alike (FR-1.2) |
+| fps | INTEGER | no | 30 | Frame rate of the original video, 24 or 30; every video of the style is made at it (DE-5) |
 | song_id | TEXT → songs.id | no | | The style's song |
 | song_offset_s | REAL | no | 0 | Where in the song the video starts |
 | demo_photoshoot_id | TEXT → photoshoots.id | no | | The demo shoot the style was built on (FR-2.1) |
 | original_job_id | TEXT → jobs.id | yes | null | The creator's approved run on the demo shoot; the "original video" (FR-2.4) |
 | created_at, updated_at | TEXT | no | now | |
 
-- **Constraints:** `name` unique.
+- **Constraints:** `name` unique; check `fps in (24, 30)`.
 
 #### `style_shots` — owned by Library
 
@@ -265,22 +279,26 @@ One shot slot of a style.
 | position | INTEGER | no | | Order in the video, from 1 |
 | photo_id | TEXT → photos.id | no | | The demo-shoot photo the creator chose |
 | room | TEXT | no | | What the slot shows: a `Room` value (Shared types); used to fill the slot on a new shoot (FR-1.10) |
-| photo_edit_prompt | TEXT | yes | null | The edit toward composition, lens, angle and light (FR-1.8); null = crop only |
+| photo_edit_prompts | TEXT (JSON array of strings) | no | `[]` | The chain of edits toward composition, lens, angle and light, applied in order as in the PRD example (FR-1.8, STACK §7); empty = crop only |
 | movement_name | TEXT | no | | A `MovementName` (REQUIREMENTS Definitions) |
 | movement_prompt | TEXT | no | | Movement prompt; starts as the PRD starter-kit text for `movement_name` and may be edited |
 | speed | TEXT | no | `slow` | `slow`, `medium` or `fast` (more may be added) |
 | model | TEXT | no | | Video model id, e.g. `google/veo-3.1` |
 | length_s | REAL | no | | How long the shot plays in the video |
-| transition | TEXT | no | `cut` | Transition into the next shot: `cut` or `crossfade` (more may be added) |
-| transition_s | REAL | no | 0 | Crossfade length; 0 for a cut |
+| transition | TEXT | no | `cut` | Transition from the previous shot into this one: `cut` or `crossfade` (more may be added); ignored on the first shot |
+| transition_s | REAL | no | 0 | Crossfade length; 0 for a cut. The crossfade ends at the cut, so this shot's clip starts `transition_s` early |
+| removed_at | TEXT | yes | null | Set when the creator removes the shot; removed rows are never deleted, so jobs that copied them keep their link |
 
-- **Constraints:** unique `(style_id, position)`; check `length_s > 0`; check `transition_s >= 0`; check `transition = 'cut' or transition_s > 0`.
+- **Constraints:** unique `(style_id, position)` among rows where `removed_at` is null; check `length_s > 0`; check `transition_s >= 0`; check `transition = 'cut' or transition_s > 0`.
 - **Indexes:** `(style_id, position)`, from the unique constraint: getStyle reads shots in order.
 
 ### Photoshoots tables
 
 ```mermaid
-%%{init: {"layout": "elk"}}%%
+---
+config:
+  layout: elk
+---
 erDiagram
   photoshoots {
     TEXT id PK
@@ -315,7 +333,7 @@ erDiagram
 | content_type | TEXT | no | | `image/jpeg` or `image/png` (DE-2) |
 | size_bytes | INTEGER | no | | Declared size; checked again by the bucket |
 | file_key | TEXT | no | | Bucket key |
-| status | TEXT | no | `awaiting_upload` | `awaiting_upload`, `uploaded`, `missing` |
+| status | TEXT | no | `awaiting_upload` | `awaiting_upload`, `uploaded`, `missing`, `too_large` (more may be added) |
 | width, height | INTEGER | yes | null | Read after upload |
 | room | TEXT | yes | null | `Room` value from labelling |
 | subject | TEXT | yes | null | Short description from labelling, e.g. "kitchen island with pendants" |
@@ -325,7 +343,10 @@ erDiagram
 ### Jobs tables
 
 ```mermaid
-%%{init: {"layout": "elk"}}%%
+---
+config:
+  layout: elk
+---
 erDiagram
   jobs {
     TEXT id PK
@@ -372,14 +393,17 @@ One run of photoshoot + style → video. The video's own columns are here (HLD *
 | song_id | TEXT → songs.id | no | | Copied from the style at creation |
 | song_offset_s | REAL | no | | Copied from the style |
 | created_at | TEXT | no | now | |
-| submitted_at | TEXT | yes | null | Set by submit, restart and redo; PF-1 is timed from here |
-| deadline_at | TEXT | yes | null | `submitted_at` + 30 min (PF-1, PF-3) |
-| started_at | TEXT | yes | null | When the worker claimed it |
-| finished_at | TEXT | yes | null | When it reached `ready`, `ready_with_failures` or `stopped` |
+| first_submitted_at | TEXT | yes | null | Set once, by the first submit; PF-1 and PF-2 are measured from here |
+| submitted_at | TEXT | yes | null | Set by submit, restart and redo: when the current run was queued |
+| started_at | TEXT | yes | null | When the worker claimed the current run |
+| deadline_at | TEXT | yes | null | `started_at` + 30 min: the generation budget of the current run (PF-3). Time spent waiting behind another job is not taken from it |
+| finished_at | TEXT | yes | null | When the current run reached `ready`, `ready_with_failures` or `stopped`; for a stop, also when the user was told (RL-1) |
+| first_finished_at | TEXT | yes | null | Set once, when the first run finished; PF-1 uses it |
+| fps | INTEGER | no | | Copied from the style |
 | video_key | TEXT | yes | null | Bucket key of the finished video |
 | video_duration_s | REAL | yes | null | |
 | video_width, video_height | INTEGER | yes | null | 1920 × 1080 (DE-5) |
-| video_fps | REAL | yes | null | |
+| video_fps | REAL | yes | null | Should equal `fps` |
 | total_cost_usd | REAL | no | 0 | Sum of this job's `provider_calls.cost_usd` (CO-1) |
 
 - **Constraints:** check status in the `JobStatus` set; check `status <> 'stopped' or stop_reason is not null`.
@@ -393,19 +417,20 @@ One shot of a job, with a copy of its style shot.
 |---|---|---|---|---|
 | id | TEXT | no | | UUID |
 | job_id | TEXT → jobs.id | no | | |
-| style_shot_id | TEXT → style_shots.id | no | | |
+| style_shot_id | TEXT → style_shots.id | no | | The style shot it was copied from (never deleted, see `style_shots.removed_at`) |
 | position | INTEGER | no | | Copied |
-| room, photo_edit_prompt, movement_name, movement_prompt, speed, model, length_s, transition, transition_s | as in `style_shots` | | | Copied at createJob, never changed afterwards |
+| room, photo_edit_prompts, movement_name, movement_prompt, speed, model, length_s, transition, transition_s | as in `style_shots` | | | Copied at createJob, never changed afterwards |
 | photo_id | TEXT → photos.id | yes | null | The photo filling the slot; null = slot skipped (FR-1.10) |
-| assignment_note | TEXT | yes | null | Why: `matched`, `reused` (photo also used by another slot) or `no_match` |
+| assignment_note | TEXT | yes | null | Why: `matched`, `reused` (photo also used by another slot), `no_match`, `changed_by_photographer` (more may be added) |
 | status | TEXT | no | `pending` | `ShotStatus` (Shared types) |
 | status_detail | TEXT | yes | null | What the photographer reads, e.g. "Attempt 2 of 4: flagged, a person appears" |
 | failure_reason | TEXT | yes | null | `FailureReason` when status is `failed` |
-| round | INTEGER | no | 0 | 0 on the first run; +1 on each redo or restart |
+| round | INTEGER | no | 0 | 0 on the first run; +1 for every shot a restart or redo sets back to `pending` |
 | cropped_key | TEXT | yes | null | Bucket key of the 16:9 crop |
 | edited_key | TEXT | yes | null | Bucket key of the edited photo used as first frame |
 | edit_status | TEXT | yes | null | `edited` or `crop_only` |
-| edit_note | TEXT | yes | null | Why the edit was not used, if `crop_only` |
+| edit_note | TEXT | yes | null | Why the edit was not used, if `crop_only`; this is where a narrowed edit is recorded (REQUIREMENTS §5 item 4) |
+| model_used | TEXT | yes | null | Model of the final attempt; differs from `model` when the fallback was used |
 | final_attempt_id | TEXT → attempts.id | yes | null | The attempt whose clip is in the video |
 | updated_at | TEXT | no | now | Changes whenever status or detail changes; RL-1 is measured from it |
 
@@ -424,14 +449,14 @@ One try at making a shot's clip.
 | prompt | TEXT | no | | The exact prompt sent (OB-1) |
 | model | TEXT | no | | Model id actually used |
 | requested_s | REAL | no | | Clip length requested |
-| status | TEXT | no | `running` | `running`, `passed`, `flagged`, `error` |
+| status | TEXT | no | `running` | `running`, `passed`, `flagged`, `error` (more may be added) |
 | clip_key | TEXT | yes | null | Bucket key of the clip |
 | check_ai_score | REAL | yes | null | 0–1, higher = looks more AI-generated (OB-2) |
 | check_match_score | REAL | yes | null | 0–1, higher = closer to the source photo |
 | check_notes | TEXT | yes | null | What the check saw, e.g. "a person appears in the mirror" |
-| error | TEXT | yes | null | Provider error kind and message when status is `error` |
+| error | TEXT | yes | null | Provider error kind and message when status is `error`, or `worker_restarted` |
 | cost_usd | REAL | no | 0 | Cost of the clip and its check |
-| started_at, finished_at | TEXT | | | |
+| started_at, finished_at | TEXT | | | `finished_at` is when the result, or the error, became visible on the job page (RL-1) |
 
 - **Constraints:** unique `(job_shot_id, round, attempt_no)`; check `attempt_no between 1 and 4`.
 
@@ -457,7 +482,7 @@ One row per call to an outside AI service (CO-1).
 | output_seconds | REAL | yes | null | Seconds of video returned, for clip calls |
 | cost_usd | REAL | no | 0 | Cost in US dollars |
 | cost_source | TEXT | no | `reported` | `reported` (from OpenRouter's response) or `list_price` (BYOK, seconds × listed price) |
-| started_at, finished_at | TEXT | | | |
+| started_at, finished_at | TEXT | | | `finished_at` is when the answer arrived, or when the call's time limit ran out |
 
 - **Indexes:** `(job_id)`: job totals and EV reports.
 
@@ -470,14 +495,14 @@ The cut times detected in one finished video, one row per shot boundary.
 | Column | Type | Null | Default | Meaning |
 |---|---|---|---|---|
 | job_id | TEXT → jobs.id | no | | |
-| boundary_no | INTEGER | no | | 1 = the cut between shots 1 and 2 |
-| expected_s | REAL | no | | Where the style puts the cut (sum of `length_s` so far) |
+| position | INTEGER | no | | The style position of the shot that starts at this cut |
+| expected_s | REAL | no | | Where the cut should land: the sum of `length_s` of the shots before it that are in the video (failed or skipped shots are left out) |
 | detected_s | REAL | yes | null | Where the cut detector found it; null if not found |
 | error_s | REAL | yes | null | `detected_s − expected_s` |
 | transition | TEXT | no | | Copied from the shot, so crossfade misses are read correctly |
 | checked_at | TEXT | no | now | |
 
-- **Constraints:** primary key `(job_id, boundary_no)`. Re-running the check replaces the job's rows.
+- **Constraints:** primary key `(job_id, position)`. Re-running the check replaces the job's rows. A cut is the moment the incoming shot is fully on screen; for a crossfade that is the end of the fade.
 
 ## Shared types
 
@@ -486,13 +511,14 @@ Types that cross more than one boundary.
 ```
 JobStatus   draft | queued | running | ready | ready_with_failures | stopped   (more may be added)
 ShotStatus  pending | editing | generating | checking | passed | failed | skipped   (more may be added)
-StopReason  out_of_credit | worker_restarted | assembly_failed | out_of_time   (more may be added)
+StopReason  out_of_credit | worker_restarted | assembly_failed | no_shot_passed   (more may be added)
 FailureReason
             flagged_every_attempt   all attempts failed the check (QC-2)
             provider_error          the provider returned an error on the last attempt
             refused                 the provider refused the content
             out_of_time             no time left before deadline_at (PF-3)
             no_photo                the slot was skipped (FR-1.10)
+            job_stopped             the job stopped before this shot finished
             (more may be added)
 ProviderErrorKind
             rate_limited | out_of_credit | refused | failed | timeout | bad_response   (more may be added)
@@ -514,7 +540,7 @@ Song {
 
 StyleShot {
   id, position, photoId, room
-  photoEditPrompt   null = crop only
+  photoEditPrompts  ordered list, empty = crop only
   movementName, movementPrompt, speed, model
   lengthS, transition, transitionS
 }
@@ -523,6 +549,7 @@ Style {
   id, name, creatorName
   song             Song
   songOffsetS
+  fps              24 or 30
   demoPhotoshootId
   originalJobId    null until the creator marks one
   shots            StyleShot[] in position order
@@ -538,7 +565,11 @@ Photo {
 JobShot {
   id, position, room, movementName, lengthS, transition
   photoId          null = skipped
-  assignmentNote   matched | reused | no_match
+  assignmentNote   matched | reused | no_match | changed_by_photographer (more may be added)
+  editStatus       edited | crop_only | null before editing
+  editNote         why the edit was not used
+  model            model of the final attempt
+  usedFallback     true when model differs from the style's
   status           ShotStatus
   statusDetail     text for the photographer
   failureReason    FailureReason or null
@@ -566,16 +597,20 @@ ClipResult {
 }
 
 ClipCheck {
-  aiScore       0–1
-  matchScore    0–1
-  peopleCount   people seen in the clip that are not in the photo
-  addedObjects  text list of things not in the photo
-  passed        aiScore and matchScore within the configured thresholds and nothing added
-  notes         short text for status_detail
+  aiScore         0–1
+  matchScore      0–1
+  peopleCount     people seen in the clip that are not in the photo
+  addedObjects    things in the clip that are not in the photo
+  removedObjects  fixtures or features in the photo that disappear
+  changedObjects  fixtures or features that change shape, count or place
+  passed          scores within the configured thresholds and all three lists empty (VR-5)
+  notes           short text for status_detail
 }
 
 EditCheck {
-  architectureChanged  true if a wall, window, door, fixture or room feature was added, removed or moved (VR-5)
+  addedObjects, removedObjects, changedObjects   as in ClipCheck, edited photo vs original
+  architectureChanged  true if any of the three lists has a wall, window, door,
+                       fixture or room feature (VR-5)
   notes
 }
 
@@ -654,8 +689,10 @@ setOriginalJob(styleId, jobId)
   Records the style's original video. Called only by Comparison.setOriginal.
 ```
 
+`updateStyleShots` updates rows in place by position, adds new ones and sets `removed_at` on dropped ones; it never deletes a row.
+
 ### Calls out
-Photoshoots.listPhotos to check that each shot's photo belongs to the demo shoot. Providers.allowedLengths(model) to check `length_s` fits the model.
+Photoshoots.listPhotos to check that each shot's photo belongs to the demo shoot. Providers.allowedLengths(model) to check `length_s` plus `transition_s` fits the model. Files.presignDownload for song previews.
 
 ### Must hold
 - Only Library writes `songs`, `styles`, `style_shots`.
@@ -677,14 +714,16 @@ createUpload   POST /api/photoshoots                    serves FR-1.1, DE-2, HLD
 Request    { label?, files: [{ name, size, type }] }
 Response   201 { photoshootId,
                  uploads: [{ photoId, name, url, fields }],   presigned POST, 15 min
-                 refused: [{ name, reason }] }              reason: wrong_type | too_large
+                 refused: [{ name, reason }] }              reason: wrong_type | too_large (more may be added)
 Errors     400 too_many_files — more than 40 (DE-2)
            400 no_valid_files
            (more may be added)
 
 completeUpload  POST /api/photoshoots/{id}/complete      serves FR-1.1
 Response   202 { photoshoot: { id, status, photos: Photo[] } }
-           photos the bucket does not hold are marked missing; labelling starts
+           photos the bucket does not hold are marked missing; files over 25 MB are
+           deleted and marked too_large; labelling starts. Calling it again re-checks
+           missing photos and starts labelling only if the shoot is not already ready
 Errors     404 photoshoot_not_found
 
 getPhotoshoot   GET /api/photoshoots/{id}                serves FR-1.10 (poll for labels)
@@ -694,7 +733,9 @@ Errors     404 photoshoot_not_found
 
 ### Jobs and messages
 ```
-labelPhotoshoot   started by completeUpload, runs in the app process in the background
+labelPhotoshoot   started by completeUpload, and on app start for any shoot left labelling;
+                  runs in a background thread of the app process
+Trigger proof  internal only, no route
 Reads          photos (uploaded)
 Writes         photos.room, photos.subject; photoshoots.status labelling → ready | label_failed
 Twice-safe     yes — labels are overwritten
@@ -707,14 +748,19 @@ On failure     status label_failed; createJob still works and every slot is
 listPhotos(photoshootId) -> Photo[]
   Uploaded photos only, in upload order, with room and subject if labelled.
   Throws PhotoshootNotFound.
+
+importPhotoshoot(paths, label) -> photoshootId
+  Server-side upload of local files (Files.put), then the same checks and labelling
+  as completeUpload. Used by Evals to load the 12 test shoots (GC-6).
 ```
 
 ### Calls out
-- Files.presignUpload(key, contentType, maxBytes) for each photo, and Files.headObject to confirm uploads.
-- Providers.labelPhotos(photos) with small copies (long side ≤ 768 px) of every uploaded photo.
+- Files.presignUpload(key, contentType, maxBytes) for each photo, Files.headObject to confirm uploads and sizes, Files.get to read photos, Files.presignDownload for thumbnails.
+- Media.probe and Media.thumbnail for size and small copies.
+- Providers.labelPhotos(photos) with small copies (size is a setting) of every uploaded photo.
 
 ### Must hold
-- No photo over 25 MB or of another type reaches the bucket: the presigned form itself limits size and type, not only the page (DE-2).
+- No photo over 25 MB or of another type is used: the presigned form limits size where the bucket supports it [verify], and completeUpload checks every object's size and deletes any over 25 MB (DE-2).
 - A photo's `file_key` never changes after creation.
 - Photos are never written to the repository (GC-9).
 
@@ -732,6 +778,7 @@ createJob    POST /api/jobs                            serves FR-1.10, FR-2.3, F
 Request    { styleId, photoshootId, purpose?: video | reproduction }
 Response   201 { job: Job }   status draft, each slot with a proposed photo
 Errors     404 style_not_found | photoshoot_not_found
+           409 style_has_no_shots
            409 photoshoot_not_ready — still uploading (labelling may still run;
                slots are then filled in upload order)
            (more may be added)
@@ -748,13 +795,15 @@ Response   202 { job: Job }   queued; waitingBehind set if another job runs
 Errors     404 job_not_found, 409 not_draft, 409 no_shots_to_make
 
 restartJob   POST /api/jobs/{id}/restart               serves FR-1.5
-Response   202 { job: Job }   unfinished shots pending again, finished shots kept
+Response   202 { job: Job }   every shot not passed is pending again in a new round
+                              (whatever its failure reason); passed shots are kept
 Errors     404 job_not_found, 409 not_stopped
 
 redoShot     POST /api/jobs/{id}/shots/{position}/redo serves FR-1.12, HLD I-12
 Response   202 { job: Job }
 Errors     404 job_not_found | shot_not_found
            409 job_busy — job is queued or running
+           409 not_finished — the job is a draft or stopped (use restart)
            409 no_photo — the slot is skipped
 
 listJobs     GET /api/jobs                             serves FR-1.11, HLD I-6
@@ -779,7 +828,8 @@ claimNextJob() -> Job | None
 
 recoverInterrupted()
   Called once when the worker starts. Every running job → stopped, stop_reason
-  worker_restarted; its in-flight shots → pending so "Start again" resumes them.
+  worker_restarted; its in-flight shots → failed with job_stopped; every running
+  attempt → error worker_restarted. "Start again" then re-runs them.
 
 setShotState(jobShotId, status, detail)
 setShotPhoto(jobShotId, croppedKey, editedKey | None, editStatus, editNote)
@@ -790,11 +840,19 @@ setShotResult(jobShotId, passed | failed, failureReason?, finalAttemptId?)
 finishJob(jobId, status, stopReason?, video?: { key, durationS, width, height, fps })
   Also totals provider_calls.cost_usd into total_cost_usd.
 stopJob(jobId, stopReason)
-  Marks every pending or in-flight shot failed with a reason and the job stopped.
+  Marks every pending or in-flight shot failed with job_stopped and the job stopped.
+
+After a job is no longer running, every write for it except finishJob's first call
+raises JobNotRunning, and the Pipeline drops that shot's work.
 
 createJob / submitJob as in the API, for Evals.
 ```
 Every function is one short transaction, safe to call from several worker threads at once.
+
+Shot states move only along: pending → editing → generating → checking → (generating again | passed | failed); pending → skipped when there is no photo; failed or passed → pending only through restart or redo, with round + 1.
+
+### Calls out
+Files.presignDownload for the video (inline and as an attachment) and for final clips.
 
 ### Must hold
 - Only Jobs writes `jobs`, `job_shots`, `attempts`.
@@ -804,6 +862,7 @@ Every function is one short transaction, safe to call from several worker thread
 - A shot never moves to `failed` without a `failure_reason`, and a failed shot is always listed in `getJob` (RL-2).
 - A job never reaches `ready` with a shot still `pending` or in flight.
 - `getJob` returns only the final passed clip of a shot, never a flagged attempt's clip (FR-1.7).
+- Any departure from the style shot (crop only instead of the edit, the fallback model, a reused or skipped photo) is shown on the shot (USERS UC-1 must never).
 
 ### Failure behaviour
 | Failure | What the caller / user sees | What is recorded |
@@ -832,13 +891,14 @@ On failure     see Failure behaviour; nothing is retried after deadline_at
 ```
 
 What it does per pending shot, as the contract other modules see it:
-1. Crop the photo to 16:9 (Media). If the shot has a photo-edit prompt, edit it (Providers.editPhoto), check it against the crop (Providers.checkEdit), retry the edit once if architecture changed, then fall back to the crop with `edit_status = crop_only` and a note (FR-1.8, VR-5).
-2. Build the prompt: the shot's movement prompt, its speed, and a fixed lock text ("same room, no new objects, no people, no reflections of people or cameras", from `VIDEO_RESEARCH.md` §7.3). The full prompt is stored on the attempt (OB-1).
-3. Request a clip of the shortest length the model allows that covers `length_s + transition_s` (STACK §6).
-4. Check the clip (Providers.checkClip with frames at 4–8 per second from Media). Passed → shot passed. Flagged → next attempt, up to 4 per round, while `deadline_at` leaves time for one more clip and check.
-5. Shots run in parallel; the number in flight is a setting.
+1. Crop the photo to 16:9 (Media). If the shot has photo-edit prompts, apply them in order (Providers.editPhoto), check the result against the crop (Providers.checkEdit), retry the chain once if architecture changed, then fall back to the crop with `edit_status = crop_only` and a note (FR-1.8, VR-5). If the image model fails or refuses, the chain is retried on `ENHANCE_MODEL_FALLBACK` before falling back to the crop.
+2. Build the prompt: the shot's movement prompt, its speed, and a fixed lock text based on the extra-lock sentence in `VIDEO_RESEARCH.md` §7.3 (no people, no reflections of people or cameras, same fixtures). §7.3 found the vent instruction was ignored once, so the check, not the prompt, is what enforces VR-5. The full prompt is stored on the attempt (OB-1).
+3. Request a clip of the shortest length the model allows that covers `length_s + transition_s` (STACK §6), at the model's configured resolution (1080p unless configured otherwise, DE-5).
+4. Check the clip (Providers.checkClip with frames from Media, at a frame rate set in configuration). Passed → shot passed. Flagged → next attempt, up to 4 per round, while `deadline_at` leaves time for one more clip and check.
+5. If the shot's model returns `refused`, or `failed` twice, the remaining attempts use `VIDEO_MODEL_FALLBACK`, and the shot shows it.
+6. Shots run in parallel; the number in flight is a setting.
 
-Then assemble: passed clips in position order, each trimmed to `length_s`, joined with the shot's transition, re-encoded at 1920 × 1080, 16:9, over the song from `song_offset_s` (DE-5, VR-2). A failed or skipped shot leaves its slot out and the video is marked `ready_with_failures` (FR-1.6). If no shot passed, the job is `stopped` with every reason shown.
+Then assemble: passed clips in position order, each trimmed to `length_s` plus its incoming `transition_s`, joined with the shot's transition so each cut lands at the sum of the lengths before it, re-encoded at 1920 × 1080, 16:9, at the job's `fps`, over the song from `song_offset_s` (DE-5, VR-2). A failed or skipped shot leaves its slot out and the video is marked `ready_with_failures` (FR-1.6). If no shot passed, the job is `stopped` with `no_shot_passed` and every reason shown.
 
 ### Calls out
 Jobs (interface above), Providers, Media, Files, Comparison.recordCuts.
@@ -846,7 +906,7 @@ Jobs (interface above), Providers, Media, Files, Comparison.recordCuts.
 ### Must hold
 - A shot's clip is used only if its check passed (FR-1.7).
 - One shot failing never stops the other shots (RL-3).
-- Every provider error reaches the shot's `status_detail` within 60 s of the provider answering (RL-1).
+- A provider error or a usage or rate limit is reported to the user within 60 s of occurring (RL-1). For a timeout, it occurs when the call's time limit runs out.
 - No clip is requested after `deadline_at` (PF-1, PF-3).
 - Temporary files live on the container's disk, never on the volume (STACK §5).
 
@@ -878,6 +938,10 @@ generateClip(firstFrameJpeg, prompt, model, lengthS, ids) -> ClipResult
 checkClip(clipPath, frames: jpegBytes[], sourceJpeg, ids) -> ClipCheck
 allowedLengths(model) -> number[]
   Clip lengths the model accepts, read from OpenRouter's model list and cached.
+recoverCalls()
+  Called once when the worker starts. For every generate_clip call still running
+  with a provider request id: downloads the clip if it finished, so nothing is left
+  at OpenRouter, and closes the row. The clip is kept in the bucket but not reused [assumed].
 
 ids = { jobId?, jobShotId?, attemptId?, photoshootId? }, copied into provider_calls.
 All raise ProviderError { kind, message, retryAfterS }.
@@ -890,11 +954,11 @@ cost; a call never retries on its own after a 402.
 | Call | Endpoint and model (from configuration) | Sent | Returned |
 |---|---|---|---|
 | generateClip | OpenRouter Videos API; `VIDEO_MODEL` default `google/veo-3.1`, fallback `bytedance/seedance-2.0`; the shot's `model` wins | model, prompt, duration, resolution 1080p, aspect ratio 16:9, audio off, the photo as a base64 first frame | job id → poll → clip file, downloaded with the API key; cost in `usage` |
-| editPhoto | OpenRouter chat completions; `ENHANCE_MODEL` default `google/gemini-nano-banana-2.1` | the cropped photo, the shot's photo-edit prompt ending "preserve all architectural and interior details" (PRD pp.10–12) | one image |
+| editPhoto | OpenRouter chat completions; `ENHANCE_MODEL` default `google/gemini-nano-banana-2.1`, `ENHANCE_MODEL_FALLBACK` default `google/gemini-3.1-flash-image` | the current photo, one photo-edit prompt ending "preserve all architectural and interior details" (PRD pp.10–12) | one image |
 | checkEdit, checkClip, labelPhotos | OpenRouter chat completions; `QUALITY_CHECK_MODEL` default `google/gemini-3.8-flash` | photos as images; for clips, the clip inline plus frames, both small enough for the inline limit | JSON matching EditCheck, ClipCheck or labels; anything else → `bad_response` |
 
-- **Cost:** `cost_usd` is the cost OpenRouter reports. When the response marks the call as BYOK, `cost_usd` = output seconds × the model's listed price per second and `cost_source = list_price` (CO-1).
-- **Errors:** 429 → `rate_limited` (with Retry-After), 402 → `out_of_credit`, a moderation or content refusal → `refused`, 5xx or a failed job → `failed`, no answer within the call's time limit → `timeout`.
+- **Cost:** `cost_usd` is the cost OpenRouter reports. For a BYOK call (the response's usage marks it [verify]; otherwise the models listed in the `BYOK_MODELS` setting), `cost_usd` = output seconds × the model's listed price per second and `cost_source = list_price` (CO-1).
+- **Errors:** 429 → `rate_limited` (with the retry delay if the response gives one [verify]), 402 → `out_of_credit`, a moderation or content refusal → `refused`, 5xx or a failed job → `failed`, no answer within the call's time limit → `timeout`.
 - **Test double:** `FakeProviders`, selected by `FAKE_PROVIDERS=1`. It returns a fixed image, a short generated test clip and scripted checks, and can be told to raise any `ProviderErrorKind` on a chosen call (RL-1–RL-3 tests). It writes `provider_calls` rows like the real one, with cost 0.
 
 ### Must hold
@@ -930,14 +994,14 @@ Owns the key layout and every presigned link.
 ### Calls out
 | Key | What | Written by |
 |---|---|---|
-| `photoshoots/{photoshootId}/{photoId}.{jpg|png}` | Uploaded photo | the browser, through a presigned POST |
+| `photoshoots/{photoshootId}/{photoId}.jpg` or `.png` | Uploaded photo | the browser through a presigned POST, or Evals through importPhotoshoot |
 | `jobs/{jobId}/shots/{position}/r{round}/cropped.jpg`, `edited.jpg` | Prepared first frames | Pipeline |
 | `jobs/{jobId}/shots/{position}/r{round}/a{attemptNo}.mp4` | Every attempt's clip | Pipeline |
 | `jobs/{jobId}/video.mp4` | Finished video | Pipeline |
 | `songs/{songId}.{ext}` | Song audio | seed command |
 
 ```
-presignUpload(key, contentType, maxBytes) -> { url, fields }   15 min, size range 1..maxBytes
+presignUpload(key, contentType, maxBytes) -> { url, fields }   15 min, size range 1..maxBytes where supported [verify]
 presignDownload(key, asAttachment, filename?) -> url             1 h
 put(key, path) / get(key, path) / headObject(key) -> { sizeBytes } | None
 ```
@@ -969,8 +1033,8 @@ Response   200 {
   reproduction: { jobId, videoUrl, photoshootLabel, sameHouse: bool },
   song:         { sameSong: bool, credit },
   shots: [{ position, movementName, transition,
-            originalCutS, reproductionCutS, cutErrorS,      null for the last shot
-            flagged: bool }],                               reproduction's shot failed or flagged
+            originalCutS, reproductionCutS, cutErrorS,      null for the first shot or a missing shot
+            flagged: bool }],                               the reproduction's shot failed or used a fallback
   maxCutErrorS
 }
 Errors     404 style_not_found | job_not_found
@@ -985,6 +1049,9 @@ recordCuts(jobId)
   after finishJob. Failure is recorded on the row (detected_s null), never fails the job.
 ```
 
+### Calls out
+Media.detectCuts and Files.get to read the video; Files.presignDownload for both videos; Library.setOriginalJob.
+
 ### Must hold
 - Only Comparison writes `cut_checks`.
 - An original is always a ready job of the same style on its demo shoot.
@@ -995,19 +1062,23 @@ recordCuts(jobId)
 Runs the evaluation jobs and writes their reports for the reviewer.
 
 ### Owns
-No tables. Writes report files under `evals/` in the repo (text and numbers only, no photos, GC-9).
+No tables. Writes report files in the repo (text and numbers only, no photos, GC-9).
 
 ### Jobs and messages
 ```
+evals import --folder {path}                     run once by the builder
+Writes         photoshoots through Photoshoots.importPhotoshoot, one per test shoot folder
+
 evals run --suite ev1 | ev2 --style {name}       run by the builder
-Writes         jobs through Jobs.createJob + submitJob (one at a time, the queue does the rest);
-               then evals/{suite}-{date}.md and a reviewer sheet evals/{suite}-{date}-review.csv
-               with one row per shot: visibly_ai, room_changed, movement_matches, transition_matches
+Writes         jobs through Jobs.createJob + submitJob (the queue runs them one at a time);
+               then a report and a reviewer sheet with one row per attempt, flagged ones
+               included, each with a clip link: visibly_ai, room_changed,
+               movement_matches, transition_matches
 evals report --sheet {csv}
 Reads          the filled sheet, jobs, attempts, cut_checks
 Writes         the final report: per video, visibly AI shots (VR-1), rooms changed (VR-5),
                cut error (VR-2), job time (PF-1); per style and shoot VR-2, VR-3, VR-4, VR-6;
-               and how many reviewer-failed shots the check flagged (QC-1)
+               and of the attempts the reviewer failed, how many the check flagged (QC-1)
 Twice-safe     yes — a run creates new jobs; reports are new files
 On failure     a job that stops is reported with its reason; the run continues
 ```
@@ -1019,20 +1090,21 @@ On failure     a job that stops is reported with its reason; the run continues
 | Error format | Every JSON route returns `{ "error": code, "message": text }` with a snake_case code; pages show the message in place |
 | Times | Stored in UTC as ISO-8601 text; shown in the browser's local time |
 | Database | Foreign keys on and a busy timeout of several seconds on every connection; writes are short transactions (STACK §3) |
+| Blocking work | Database, bucket and provider calls never run on the web server's event loop: routes that make them are plain (non-async) handlers, and background work such as labelling runs in a thread (STACK §1) |
 | Scrubbing | Logs never contain the API key, the passphrase, presigned URLs or image or video data |
 | Backup and restore | None required (HLD §1 row 3). The demo job's video is also downloaded and kept offline before the demo (DE-4) |
 | Health | `GET /healthz` returns 200 if the database opens; no passphrase needed |
 | Processes | One container runs the app and the worker; if either exits, both stop so the host restarts the container (STACK §5) |
-| Configuration | Environment variables only: `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `VIDEO_MODEL`, `VIDEO_MODEL_FALLBACK`, `ENHANCE_MODEL`, `QUALITY_CHECK_MODEL`, bucket credentials and name, `DATABASE_PATH`, `DEMO_PASSPHRASE`, `FAKE_PROVIDERS`, check thresholds, shots in flight. `.env.example` lists them |
+| Configuration | Environment variables only: `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `VIDEO_MODEL`, `VIDEO_MODEL_FALLBACK`, per-model resolution, `ENHANCE_MODEL`, `ENHANCE_MODEL_FALLBACK`, `QUALITY_CHECK_MODEL`, `BYOK_MODELS`, bucket credentials and name, `DATABASE_PATH`, `DEMO_PASSPHRASE`, `FAKE_PROVIDERS`, check thresholds, check frame rate, label image size, shots in flight. `.env.example` lists them |
 
 ## Measurement
 
 | Metric (KEY_METRICS.md) | Data source | Added by this document? |
 |---|---|---|
-| Video wait time, slowest and typical (PF-1, PF-2) | `jobs.finished_at − jobs.submitted_at` | yes |
-| Time to tell the user about a provider error (RL-1) | `provider_calls.finished_at` (error) to `job_shots.updated_at` of the matching shot | yes |
-| Regeneration attempts per shot (QC-2) | count of `attempts` per shot and round | yes |
-| Delivered shots the check still flags (VR-1 proxy) | `attempts.status` of each `job_shots.final_attempt_id` | yes |
+| Video wait time, slowest and typical (PF-1, PF-2) | `jobs.first_finished_at − jobs.first_submitted_at` | yes |
+| Time to tell the user about a provider error (RL-1) | `provider_calls.finished_at` (error) to `attempts.finished_at` of the same attempt; for a stop, to `jobs.finished_at` | yes |
+| Regeneration attempts per shot (QC-2) | count of `attempts` per shot and round, minus 1 | yes |
+| Shots dropped because every attempt was flagged (VR-1 proxy) | `job_shots` with `failure_reason = flagged_every_attempt`, per video | yes; replaces "delivered shots the check still flags", which is 0 by construction (upstream fix) |
 | Cut-time error against the style (VR-2) | `cut_checks.error_s` | yes |
 | Cost per call and per job (CO-1) | `provider_calls.cost_usd`, `jobs.total_cost_usd` | yes |
 | Reviewer checks (VR-1, VR-3–VR-6, QC-1 catch rate) | Evals reviewer sheet | yes, report files |
@@ -1051,29 +1123,43 @@ The regression gate runs in GitHub Actions: ruff, pytest, Playwright against the
 
 | # | Question | Options and cost | Blocks | Resolved by |
 |---|---|---|---|---|
-| 1 | Is Google Cloud billing through OpenRouter BYOK allowed under GC-4? | A: yes (current default); B: turn BYOK off, OpenRouter bills at the same price; no contract changes either way | Production run | Candidate |
-| 2 | Can the labelling model tell rooms apart well enough to fill slots (FR-1.10)? | A: model labels, photographer corrects (current); B: photographer picks every slot by hand; the API is the same either way | Nothing; the page lets the photographer change the assignment | First 12 shoots |
-| 3 | Does OpenRouter accept a clip inline for Gemini video input at our sizes? [verify] | A: send the clip and frames (current); B: frames only; ClipCheck is the same | Pipeline check | First real check call |
-| 4 | Quality-check thresholds (QC-1 [tbd]) | Set from the first 12 test videos; stored as configuration | Nothing; defaults are permissive | Evals report |
-| 5 | Does the cut detector find crossfade boundaries? | A: detect and accept misses for crossfades (current, `detected_s` null); B: measure crossfade midpoints separately | VR-2 on crossfade shots | First reproduction |
-| 6 | The original video is a job on the demo shoot [assumed]. Should a creator also be able to upload a video they edited elsewhere? | A: no (current); B: add an upload of the original, then compare by detected cuts on both; adds one route | FR-2.4 | Candidate |
+| 1 | Can the labelling model tell rooms apart well enough to fill slots (FR-1.10)? | A: model labels, photographer corrects (current); B: photographer picks every slot by hand; the API is the same either way | Nothing; the page lets the photographer change the assignment | First 12 shoots |
+| 2 | Does OpenRouter accept a clip inline for Gemini video input at our sizes? [verify] | A: send the clip and frames (current); B: frames only; ClipCheck is the same | Pipeline check | First real check call |
+| 3 | Quality-check thresholds and check frame rate (QC-1 [tbd], STACK §17) | Set from the first 12 test videos; stored as configuration | Nothing; defaults are permissive | Evals report |
+| 4 | Does the cut detector find the end of a crossfade? | A: detect and accept misses for crossfades (current, `detected_s` null); B: measure crossfades from the style's own timing | VR-2 on crossfade shots | First reproduction |
+| 5 | Should a creator also be able to upload an original video edited elsewhere? | A: no, the original is a job on the demo shoot (current); B: add one upload route, then compare by detected cuts on both | FR-2.4 | Candidate |
+| 6 | Do Railway buckets enforce size and type conditions on presigned POST? [verify] | A: yes, as written; B: no, completeUpload's size check and delete is the only guard (already in the contract) | Nothing | First upload test |
+| 7 | Does OpenRouter's response mark BYOK calls, and give a retry delay on 429? [verify] | A: read them from the response; B: `BYOK_MODELS` setting and a fixed back-off; contracts unchanged | CO-1 accuracy | First real call |
+| 8 | Veo 3.1 vs Veo 3.1 Lite or Fast (STACK §17) | Model id per style shot and in configuration; no contract changes | Cost only | One clip per tier on 3 photos |
+| 9 | How far photo edits may move the angle (STACK §17, REQUIREMENTS §5 item 4) | Full PRD edits with crop-only fallback per shot, recorded in `job_shots.edit_note` | VR-5 | First 12 test videos |
+| 10 | Seedance fallback at 1080p or 720p (STACK §17) | Per-model resolution setting, default 1080p | DE-5 when the fallback is used | First fallback call |
+| 11 | How many clips may be in flight at once (HLD §7: recheck on the first full job) | A setting; 12 worked in research | PF-1 | First full job |
+| 12 | A spend limit may be set later (GC-3, HLD §7) | `provider_calls` and `jobs.total_cost_usd` already hold what a limit needs; a limit would add one check before each call | Nothing now | Candidate, later |
+
+The approved-provider question for BYOK Google billing is settled by GC-4 *(assumed, 2026-10-18)* and not reopened here.
 
 **Assumptions.**
 
 | # | Assumption | Where it is used | Confirm with |
 |---|---|---|---|
 | A-1 | Module grouping chosen without a reviewer: Pipeline owns no tables and writes through Jobs; Providers owns the cost table; Comparison owns cut checks | Summary | Candidate |
-| A-2 | The original video is the creator's approved run on the demo shoot | Comparison, styles.original_job_id | Candidate |
-| A-3 | Photos are labelled in the app process in the background, not by the worker, so labelling never waits behind a running job | Photoshoots → labelPhotoshoot | Candidate |
+| A-2 | The original video is the creator's approved run on the demo shoot | Comparison, `styles.original_job_id` | Candidate |
+| A-3 | Photos are labelled in a background thread of the app process, not by the worker, so labelling never waits behind a running job | Photoshoots → labelPhotoshoot | Candidate |
 | A-4 | A rate limit counts as one of a shot's 4 attempts | Pipeline → Failure behaviour | Candidate |
 | A-5 | A job with no passing shot is `stopped`, not delivered empty | Pipeline | Candidate |
 | A-6 | Songs are added by a seed command, not through the UI | Library | Candidate |
+| A-7 | The 30-minute budget (PF-3) runs from when the worker starts a job. A job waiting behind another can exceed PF-1 measured from first submit, which SC-1's queue allows | `jobs.deadline_at`, Measurement | Candidate |
+| A-8 | A clip recovered after a worker restart is kept but not reused; the shot is made again on "Start again" | Providers → recoverCalls | Candidate |
+| A-9 | The fallback video model takes over a shot after the style's model refuses it or fails twice | Pipeline step 5 | Candidate |
 
 **Requirement rows.** None added. Every operation traces to an existing row.
 
 **Upstream fixes.**
 - HLD §4.1: add the supporting operations `completeUpload` and `getPhotoshoot` (the upload trace needs a step after the browser upload, and labels must be polled, FR-1.10), and `setOriginal` (FR-2.4 needs an original). `createReproduction` is `createJob` with `purpose: reproduction`, and its route is `POST /api/jobs`.
+- HLD §4.1 and §5 App server: the app server now does background work, labelling photos through the quality-check service (A-3). The HLD says it "does no work on its own"; add the app → quality-check-service edge.
+- HLD §5: add the Evals command-line process, which creates photoshoots and jobs and writes reports (EV-1, EV-2).
 - HLD §3: *Video* is columns on `jobs`, not its own table. Add *Provider call* and *Cut check* entities.
-- HLD §4.3: add `labelPhotos` and `checkEdit` to the external operations.
-- Wireframe: shot-slot assignment, "Redo this shot", the original/reproduction picker and the song credit (HLD §7 already lists the wireframe update).
-- `.env.example`: add `DEMO_PASSPHRASE`, bucket settings, `DATABASE_PATH`, `FAKE_PROVIDERS`, `VIDEO_MODEL_FALLBACK`.
+- HLD §4.3: operations renamed here: `enhancePhoto` → `editPhoto` (now a chain of edits), `generateClip` / `getClip` → `generateClip` (polling is inside Providers), `scoreClip` → `checkClip`. Add `labelPhotos` and `checkEdit`.
+- KEY_METRICS: "Delivered shots the automatic check still flags" is 0 by construction, since only passed clips are delivered. Replace it with "Shots dropped because every attempt was flagged" (Measurement).
+- Wireframe: shot-slot assignment, "Redo this shot", the original/reproduction picker, the song credit and the fallback and crop-only notes (HLD §7 already lists the wireframe update).
+- `.env.example`: add `DEMO_PASSPHRASE`, bucket settings, `DATABASE_PATH`, `FAKE_PROVIDERS`, `VIDEO_MODEL_FALLBACK`, `ENHANCE_MODEL_FALLBACK`, `BYOK_MODELS`.
