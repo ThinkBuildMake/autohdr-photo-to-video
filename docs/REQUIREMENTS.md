@@ -101,7 +101,7 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.7.
 | FR-1.3 | After submitting, the photographer can leave and come back to find the job's status or result. | F3, U§5 UC-1 | Must |
 | FR-1.4 | The photographer gets a finished video that follows the style text and its shot plan: the song, shot movements, speeds, transitions and cut timing, on the uploaded photos. | F3, F6 | Must |
 | FR-1.5 | If a shot fails after retries, the photographer sees which shot failed and why. The failure is never hidden. A stopped job keeps its finished shots and offers "Start again". | F8 | Must |
-| FR-1.6 | When a shot fails, the rest of the video is still delivered with the failed shot marked *(assumed)*. | F8 | Must |
+| FR-1.6 | When a shot fails, the rest of the video is still delivered without that shot, and the job page marks the failed shot and its reason beside the video *(assumed; reworded 2026-10-18, candidate: "make the best decision")*. A failed shot leaves no gap or placeholder in the video, so a delivered video never shows a broken shot. | F8 | Must |
 | FR-1.7 | The photographer never sees a rejected attempt; shots the system itself rejected as visibly AI-generated are regenerated before delivery. | F9, PRD p.2 | Must |
 | FR-1.8 | Each shot's photo is improved toward the creator's composition, lens, angle and lighting, as the style's photo edit says (PRD pp.3–5); architecture, rooms and fixtures are preserved. | F7 | Must |
 | FR-1.9 | The photographer plays the finished video in the browser and downloads it. | F3 | Must |
