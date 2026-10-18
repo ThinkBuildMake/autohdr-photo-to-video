@@ -71,7 +71,6 @@ Demo order: S01 → S20 then S21 (one long window) → S22 → S23 + S24 + S25 (
 | 4 | S21, S25, S26 | 2–3 BY-NC or BY-NC-SA songs picked from Free Music Archive, licences recorded in the seed manifest; 2–3 preset style texts | Candidate, a few hours, by 10-18 evening (S21 is demoed in the 10-19 morning window) | STACK §16, GC-5 |
 | 5 | GC-1 if the demo windows are fewer | The timeline needs the long window on 10-19 and two windows a day (Timeline) | Candidate | Timeline |
 | 6 | none (stories follow the architecture) | FR-1.6 wording: "marked" in the video vs left out and marked on the Job page | Candidate | Architectural issue 1 |
-
 | 7 | S01, S08, S09, S11, S15, S16, S22 (sizes) | These run 12–18 criteria, above the skill's "about 8". Kept whole after two review rounds: each is one module's operations or one flow, and a split would add a story with no seam of its own. Splitting S15 (Styles vs New video) and S11 (restart and redo vs editor) is the first move if a build pass overruns | Candidate | Final review, 2026-10-18 |
 
 ## Order
