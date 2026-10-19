@@ -8,6 +8,7 @@ from fastapi.routing import APIRoute
 from app.main import create_app
 from app.photoshoots import service as photoshoots
 from app.photoshoots.stubs import STUB_PHOTOSHOOT_ID
+from tests.support.fixtures import DEMO_AUTH
 
 
 def test_slow_bucket_call_does_not_block_health(live_server, monkeypatch):
@@ -30,7 +31,9 @@ def test_slow_bucket_call_does_not_block_health(live_server, monkeypatch):
 
     def call():
         result["response"] = httpx.post(
-            f"{live_server}/api/photoshoots/{STUB_PHOTOSHOOT_ID}/complete", timeout=30
+            f"{live_server}/api/photoshoots/{STUB_PHOTOSHOOT_ID}/complete",
+            auth=DEMO_AUTH,
+            timeout=30,
         )
 
     worker = threading.Thread(target=call)

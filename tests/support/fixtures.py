@@ -1,5 +1,6 @@
 """Fixtures shared by the app, contract and e2e tests."""
 
+import contextlib
 import socket
 import threading
 import time
@@ -9,12 +10,19 @@ import pytest
 import uvicorn
 from fastapi.testclient import TestClient
 
+from app.config import reset_settings
 from app.main import create_app
+
+DEMO_PASSPHRASE = "test-pass"
+DEMO_AUTH = ("demo", DEMO_PASSPHRASE)
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    monkeypatch.setenv("DEMO_PASSPHRASE", DEMO_PASSPHRASE)
+    reset_settings()
     with TestClient(create_app()) as test_client:
+        test_client.auth = DEMO_AUTH
         yield test_client
 
 
@@ -24,10 +32,10 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
-@pytest.fixture
-def live_server():
+@contextlib.contextmanager
+def serve(app, log_level="warning"):
     port = _free_port()
-    config = uvicorn.Config(create_app(), host="127.0.0.1", port=port, log_level="warning")
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level=log_level)
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
@@ -43,6 +51,16 @@ def live_server():
             server.should_exit = True
             raise RuntimeError("live server did not start")
         time.sleep(0.05)
-    yield base_url
-    server.should_exit = True
-    thread.join(timeout=15)
+    try:
+        yield base_url
+    finally:
+        server.should_exit = True
+        thread.join(timeout=15)
+
+
+@pytest.fixture
+def live_server(monkeypatch):
+    monkeypatch.setenv("DEMO_PASSPHRASE", DEMO_PASSPHRASE)
+    reset_settings()
+    with serve(create_app()) as base_url:
+        yield base_url
