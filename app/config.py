@@ -10,6 +10,7 @@ CONFIG_VARIABLES = (
     "VIDEO_MODEL",
     "VIDEO_MODEL_FALLBACK",
     "VIDEO_RESOLUTIONS",
+    "VIDEO_LIST_PRICES",
     "ENHANCE_MODEL",
     "ENHANCE_MODEL_FALLBACK",
     "QUALITY_CHECK_MODEL",
@@ -28,6 +29,7 @@ CONFIG_VARIABLES = (
     "CHECK_FRAMES_PER_SECOND",
     "LABEL_IMAGE_LONG_SIDE",
     "SHOTS_IN_FLIGHT",
+    "CLIP_COLLECT_WINDOW_HOURS",
     "PORT",
 )
 
@@ -60,6 +62,7 @@ class Settings:
     VIDEO_MODEL: str
     VIDEO_MODEL_FALLBACK: str
     VIDEO_RESOLUTIONS: str
+    VIDEO_LIST_PRICES: str
     ENHANCE_MODEL: str
     ENHANCE_MODEL_FALLBACK: str
     QUALITY_CHECK_MODEL: str
@@ -78,6 +81,7 @@ class Settings:
     CHECK_FRAMES_PER_SECOND: int
     LABEL_IMAGE_LONG_SIDE: int
     SHOTS_IN_FLIGHT: int
+    CLIP_COLLECT_WINDOW_HOURS: float
     PORT: int
 
     def __repr__(self) -> str:
@@ -93,6 +97,7 @@ def load_settings() -> Settings:
         VIDEO_RESOLUTIONS=_text(
             "VIDEO_RESOLUTIONS", "google/veo-3.1=1080p,bytedance/seedance-2.0=1080p"
         ),
+        VIDEO_LIST_PRICES=_text("VIDEO_LIST_PRICES", "google/veo-3.1=0.20"),
         ENHANCE_MODEL=_text("ENHANCE_MODEL", "google/gemini-nano-banana-2.1"),
         ENHANCE_MODEL_FALLBACK=_text("ENHANCE_MODEL_FALLBACK", "google/gemini-3.1-flash-image"),
         QUALITY_CHECK_MODEL=_text("QUALITY_CHECK_MODEL", "google/gemini-3.8-flash"),
@@ -111,6 +116,7 @@ def load_settings() -> Settings:
         CHECK_FRAMES_PER_SECOND=_int("CHECK_FRAMES_PER_SECOND", 6),
         LABEL_IMAGE_LONG_SIDE=_int("LABEL_IMAGE_LONG_SIDE", 768),
         SHOTS_IN_FLIGHT=_int("SHOTS_IN_FLIGHT", 8),
+        CLIP_COLLECT_WINDOW_HOURS=_float("CLIP_COLLECT_WINDOW_HOURS", 24.0),
         PORT=_int("PORT", 8000),
     )
 

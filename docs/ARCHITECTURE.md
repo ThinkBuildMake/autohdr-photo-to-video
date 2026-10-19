@@ -1137,7 +1137,7 @@ On failure     a job that stops is reported with its reason; the run continues
 | Backup and restore | None required (HLD §1 row 3). The demo job's video is also downloaded and kept offline before the demo (DE-4) |
 | Health | `GET /healthz` returns 200 if the database opens; no passphrase needed |
 | Processes | One container runs the app and the worker; if either exits, both stop so the host restarts the container (STACK §5) |
-| Configuration | Environment variables only: `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `VIDEO_MODEL`, `VIDEO_MODEL_FALLBACK`, per-model resolution, `ENHANCE_MODEL`, `ENHANCE_MODEL_FALLBACK`, `QUALITY_CHECK_MODEL`, `PLANNER_MODEL`, `BYOK_MODELS`, bucket credentials and name, `DATABASE_PATH`, `DEMO_PASSPHRASE`, `FAKE_PROVIDERS`, check thresholds, check frame rate, label image size, shots in flight. `.env.example` lists them |
+| Configuration | Environment variables only: `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `VIDEO_MODEL`, `VIDEO_MODEL_FALLBACK`, per-model resolution, `VIDEO_LIST_PRICES` (list price in USD per second used for BYOK cost, default `google/veo-3.1=0.20`), `ENHANCE_MODEL`, `ENHANCE_MODEL_FALLBACK`, `QUALITY_CHECK_MODEL`, `PLANNER_MODEL`, `BYOK_MODELS`, bucket credentials and name, `DATABASE_PATH`, `DEMO_PASSPHRASE`, `FAKE_PROVIDERS`, check thresholds, check frame rate, label image size, shots in flight, `CLIP_COLLECT_WINDOW_HOURS` (hours after a clip call started during which a finished clip that cannot be downloaded is retried by `recoverCalls`; default 24, then the row closes as `failed`). `.env.example` lists them |
 
 ## Measurement
 

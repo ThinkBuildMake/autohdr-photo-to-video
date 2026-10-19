@@ -156,7 +156,9 @@ class FakeProviders:
         length_s: float,
         ids: dict[str, Any],
     ) -> ClipResult:
-        raise NotImplementedError("FakeProviders.generate_clip is built in S07.")
+        from app.providers import fake_video
+
+        return fake_video.generate_clip(first_frame_jpeg, prompt, model, length_s, ids)
 
     def check_clip(
         self,
@@ -182,7 +184,9 @@ class FakeProviders:
         )
 
     def allowed_lengths(self, model: str) -> list[float]:
-        raise NotImplementedError("FakeProviders.allowed_lengths is built in S07.")
+        from app.providers import fake_video
+
+        return fake_video.allowed_lengths(model)
 
     def recover_calls(self) -> None:
         return None

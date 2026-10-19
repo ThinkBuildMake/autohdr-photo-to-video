@@ -44,7 +44,9 @@ class OpenRouterProviders:
         length_s: float,
         ids: dict[str, Any],
     ) -> ClipResult:
-        raise NotImplementedError("generate_clip is built in S07.")
+        from app.providers import video
+
+        return video.generate_clip(first_frame_jpeg, prompt, model, length_s, ids)
 
     def check_clip(
         self,
@@ -58,7 +60,11 @@ class OpenRouterProviders:
         return check_clip(clip_path, frames, source_jpeg, ids)
 
     def allowed_lengths(self, model: str) -> list[float]:
-        raise NotImplementedError("allowed_lengths is built in S07.")
+        from app.providers import video_api
+
+        return video_api.allowed_lengths(model)
 
     def recover_calls(self) -> None:
-        return None
+        from app.providers import video_recovery
+
+        video_recovery.recover_calls()
