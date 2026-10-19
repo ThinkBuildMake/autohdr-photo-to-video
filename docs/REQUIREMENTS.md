@@ -179,7 +179,7 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.7.
 | ID | Requirement | Verified by | Trace | Priority |
 |---|---|---|---|---|
 | QC-1 | An automatic check flags visibly AI-generated shots and changed rooms or fixtures; threshold [tbd: judged on the first 12 test videos; interim target: catches ≥ 60% of shots the reviewer fails [prop]] [src user: "ideally the ml model catch it"; PRD p.2 "consistent professional level output"]. | Compare flagged shots to the reviewer's list | FR-1.7 | Must |
-| QC-2 | A flagged shot is regenerated up to **3** times before it is reported failed [prop]. | Job log shows attempts ≤ 3 per shot | FR-1.5, FR-1.7 | Must |
+| QC-2 | A shot gets up to **4** attempts per round (the first plus 3 regenerations) before it is reported failed [prop]. | Job log shows attempts ≤ 4 per shot per round | FR-1.5, FR-1.7 | Must |
 
 ### 3.6 Scalability (SC-)
 
@@ -250,7 +250,7 @@ Every **[prop]** and **[tbd]** number. [prop] rows not commented on at review ar
 | RL-1 | 60 s | Long enough for a retry, short enough to feel responsive | Accepted |
 | OB-1, OB-2 | listed fields | Needed to run EV-1 and EV-2 | Accepted |
 | QC-1 | [tbd]; interim ≥ 60% of failing shots caught | The number depends on the detector | Pending prototype |
-| QC-2 | 3 attempts | Bounded so regeneration stays inside PF-1 | Accepted |
+| QC-2 | 4 attempts per round | Bounded so regeneration stays inside PF-1 | Accepted |
 | DE-1 | current desktop Chrome | User said assume desktop | Accepted |
 | DE-2 | JPG/PNG, 40 photos, 25 MB | Covers a typical shoot with room to spare; the 12 test shoots set the real size | Accepted |
 | PF-4 | re-export ≤ 10 min for ≤ 2 changed shots | One round of a few clips in parallel plus a re-cut, measured at about 1–2 min per clip (VIDEO_RESEARCH §7) | Proposed 2026-10-18 |
