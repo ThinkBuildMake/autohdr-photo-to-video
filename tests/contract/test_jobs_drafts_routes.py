@@ -1,41 +1,38 @@
 import pytest
 
-from app.jobs.stubs import STUB_JOB_ID
+from app.jobs import store
 from app.library.stubs import STUB_SONG_ID
-from app.photoshoots.stubs import STUB_PHOTO_IDS, STUB_PHOTOSHOOT_ID
+from app.shared.types import PlannedShot
 from tests.contract._jobs_common import JOB_KEYS, SHOT_KEYS
+from tests.support.jobs_rows import (
+    add_draft_job,
+    add_ready_shoot,
+    planned_shot,
+    planning_idle,  # noqa: F401
+    scripted_planner,  # noqa: F401
+)
 from tests.support.library_rows import stub_presets  # noqa: F401
 
-pytestmark = pytest.mark.usefixtures("stub_presets")
+pytestmark = pytest.mark.usefixtures("stub_presets", "planning_idle")
 
 
-def _job_body():
-    return {
-        "photoshootId": STUB_PHOTOSHOOT_ID,
-        "styleText": "Slow and warm.",
-        "songId": STUB_SONG_ID,
-    }
+def _job_body(photoshoot_id):
+    return {"photoshootId": photoshoot_id, "styleText": "Slow and warm.", "songId": STUB_SONG_ID}
 
 
-def _planned_shot(position):
-    return {
-        "position": position,
-        "room": "living",
-        "photoId": STUB_PHOTO_IDS[position],
-        "photoEditPrompts": [],
-        "movementName": "dolly_in",
-        "movementPrompt": "Slow dolly in.",
-        "speed": "slow",
-        "model": "google/veo-3.1",
-        "lengthS": 3.0,
-        "transition": "cut",
-        "transitionS": 0.0,
-        "planNote": "",
-    }
+def _ready_draft():
+    photoshoot_id, photo_ids = add_ready_shoot(2)
+    job_id = add_draft_job(photoshoot_id, STUB_SONG_ID, plan_status="ready")
+    shots = [planned_shot(i, pid) for i, pid in enumerate(photo_ids, start=1)]
+    store.replace_plan(job_id, [PlannedShot.model_validate(s) for s in shots], None)
+    return job_id, shots
 
 
-def test_create_job(client):
-    response = client.post("/api/jobs", json=_job_body())
+def test_create_job(client, scripted_planner):  # noqa: F811
+    photoshoot_id, photo_ids = add_ready_shoot(2)
+    scripted_planner.queue([planned_shot(i, p) for i, p in enumerate(photo_ids, start=1)])
+
+    response = client.post("/api/jobs", json=_job_body(photoshoot_id))
 
     body = response.json()
     assert response.status_code == 201
@@ -46,14 +43,17 @@ def test_create_job(client):
 
 
 def test_create_job_unknown_photoshoot(client):
-    response = client.post("/api/jobs", json={**_job_body(), "photoshootId": "nope"})
+    response = client.post("/api/jobs", json=_job_body("nope"))
 
     assert response.status_code == 404
     assert response.json()["error"] == "photoshoot_not_found"
 
 
-def test_replan_job(client):
-    response = client.post(f"/api/jobs/{STUB_JOB_ID}/plan", json={"styleText": "Faster."})
+def test_replan_job(client, scripted_planner):  # noqa: F811
+    job_id, shots = _ready_draft()
+    scripted_planner.queue(shots)
+
+    response = client.post(f"/api/jobs/{job_id}/plan", json={"styleText": "Faster."})
 
     body = response.json()
     assert response.status_code == 202
@@ -63,9 +63,9 @@ def test_replan_job(client):
 
 
 def test_update_job_shots(client):
-    response = client.put(
-        f"/api/jobs/{STUB_JOB_ID}/shots", json={"shots": [_planned_shot(0), _planned_shot(1)]}
-    )
+    job_id, shots = _ready_draft()
+
+    response = client.put(f"/api/jobs/{job_id}/shots", json={"shots": shots})
 
     body = response.json()
     assert response.status_code == 200

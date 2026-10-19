@@ -1,9 +1,19 @@
-"""Stub data for the Jobs contract. S09-S11 replace it with the database."""
+"""Stub data for the Jobs contract. S09-S11 replace it with the database.
 
+photoshoot_status, list_photos, allowed_lengths and plan_shots stand in for
+Photoshoots.listPhotos, Providers.planShots and Providers.allowedLengths; S21 removes them.
+"""
+
+from sqlalchemy import select
+
+from app.config import get_settings
+from app.db.base import session_scope
+from app.jobs.plan_rules import MOVEMENTS
 from app.library.stubs import GOLDEN_HOUR_ID, STUB_REFERENCE_JOB_ID, STUB_SONG
+from app.photoshoots.models import Photo, Photoshoot
 from app.photoshoots.stubs import STUB_PHOTO_IDS, STUB_PHOTOSHOOT_ID
 from app.shared.enums import JobStatus, ShotStatus
-from app.shared.types import Job, JobListItem, JobShot, JobVideo
+from app.shared.types import Job, JobListItem, JobShot, JobVideo, PlannedShot
 
 STUB_JOB_ID = STUB_REFERENCE_JOB_ID
 STUB_TIME = "2026-01-01T00:00:00Z"
@@ -73,3 +83,57 @@ def stub_list_item() -> JobListItem:
         submitted_at=job.submitted_at,
         elapsed_s=job.elapsed_s,
     )
+
+
+def photoshoot_status(photoshoot_id: str) -> str | None:
+    with session_scope() as session:
+        return session.scalar(select(Photoshoot.status).where(Photoshoot.id == photoshoot_id))
+
+
+def list_photos(photoshoot_id: str) -> list[dict]:
+    with session_scope() as session:
+        rows = session.execute(
+            select(Photo.id, Photo.room, Photo.subject)
+            .where(Photo.photoshoot_id == photoshoot_id, Photo.status == "uploaded")
+            .order_by(Photo.position)
+        ).all()
+    return [{"photoId": r.id, "room": r.room, "subject": r.subject, "jpegBytes": b""} for r in rows]
+
+
+def allowed_lengths(model: str) -> list[float]:
+    if model == "google/veo-3.1":
+        return [4.0, 6.0, 8.0]
+    if model == "bytedance/seedance-2.0":
+        return [float(n) for n in range(4, 16)]
+    return []
+
+
+def plan_shots(
+    style_text: str,
+    song_duration_s: float,
+    photos: list[dict],
+    movements: dict[str, str],
+    allowed_lengths: list[float],
+    ids: dict,
+) -> dict:
+    length = 4.0
+    count = min(len(photos), max(1, int(song_duration_s // length)))
+    model = get_settings().VIDEO_MODEL
+    shots = [
+        PlannedShot(
+            position=i,
+            room=photo.get("room") or "other",
+            photo_id=photo["photoId"],
+            photo_edit_prompts=[],
+            movement_name="dolly_in",
+            movement_prompt=MOVEMENTS["dolly_in"],
+            speed="slow",
+            model=model,
+            length_s=length,
+            transition="cut",
+            transition_s=0.0,
+            plan_note="One shot per photo, in upload order.",
+        )
+        for i, photo in enumerate(photos[:count], start=1)
+    ]
+    return {"shots": shots, "notes": ""}

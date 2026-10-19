@@ -44,7 +44,7 @@ def _add_job(session, job_id, photoshoot_id, song_id, style_id=None, style_text=
     session.execute(
         text(
             "insert into jobs (id, style_id, style_text, photoshoot_id, song_id, song_offset_s,"
-            " fps) values (:i, :st, :t, :p, :s, 0, 30)"
+            " fps, plan_status) values (:i, :st, :t, :p, :s, 0, 30, 'ready')"
         ),
         {"i": job_id, "st": style_id, "t": style_text, "p": photoshoot_id, "s": song_id},
     )
