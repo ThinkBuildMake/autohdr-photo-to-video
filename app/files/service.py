@@ -1,26 +1,35 @@
-"""Files: bucket objects and presigned links. Stub: S04 builds it."""
+"""Files: the module's public interface to the private bucket.
 
-_NOT_BUILT = "Files is built in S04."
+Five blocking operations (callers keep them off the event loop):
+presign_upload (15-minute browser upload form), presign_download (1-hour
+link, optionally as an attachment), put and get (server-side file copy)
+and head_object (size, or None when the key is missing), plus the key
+builders that define the bucket layout.
 
+The bucket is private; every browser read or write goes through a
+presigned link. Links, their signatures and policies are never logged.
+"""
 
-def presign_upload(key: str, content_type: str, max_bytes: int) -> dict:
-    """Returns {url, fields}, valid 15 minutes."""
-    raise NotImplementedError(_NOT_BUILT)
+from app.files.downloads import presign_download
+from app.files.keys import (
+    attempt_clip_key,
+    frame_key,
+    photo_key,
+    song_key,
+    video_key,
+)
+from app.files.objects import get, put
+from app.files.uploads import head_object, presign_upload
 
-
-def presign_download(key: str, as_attachment: bool = False, filename: str | None = None) -> str:
-    """Returns a link valid 1 hour."""
-    raise NotImplementedError(_NOT_BUILT)
-
-
-def put(key: str, path: str) -> None:
-    raise NotImplementedError(_NOT_BUILT)
-
-
-def get(key: str, path: str) -> None:
-    raise NotImplementedError(_NOT_BUILT)
-
-
-def head_object(key: str) -> dict | None:
-    """Returns {sizeBytes} or None when the object does not exist."""
-    raise NotImplementedError(_NOT_BUILT)
+__all__ = [
+    "attempt_clip_key",
+    "frame_key",
+    "get",
+    "head_object",
+    "photo_key",
+    "presign_download",
+    "presign_upload",
+    "put",
+    "song_key",
+    "video_key",
+]
