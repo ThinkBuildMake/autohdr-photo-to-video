@@ -6,9 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import reset_settings
-from app.jobs.stubs import STUB_JOB_ID
 from app.main import create_app
 from tests.support.fixtures import DEMO_PASSPHRASE, serve
+from tests.support.queue_rows import add_job, add_shoot, add_shot, add_song, job_row
 
 
 @pytest.fixture
@@ -93,8 +93,17 @@ def test_passphrase_never_logged(bare_client, caplog, capfd):
 
 
 def test_passphrase_is_the_only_gate_on_paid_jobs(bare_client):
-    url = f"/api/jobs/{STUB_JOB_ID}/submit"
+    song = add_song()
+    shoot_id, photos = add_shoot()
 
-    for _ in range(3):
+    def draft():
+        job_id = add_job(shoot_id, song)
+        add_shot(job_id, 0, photos[0])
+        return job_id
+
+    for job_id in (draft(), draft(), draft()):
+        url = f"/api/jobs/{job_id}/submit"
         assert bare_client.post(url, auth=("demo", DEMO_PASSPHRASE)).status_code == 202
-    assert bare_client.post(url).status_code == 401
+    refused = draft()
+    assert bare_client.post(f"/api/jobs/{refused}/submit").status_code == 401
+    assert job_row(refused)["status"] == "draft"
