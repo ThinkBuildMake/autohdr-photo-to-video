@@ -7,7 +7,6 @@ from fastapi.routing import APIRoute
 
 from app.main import create_app
 from app.photoshoots import service as photoshoots
-from app.photoshoots.stubs import STUB_PHOTOSHOOT_ID
 from tests.support.fixtures import DEMO_AUTH
 
 
@@ -27,11 +26,17 @@ def test_slow_bucket_call_does_not_block_health(live_server, monkeypatch):
 
     monkeypatch.setattr(files, "head_object", slow_head_object)
     monkeypatch.setattr(photoshoots, "complete_upload", slow_complete_upload)
+    created = httpx.post(
+        f"{live_server}/api/photoshoots",
+        json={"files": [{"name": "a.jpg", "size": 1000, "type": "image/jpeg"}]},
+        auth=DEMO_AUTH,
+    )
+    photoshoot_id = created.json()["photoshootId"]
     result = {}
 
     def call():
         result["response"] = httpx.post(
-            f"{live_server}/api/photoshoots/{STUB_PHOTOSHOOT_ID}/complete",
+            f"{live_server}/api/photoshoots/{photoshoot_id}/complete",
             auth=DEMO_AUTH,
             timeout=30,
         )

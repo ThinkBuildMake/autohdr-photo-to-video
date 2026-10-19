@@ -52,7 +52,7 @@ class Photo(CamelModel):
     original_name: str
     content_type: str
     size_bytes: int
-    status: Literal["awaiting_upload", "uploaded", "missing"]
+    status: Literal["awaiting_upload", "uploaded", "missing", "too_large"]
     room: Room | None
     subject: str | None
     thumb_url: str

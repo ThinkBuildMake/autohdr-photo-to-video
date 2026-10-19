@@ -1,4 +1,5 @@
-from app.photoshoots.stubs import STUB_PHOTOSHOOT_ID
+from app.photoshoots import stubs
+from tests.photoshoots.conftest import jpeg_bytes
 
 PHOTO_KEYS = {
     "id", "position", "originalName", "contentType", "sizeBytes", "status", "room", "subject",
@@ -48,8 +49,15 @@ def test_create_upload_no_valid_files(client):
     assert response.json()["error"] == "no_valid_files"
 
 
+def _shoot(client):
+    stubs.BUCKET.clear()
+    body = client.post("/api/photoshoots", json={"files": [_file()]}).json()
+    stubs.BUCKET[body["uploads"][0]["fields"]["key"]] = jpeg_bytes()
+    return body["photoshootId"]
+
+
 def test_complete_upload(client):
-    response = client.post(f"/api/photoshoots/{STUB_PHOTOSHOOT_ID}/complete")
+    response = client.post(f"/api/photoshoots/{_shoot(client)}/complete")
 
     body = response.json()
     assert response.status_code == 202
@@ -59,7 +67,7 @@ def test_complete_upload(client):
 
 
 def test_get_photoshoot(client):
-    response = client.get(f"/api/photoshoots/{STUB_PHOTOSHOOT_ID}")
+    response = client.get(f"/api/photoshoots/{_shoot(client)}")
 
     body = response.json()
     assert response.status_code == 200
