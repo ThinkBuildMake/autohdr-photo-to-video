@@ -1,7 +1,12 @@
+import pytest
+
 from app.jobs.stubs import STUB_JOB_ID
 from app.library.stubs import STUB_SONG_ID
 from app.photoshoots.stubs import STUB_PHOTO_IDS, STUB_PHOTOSHOOT_ID
 from tests.contract._jobs_common import JOB_KEYS, SHOT_KEYS
+from tests.support.library_rows import stub_presets  # noqa: F401
+
+pytestmark = pytest.mark.usefixtures("stub_presets")
 
 
 def _job_body():

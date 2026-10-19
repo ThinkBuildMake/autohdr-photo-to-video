@@ -1,6 +1,12 @@
-"""Stub data for the Library contract. S03 replaces it with the seeded database."""
+"""Stubs for what Library borrows from other modules, and the preset data other stubs share.
 
-from app.shared.types import Song, Style, StyleSummary
+reference_video_url stands in for Files.presignDownload (removed by S21);
+check_demo_photoshoot stands in for the Photoshoots table (removed by S25).
+STUB_SONG and STUB_STYLES are ids and data that other modules' stubs and tests import.
+"""
+
+from app.photoshoots import service as photoshoots
+from app.shared.types import Song, Style
 
 GOLDEN_HOUR_ID = "11111111-1111-4111-8111-111111111111"
 CRISP_MODERN_ID = "22222222-2222-4222-8222-222222222222"
@@ -46,12 +52,9 @@ STUB_STYLES = [
 ]
 
 
-def summary(style: Style) -> StyleSummary:
-    return StyleSummary(
-        id=style.id,
-        name=style.name,
-        author_name=style.author_name,
-        style_text=style.style_text,
-        song=style.song,
-        has_reference=style.reference_job_id is not None,
-    )
+def reference_video_url(job_id: str) -> str:
+    return "/stub-media/reference.mp4"
+
+
+def check_demo_photoshoot(photoshoot_id: str) -> None:
+    photoshoots.get_photoshoot(photoshoot_id)

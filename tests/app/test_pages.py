@@ -2,6 +2,9 @@ import pytest
 
 from app.jobs.stubs import STUB_JOB_ID
 from app.library.stubs import GOLDEN_HOUR_ID
+from tests.support.library_rows import stub_presets  # noqa: F401
+
+pytestmark = pytest.mark.usefixtures("stub_presets")
 
 PAGES = [
     "/",

@@ -7,15 +7,15 @@ import pytest
 
 from app.config import get_settings
 from app.db.schema import init_db
-from app.library.stubs import STUB_SONG_ID
+from tests.support.library_rows import add_song
 
 
-def _style_body():
+def _style_body(song_id):
     return {
         "name": "Moody dusk",
         "authorName": "Sam",
         "styleText": "Dark and slow.",
-        "songId": STUB_SONG_ID,
+        "songId": song_id,
     }
 
 
@@ -36,8 +36,24 @@ def test_styles_table_has_no_video_column():
 
 
 @pytest.mark.parametrize("field", ["videoUrl", "storyboard", "frames"])
-def test_create_style_refuses_creator_video_fields(client, field):
-    response = client.post("/api/styles", json={**_style_body(), field: "x"})
+def test_extra_creator_video_field_is_dropped(client, field):
+    song_id = add_song()
+
+    response = client.post("/api/styles", json={**_style_body(song_id), field: "x"})
+
+    assert response.status_code == 201
+    style = response.json()["style"]
+    assert field not in style
+    fetched = client.get(f"/api/styles/{style['id']}").json()
+    assert field not in fetched["style"]
+    assert field not in fetched
+
+
+def test_update_with_video_field_is_refused(client):
+    song_id = add_song()
+    style_id = client.post("/api/styles", json=_style_body(song_id)).json()["style"]["id"]
+
+    response = client.put(f"/api/styles/{style_id}", json={"videoUrl": "x"})
 
     assert response.status_code == 400
     assert response.json()["error"] == "invalid_request"

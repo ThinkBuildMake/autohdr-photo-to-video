@@ -6,9 +6,10 @@ from app.shared.types import CamelModel, Song, Style, StyleSummary
 
 
 class StyleCreate(CamelModel):
-    """A style holds text and a song only (FR-3.6): any other field is refused."""
+    """A style holds text and a song only (FR-3.6): unknown fields, such as videoUrl, are
+    dropped and never stored."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     name: str
     author_name: str
