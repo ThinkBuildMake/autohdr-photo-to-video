@@ -4,7 +4,7 @@ import io
 
 import pytest
 from PIL import Image
-from sqlalchemy import select
+from sqlalchemy import literal_column, select
 
 from app.db.base import session_scope
 from app.db.schema import init_db
@@ -29,7 +29,9 @@ def _fresh_fake():
 def read_rows() -> list[ProviderCall]:
     with session_scope() as session:
         return list(
-            session.scalars(select(ProviderCall).order_by(ProviderCall.started_at, ProviderCall.id))
+            session.scalars(
+                select(ProviderCall).order_by(ProviderCall.started_at, literal_column("rowid"))
+            )
         )
 
 

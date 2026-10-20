@@ -7,7 +7,7 @@ import os
 import httpx
 import pytest
 from PIL import Image, ImageDraw
-from sqlalchemy import select
+from sqlalchemy import literal_column, select
 
 from app.config import reset_settings
 from app.db.base import session_scope
@@ -128,7 +128,9 @@ def synthetic_jpeg():
 def read_rows() -> list[ProviderCall]:
     with session_scope() as session:
         return list(
-            session.scalars(select(ProviderCall).order_by(ProviderCall.started_at, ProviderCall.id))
+            session.scalars(
+                select(ProviderCall).order_by(ProviderCall.started_at, literal_column("rowid"))
+            )
         )
 
 
