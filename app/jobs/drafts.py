@@ -4,6 +4,8 @@ from app.errors import AppError
 from app.jobs import plan_rules, planning, reading, store, stubs
 from app.jobs.schemas import JobCreate, JobReplan
 from app.library import service as library
+from app.photoshoots import service as photoshoots
+from app.providers.interface import allowed_lengths
 from app.shared.types import Job, PlannedShot
 
 
@@ -71,10 +73,10 @@ def update_job_shots(job_id: str, shots: list[PlannedShot]) -> Job:
         raise AppError(409, "plan_not_ready", "The plan is still being written.")
     inputs = store.planning_inputs(job_id)
     song = _find_song(inputs["song_id"])
-    photo_ids = {p["photoId"] for p in stubs.list_photos(inputs["photoshoot_id"])}
+    photo_ids = {photo.id for photo in photoshoots.list_photos(inputs["photoshoot_id"])}
     ordered = plan_rules.renumber(shots)
     problems = plan_rules.validate_plan(
-        ordered, photo_ids, song.duration_s - inputs["song_offset_s"], stubs.allowed_lengths
+        ordered, photo_ids, song.duration_s - inputs["song_offset_s"], allowed_lengths
     )
     if problems:
         raise AppError(400, "invalid_plan", " ".join(problems))

@@ -11,16 +11,27 @@ import uvicorn
 from fastapi.testclient import TestClient
 
 from app.config import reset_settings
+from app.files.client import reset_client
 from app.main import create_app
 
 DEMO_PASSPHRASE = "test-pass"
 DEMO_AUTH = ("demo", DEMO_PASSPHRASE)
 
 
+def _bucket_env(monkeypatch) -> None:
+    """New video signs a song preview while rendering, so the server needs a bucket name."""
+    monkeypatch.setenv("BUCKET_NAME", "test-bucket")
+    monkeypatch.setenv("BUCKET_ACCESS_KEY_ID", "testing")
+    monkeypatch.setenv("BUCKET_SECRET_ACCESS_KEY", "testing")
+    monkeypatch.setenv("BUCKET_REGION", "us-east-1")
+
+
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setenv("DEMO_PASSPHRASE", DEMO_PASSPHRASE)
+    _bucket_env(monkeypatch)
     reset_settings()
+    reset_client()
     with TestClient(create_app()) as test_client:
         test_client.auth = DEMO_AUTH
         yield test_client
@@ -61,6 +72,8 @@ def serve(app, log_level="warning"):
 @pytest.fixture
 def live_server(monkeypatch):
     monkeypatch.setenv("DEMO_PASSPHRASE", DEMO_PASSPHRASE)
+    _bucket_env(monkeypatch)
     reset_settings()
+    reset_client()
     with serve(create_app()) as base_url:
         yield base_url

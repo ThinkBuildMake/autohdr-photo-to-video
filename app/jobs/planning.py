@@ -7,10 +7,12 @@ from functools import partial
 from pydantic import ValidationError
 
 from app.config import get_settings
-from app.jobs import plan_rules, store, stubs
+from app.jobs import plan_rules, store
 from app.jobs.errors import JobNotFound
 from app.library import service as library
+from app.photoshoots import service as photoshoots
 from app.providers.errors import ProviderError
+from app.providers.interface import allowed_lengths, plan_shots
 from app.shared.types import PlannedShot
 
 _lock = threading.Lock()
@@ -75,22 +77,33 @@ def _write(job_id: str, generation: int | None, action) -> None:
             action()
 
 
+def _off_menu(shots: list[PlannedShot], model: str, lengths: list[float]) -> list[str]:
+    """The planner was offered one menu of lengths for the job's video model."""
+    allowed = set(lengths)
+    return [
+        f"Shot {n}: {shot.length_s:g} s is not an allowed length."
+        for n, shot in enumerate(shots, start=1)
+        if shot.model == model and shot.length_s not in allowed
+    ]
+
+
 def _plan(job_id: str, generation: int | None) -> None:
     inputs = store.planning_inputs(job_id)
     song = next(s for s in library.list_songs() if s.id == inputs["song_id"])
     budget = song.duration_s - inputs["song_offset_s"]
-    photos = stubs.list_photos(inputs["photoshoot_id"])
+    photos = photoshoots.planner_photos(inputs["photoshoot_id"])
     photo_ids = {p["photoId"] for p in photos}
-    lengths = stubs.allowed_lengths(get_settings().VIDEO_MODEL)
+    lengths = allowed_lengths(get_settings().VIDEO_MODEL)
     ids = {"jobId": job_id, "photoshootId": inputs["photoshoot_id"]}
 
     text = inputs["style_text"]
     problems: list[str] = []
     for _ in range(2):
         try:
-            answer = stubs.plan_shots(text, budget, photos, plan_rules.MOVEMENTS, lengths, ids)
+            answer = plan_shots(text, budget, photos, plan_rules.MOVEMENTS, lengths, ids)
             shots = plan_rules.renumber([PlannedShot.model_validate(s) for s in answer["shots"]])
-            problems = plan_rules.validate_plan(shots, photo_ids, budget, stubs.allowed_lengths)
+            problems = plan_rules.validate_plan(shots, photo_ids, budget, allowed_lengths)
+            problems.extend(_off_menu(shots, get_settings().VIDEO_MODEL, lengths))
         except (ProviderError, ValidationError) as error:
             problems = [str(error)]
         if not problems:

@@ -15,9 +15,11 @@ from sqlalchemy import select, update
 
 from app.db.base import session_scope
 from app.errors import AppError
-from app.jobs import models, plan_rules, reading, stubs
+from app.jobs import models, plan_rules, reading
 from app.jobs.errors import JobNotFound
 from app.jobs.schemas import ExportPlan, ShotEdit, ShotEditResult
+from app.photoshoots import service as photoshoots
+from app.providers.interface import allowed_lengths
 from app.shared.types import Job, PlannedShot
 
 # A change to any of these needs a new clip (FR-1.16; speed: INDEX amendment 8).
@@ -148,7 +150,7 @@ def edit_shot(job_id: str, position: int, body: ShotEdit) -> ShotEditResult:
         job_row = _lock_job(session, job_id)
         _check_finished(job_row.status)
         row = _shot_row(session, job_id, position)
-        rooms = {p["photoId"]: p["room"] for p in stubs.list_photos(job_row.photoshoot_id)}
+        rooms = {photo.id: photo.room for photo in photoshoots.list_photos(job_row.photoshoot_id)}
         if rooms.get(changes.get("photo_id")):
             changes["room"] = rooms[changes["photo_id"]]
         if "movement_name" in changes and "movement_prompt" not in changes:
@@ -157,7 +159,7 @@ def edit_shot(job_id: str, position: int, body: ShotEdit) -> ShotEditResult:
             )
         current = _planned(row)
         edited = current.model_copy(update=changes)
-        problems = plan_rules.validate_plan([edited], set(rooms), math.inf, stubs.allowed_lengths)
+        problems = plan_rules.validate_plan([edited], set(rooms), math.inf, allowed_lengths)
         if problems:
             message = " ".join(p.replace("Shot 1:", f"Shot {position}:", 1) for p in problems)
             raise AppError(400, "invalid_edit", message)

@@ -5,7 +5,12 @@ import wave
 import pytest
 from playwright.sync_api import expect
 
+from app.config import reset_settings
+from app.files.client import reset_client
 from app.library.stubs import GOLDEN_HOUR_ID, STUB_SONG_ID, STUB_STYLES
+from app.main import create_app
+from tests.support.bucket import BUCKET, MOTO_ENDPOINT, REGION, SECRET
+from tests.support.fixtures import DEMO_PASSPHRASE, serve
 from tests.support.library_rows import add_song, stub_presets  # noqa: F401
 
 pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("stub_presets")]
@@ -78,17 +83,58 @@ def test_song_picker_shows_title_artist_and_licence_only(form):
     expect(options).to_have_text(
         ["Another Track by Artist A, CC BY-NC", "Sunrise Walk by Example Artist, CC BY-NC"]
     )
-    assert "https://" not in form.locator("#song").inner_html()
-    assert "stub://" not in form.locator("#song").inner_html()
+    html = form.locator("#song").inner_html()
+    assert "stub://" not in html
+    assert "example.com" not in html
+    assert "https://" not in form.locator("#song").inner_text()
 
 
-def test_song_preview_plays(form):
-    form.route(
-        "**/stub-media/songs/**",
+def test_song_preview_plays(page, monkeypatch):
+    monkeypatch.setenv("BUCKET_NAME", BUCKET)
+    monkeypatch.setenv("BUCKET_ACCESS_KEY_ID", SECRET)
+    monkeypatch.setenv("BUCKET_SECRET_ACCESS_KEY", SECRET)
+    monkeypatch.setenv("BUCKET_REGION", REGION)
+    monkeypatch.setenv("BUCKET_ENDPOINT", MOTO_ENDPOINT)
+    monkeypatch.setenv("DEMO_PASSPHRASE", DEMO_PASSPHRASE)
+    reset_settings()
+    reset_client()
+    other_id = add_song(title="Another Track")
+
+    def stay_local(route):
+        if route.request.url.startswith(("http://127.0.0.1", "http://localhost")):
+            route.continue_()
+            return
+        route.abort()
+
+    page.route("**/*", stay_local)
+    page.route(
+        "https://test-bucket.s3.us-east-1.amazonaws.com/**",
         lambda route: route.fulfill(status=200, content_type="audio/wav", body=silent_wav()),
     )
 
-    with form.expect_request(f"**/stub-media/songs/{STUB_SONG_ID}.mp3"):
-        form.get_by_role("button", name="Play the song").click()
+    with serve(create_app()) as base_url:
+        page.goto(f"{base_url}/new?styleId={GOLDEN_HOUR_ID}")
+        song = page.get_by_label("Song", exact=True)
+        expect(song.locator("option:checked")).to_have_text(
+            "Sunrise Walk by Example Artist, CC BY-NC"
+        )
 
-    form.wait_for_function("() => !document.querySelector('#song-preview').paused")
+        with page.expect_request("**/songs/stub.mp3**") as first_play:
+            page.get_by_role("button", name="Play the song").click()
+        first_url = first_play.value.url
+        assert first_url.startswith("https://")
+        assert "songs/stub.mp3" in first_url
+        assert "/stub-media/" not in first_url
+        expect(page.locator("#song-preview")).to_have_attribute("src", first_url)
+        page.wait_for_function("() => !document.querySelector('#song-preview').paused")
+
+        song.select_option(other_id)
+        expect(song.locator("option:checked")).to_have_text("Another Track by Artist A, CC BY-NC")
+        with page.expect_request(f"**/songs/{other_id}.mp3**") as second_play:
+            page.get_by_role("button", name="Play the song").click()
+        second_url = second_play.value.url
+        assert second_url.startswith("https://")
+        assert f"songs/{other_id}.mp3" in second_url
+        assert second_url != first_url
+        expect(page.locator("#song-preview")).to_have_attribute("src", second_url)
+        page.wait_for_function("() => !document.querySelector('#song-preview').paused")

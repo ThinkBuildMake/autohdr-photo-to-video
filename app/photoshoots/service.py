@@ -2,15 +2,18 @@
 
 import logging
 import os
+import tempfile
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
 
 from sqlalchemy import select, update
 
+from app.config import get_settings
 from app.db.base import session_scope
 from app.errors import AppError
 from app.files import service as files
+from app.media import service as media
 from app.photoshoots import labelling
 from app.photoshoots.models import Photo as PhotoRow
 from app.photoshoots.models import Photoshoot
@@ -181,6 +184,27 @@ def get_photoshoot(photoshoot_id: str) -> PhotoshootDetail:
 
 def list_photos(photoshoot_id: str) -> list[Photo]:
     return _read(photoshoot_id, only_uploaded=True)[1]
+
+
+def planner_photos(photoshoot_id: str) -> list[dict]:
+    """Uploaded photos in upload order, as the planner's {photoId, room, subject, jpegBytes}."""
+    with session_scope() as session:
+        if session.get(Photoshoot, photoshoot_id) is None:
+            raise PhotoshootNotFound(photoshoot_id)
+        rows = session.execute(
+            select(PhotoRow.id, PhotoRow.file_key, PhotoRow.room, PhotoRow.subject)
+            .where(PhotoRow.photoshoot_id == photoshoot_id, PhotoRow.status == "uploaded")
+            .order_by(PhotoRow.position)
+        ).all()
+    long_side = get_settings().LABEL_IMAGE_LONG_SIDE
+    photos = []
+    for photo_id, file_key, room, subject in rows:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "photo"
+            files.get(file_key, str(path))
+            jpeg = media.thumbnail(path.read_bytes(), long_side)
+        photos.append({"photoId": photo_id, "room": room, "subject": subject, "jpegBytes": jpeg})
+    return photos
 
 
 def list_photoshoots() -> list[tuple[str, str | None]]:

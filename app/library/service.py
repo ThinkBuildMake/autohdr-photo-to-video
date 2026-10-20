@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db.base import session_scope
 from app.errors import AppError
+from app.files.service import presign_download
 from app.library import models, stubs
 from app.library.schemas import StyleCreate, StyleUpdate
 from app.shared.types import Song, Style, StyleSummary
@@ -84,7 +85,12 @@ def reference_video_url(style_id: str) -> str | None:
 
 
 def song_preview_url(song_id: str) -> str:
-    return stubs.song_preview_url(song_id)
+    with session_scope() as session:
+        row = session.get(models.Song, song_id)
+        if row is None:
+            raise AppError(404, "song_not_found", f"No song with id {song_id}.")
+        file_key = row.file_key
+    return presign_download(file_key)
 
 
 def list_songs() -> list[Song]:

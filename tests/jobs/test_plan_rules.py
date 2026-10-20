@@ -37,8 +37,14 @@ def _plan():
     return [_shot(n) for n in range(1, 7)]
 
 
+def _lengths(model: str) -> list[float]:
+    if model == VEO:
+        return [4.0, 6.0, 8.0]
+    return []
+
+
 def _check(shots, photos=PHOTOS, budget=60.0):
-    return validate_plan(shots, photos, budget, stubs.allowed_lengths)
+    return validate_plan(shots, photos, budget, _lengths)
 
 
 def test_movements_cover_every_name_with_prd_texts():
@@ -125,47 +131,12 @@ def shoot():
             text("insert into photoshoots (id, label, status) values (:i, 'S', 'ready')"),
             {"i": shoot_id},
         )
-        for pos, status, room in [
-            (2, "uploaded", "kitchen"),
-            (1, "uploaded", None),
-            (3, "missing", None),
-        ]:
-            session.execute(
-                text(
-                    "insert into photos (id, photoshoot_id, position, original_name, content_type,"
-                    " size_bytes, file_key, status, room, subject) values"
-                    " (:i, :s, :p, 'a.jpg', 'image/jpeg', 10, 'k', :st, :r, 'sub')"
-                ),
-                {"i": f"ph{pos}", "s": shoot_id, "p": pos, "st": status, "r": room},
-            )
     return shoot_id
-
-
-def test_list_photos_only_uploaded_in_position_order(shoot):
-    photos = stubs.list_photos(shoot)
-    assert [p["photoId"] for p in photos] == ["ph1", "ph2"]
-    assert photos[1] == {"photoId": "ph2", "room": "kitchen", "subject": "sub", "jpegBytes": b""}
 
 
 def test_photoshoot_status(shoot):
     assert stubs.photoshoot_status(shoot) == "ready"
     assert stubs.photoshoot_status("unknown") is None
-
-
-def test_stub_plan_is_accepted_by_validate_plan(shoot):
-    photos = stubs.list_photos(shoot)
-    out = stubs.plan_shots("text", 60.0, photos, MOVEMENTS, [4.0], {})
-    assert out["notes"] == ""
-    assert [s.photo_id for s in out["shots"]] == ["ph1", "ph2"]
-    assert out["shots"][0].room == "other"
-    assert out["shots"][0].plan_note == "One shot per photo, in upload order."
-    assert validate_plan(out["shots"], {"ph1", "ph2"}, 60.0, stubs.allowed_lengths) == []
-
-
-def test_stub_plan_shortens_to_fit_song(shoot):
-    photos = stubs.list_photos(shoot) * 3
-    out = stubs.plan_shots("text", 9.0, photos, MOVEMENTS, [4.0], {})
-    assert len(out["shots"]) == 2
 
 
 @pytest.mark.parametrize("field", ["length_s", "transition_s"])

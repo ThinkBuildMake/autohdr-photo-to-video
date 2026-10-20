@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 from app.db.base import session_scope
 from app.db.schema import init_db
-from app.jobs import planning, stubs
+from app.jobs import planning
 from app.jobs.plan_rules import MOVEMENTS
 
 ROOMS = ["exterior_front", "living", "kitchen", "bedroom", "bathroom", "exterior_back"]
@@ -16,6 +16,8 @@ VEO = "google/veo-3.1"
 
 def add_ready_shoot(n_photos=6, status="ready") -> tuple[str, list[str]]:
     """Raw-insert a photoshoot with uploaded photos; returns (photoshoot_id, photo_ids)."""
+    from tests.photoshoots.conftest import jpeg_bytes, put_bytes
+
     init_db()
     photoshoot_id = str(uuid.uuid4())
     photo_ids = [str(uuid.uuid4()) for _ in range(n_photos)]
@@ -40,6 +42,7 @@ def add_ready_shoot(n_photos=6, status="ready") -> tuple[str, list[str]]:
                     "r": ROOMS[(position - 1) % len(ROOMS)],
                 },
             )
+            put_bytes(f"photos/{photo_id}.jpg", jpeg_bytes())
     return photoshoot_id, photo_ids
 
 
@@ -96,7 +99,7 @@ def planned_shot(position, photo_id, **changes) -> dict:
 
 
 class ScriptedPlanner:
-    """Stands in for stubs.plan_shots: answers a queue of {shots, notes}, records each call."""
+    """Stands in for planning.plan_shots: answers a queue of {shots, notes}, records each call."""
 
     def __init__(self):
         self.answers: list = []
@@ -127,7 +130,7 @@ class ScriptedPlanner:
 @pytest.fixture
 def scripted_planner(monkeypatch):
     planner = ScriptedPlanner()
-    monkeypatch.setattr(stubs, "plan_shots", planner)
+    monkeypatch.setattr(planning, "plan_shots", planner)
     return planner
 
 

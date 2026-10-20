@@ -3,7 +3,7 @@ import threading
 from sqlalchemy import text
 
 from app.db.base import session_scope
-from app.jobs import planning, store, stubs
+from app.jobs import planning, store
 from app.library import stubs as library_stubs
 from app.shared.types import PlannedShot
 from tests.support.fixtures import DEMO_AUTH, DEMO_PASSPHRASE
@@ -168,7 +168,7 @@ def test_replan_keeps_the_new_plan_when_an_old_one_is_in_flight(
             old_release.wait(10)
         return answer
 
-    monkeypatch.setattr(stubs, "plan_shots", planner)
+    monkeypatch.setattr(planning, "plan_shots", planner)
     job_id = client.post("/api/jobs", json=_body(photoshoot_id)).json()["job"]["id"]
     assert old_inside.wait(10)
 

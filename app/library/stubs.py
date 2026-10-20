@@ -1,6 +1,6 @@
 """Stubs for what Library borrows from other modules, and the preset data other stubs share.
 
-reference_video_url and song_preview_url stand in for Files.presignDownload (removed by S21);
+reference_video_url stands in for Files.presignDownload (removed by S25);
 check_demo_photoshoot stands in for the Photoshoots table (removed by S25).
 STUB_SONG and STUB_STYLES are ids and data that other modules' stubs and tests import.
 """
@@ -54,10 +54,6 @@ STUB_STYLES = [
 
 def reference_video_url(job_id: str) -> str:
     return "/stub-media/reference.mp4"
-
-
-def song_preview_url(song_id: str) -> str:
-    return f"/stub-media/songs/{song_id}.mp3"
 
 
 def check_demo_photoshoot(photoshoot_id: str) -> None:

@@ -13,7 +13,7 @@ from tests.support.jobs_rows import (
 )
 from tests.support.library_rows import stub_presets  # noqa: F401
 
-pytestmark = pytest.mark.usefixtures("stub_presets", "planning_idle")
+pytestmark = pytest.mark.usefixtures("bucket", "stub_presets", "planning_idle")
 
 
 def _job_body(photoshoot_id):
