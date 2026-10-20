@@ -30,7 +30,7 @@ flowchart LR
   orv[OpenRouter Videos API: Veo 3.1, Seedance 2.0]
   orc[OpenRouter chat API: Nano Banana 2.1, Gemini 3.8 Flash]
   client -->|styles, songs pages and API| library
-  client -->|createUpload, completeUpload, getPhotoshoot| shoots
+  client -->|createUpload, completeUpload, getPhotoshoot, listPhotoshoots| shoots
   client -->|jobs, shots, redo, restart, editor edits and re-export, video link| jobs
   client -->|getReproduction, setReference| compare
   client -->|presigned upload and download| bucket
@@ -65,7 +65,7 @@ Every client route also passes through **Access** (the shared passphrase); those
 |---|---|---|---|---|
 | Access | Checks the shared demo passphrase on every request | none | every route | every route |
 | Library | Songs and preset styles (style text + song) | `songs`, `styles` | listStyles, getStyle, listSongs, createStyle, updateStyle | client; Jobs; Comparison |
-| Photoshoots | Uploads and labels photos | `photoshoots`, `photos` | createUpload, completeUpload, getPhotoshoot | client; Jobs; Library; Evals |
+| Photoshoots | Uploads and labels photos | `photoshoots`, `photos` | createUpload, completeUpload, getPhotoshoot, listPhotoshoots | client; Jobs; Library; Evals |
 | Jobs | A job's life: draft, the shot plan written from the style text, queue, shots, attempts, finished video, and the web editor's edits | `jobs`, `job_shots`, `attempts` | createJob, updateJobShots, submitJob, restartJob, redoShot, editShot, exportJob, listJobs, getJob, getVideo | client; Pipeline; Comparison; Evals |
 | Pipeline *(worker)* | Runs the next queued job end to end | none | none (no caller) | worker loop |
 | Providers *(both)* | Every call to an outside AI service, and its cost record | `provider_calls` | none | Pipeline; Photoshoots; Library |
@@ -101,6 +101,7 @@ HLD entity mapping: HLD *Video* is the `video_*` columns of `jobs` (one video pe
 | (browser upload) | client → bucket, one presigned POST per photo | sync, browser to bucket | n/a |
 | completeUpload | client → Photoshoots.completeUpload → Files.headObject per photo → update `photos` → background: Providers.labelPhotos → update `photos.room` | sync accept, labels async | upload status yes, labels later |
 | getPhotoshoot | client polls → read `photoshoots`, `photos` | sync | n/a |
+| listPhotoshoots | client (Styles, Create a style) → read `photoshoots` past `awaiting_upload` | sync | n/a |
 | createJob | client → Jobs.createJob → insert `jobs` (draft, plan `planning`) → background: Photoshoots.listPhotos → Providers.planShots → validate → insert `job_shots` → plan `ready` | sync accept, plan async | job yes, plan later |
 | updateJobShots | client → Jobs.updateJobShots → replace the draft's `job_shots` with the edited plan (draft only) | sync | yes |
 | replanJob | client → Jobs.replanJob → new style text → plan `planning` → background planShots as in createJob | sync accept, plan async | yes |
@@ -720,6 +721,9 @@ Errors     404 photoshoot_not_found
 getPhotoshoot   GET /api/photoshoots/{id}                serves FR-1.10 (poll for labels)
 Response   200 { photoshoot: { id, label, status, photos: Photo[] } }
 Errors     404 photoshoot_not_found
+
+listPhotoshoots GET /api/photoshoots                     serves FR-2.1 (pick the demo shoot)
+Response   200 { photoshoots: [{ id, label }] }   the interface's listPhotoshoots() as JSON
 ```
 
 ### Jobs and messages
@@ -742,8 +746,8 @@ listPhotos(photoshootId) -> Photo[]
 
 listPhotoshoots() -> [(id, label)]
   Read only. Every shoot past awaiting_upload, newest first. Used by the Styles page's
-  shoot picker for "Make a reproduction" (S15); Compare (S18) and Create a style (S25)
-  pick shoots the same way.
+  shoot picker for "Make a reproduction" (S15) and Create a style's demo-shoot picker
+  (S18); also served as GET /api/photoshoots (API above).
 
 importPhotoshoot(paths, label) -> photoshootId
   Server-side upload of local files (Files.put), then the same checks and labelling

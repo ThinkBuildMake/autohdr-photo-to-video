@@ -1,5 +1,5 @@
 from app.photoshoots import stubs
-from tests.photoshoots.conftest import jpeg_bytes
+from tests.photoshoots.conftest import jpeg_bytes, seed_shoot
 
 PHOTO_KEYS = {
     "id", "position", "originalName", "contentType", "sizeBytes", "status", "room", "subject",
@@ -73,6 +73,15 @@ def test_get_photoshoot(client):
     assert response.status_code == 200
     assert set(body["photoshoot"]) == {"id", "label", "status", "photos"}
     assert set(body["photoshoot"]["photos"][0]) == PHOTO_KEYS
+
+
+def test_list_photoshoots(client):
+    shoot_id, _ = seed_shoot(["uploaded", "uploaded", "missing"], "ready", label="Test shoot A")
+
+    response = client.get("/api/photoshoots")
+
+    assert response.status_code == 200
+    assert response.json() == {"photoshoots": [{"id": shoot_id, "label": "Test shoot A"}]}
 
 
 def test_unknown_photoshoot(client):

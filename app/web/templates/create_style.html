@@ -1,7 +1,60 @@
 {% extends "base.html" %}
 {% block title %}Create a style{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="/static/style_pages.css">
+<div class="screen">
 <h1>Create a style</h1>
-<p class="muted">Write a style in words and pick a song. The form arrives in a later story.</p>
-<ul>{% for song in songs %}<li>{{ song.credit }}</li>{% endfor %}</ul>
+<p class="muted">Describe your look in words and pick a song. Try it on a demo photoshoot, read the plan, watch the video and revise the text until it looks like your work. Then keep the video you like as the style's reference. No video of yours is uploaded.</p>
+<form id="style-form" class="card">
+  <div class="row">
+    <label>Style name<input name="name" required></label>
+    <label>Your name<input name="authorName" required></label>
+    <label>Song (Creative Commons BY-NC or BY-NC-SA)
+      <select name="songId" required>
+        <option value="">Choose a song</option>
+        {% for song in songs %}
+        <option value="{{ song.id }}" data-licence="CC {{ song.licence_code }}" data-credit="{{ song.title }}, {{ song.artist }}" data-source="{{ song.source_url }}">{{ song.title }} by {{ song.artist }} · CC {{ song.licence_code }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Frame rate
+      <select name="fps"><option value="30">30 fps</option><option value="24">24 fps</option></select>
+    </label>
+  </div>
+  <p id="song-credit" class="small"></p>
+  <label>Style text<textarea name="styleText" required maxlength="4000"></textarea></label>
+  <div class="row">
+    <label class="grow">Demo photoshoot
+      <select name="demoPhotoshootId" required>
+        <option value="">Choose a demo photoshoot</option>
+        {% for shoot_id, label in photoshoots %}
+        <option value="{{ shoot_id }}">{{ label or "Untitled photoshoot" }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="btn" type="submit">Try it on the demo shoot</button>
+  </div>
+</form>
+<div id="error" class="banner b-err" hidden></div>
+<p id="try-status" class="muted" role="status"></p>
+<div id="try" class="grid2" hidden>
+  <div class="card">
+    <h3 id="try-title"></h3>
+    <video controls hidden></video>
+    <p id="try-credit" class="small"></p>
+    <div class="row">
+      <button id="use-reference" class="btn" type="button" disabled>Use as reference video</button>
+      <span id="reference-note" class="small"></span>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Plan the text produced</h3>
+    <table>
+      <thead><tr><th>#</th><th>Room</th><th>Movement</th><th>Length</th><th>In</th></tr></thead>
+      <tbody id="plan-rows"></tbody>
+    </table>
+  </div>
+</div>
+</div>
+<script src="/static/create_style.js"></script>
 {% endblock %}

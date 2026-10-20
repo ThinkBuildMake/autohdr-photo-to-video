@@ -1,11 +1,45 @@
 {% extends "base.html" %}
-{% block title %}Compare{% endblock %}
+{% block title %}Reference and reproduction{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="/static/style_pages.css">
+<div class="screen">
+<h1>Reference and reproduction</h1>
 {% if error %}
-<h1>Reproductions</h1>
 <p class="error">{{ error }}</p>
 {% else %}
-<h1>Reproductions of {{ style.name }}</h1>
-<p class="muted">The side-by-side view arrives in a later story.</p>
+<div id="compare" class="row" data-style-id="{{ style.id }}" data-style-name="{{ style.name }}">
+  <span class="muted">Style: {{ style.name }} · Reproduction on:</span>
+  <span id="tabs" class="row"></span>
+</div>
+<div id="message" class="banner b-info" hidden></div>
+<div id="comparison" class="screen" hidden>
+    <div class="grid2">
+      <div class="card"><h3 id="reference-title"></h3><video id="reference-video" controls></video></div>
+      <div class="card"><h3 id="reproduction-title"></h3><video id="reproduction-video" controls></video></div>
+    </div>
+    <div class="row">
+      <button id="play-both" class="btn alt" type="button">Play both together</button>
+      <span id="facts" class="small"></span>
+    </div>
+    <p id="song" class="small"></p>
+    <div class="card">
+      <h2>How the two videos compare</h2>
+      <table>
+        <thead><tr><th></th><th>Reference</th><th>Reproduction</th></tr></thead>
+        <tbody id="summary"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Shot by shot</h2>
+      <table>
+        <thead><tr><th>#</th><th>Movement</th><th>Reference</th><th>Reproduction</th><th>Cuts vs each plan</th><th>Flag</th></tr></thead>
+        <tbody id="shots"></tbody>
+      </table>
+      <p id="worst-cut" class="small"></p>
+      <p class="small">Each video's cuts are checked against its own plan (within 0.1 s passes). Whether the look matches is your call by watching.</p>
+    </div>
+</div>
+<script src="/static/compare.js"></script>
 {% endif %}
+</div>
 {% endblock %}

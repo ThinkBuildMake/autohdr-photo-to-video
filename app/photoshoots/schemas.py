@@ -49,5 +49,14 @@ class PhotoshootDetail(CamelModel):
     photos: list[Photo]
 
 
+class PhotoshootSummary(CamelModel):
+    id: str
+    label: str | None
+
+
+class PhotoshootList(CamelModel):
+    photoshoots: list[PhotoshootSummary]
+
+
 class PhotoshootResponse(CamelModel):
     photoshoot: PhotoshootDetail

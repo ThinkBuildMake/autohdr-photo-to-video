@@ -1,0 +1,29 @@
+/* Create a style and Reference and reproduction pages. */
+.screen { display: flex; flex-direction: column; gap: 20px; color: #1d2321; }
+[hidden] { display: none !important; }
+.screen h1 { margin: 0; font-size: 30px; }
+.screen h2 { margin: 0; font-size: 20px; }
+.screen h3 { margin: 0; font-size: 16px; }
+.screen p { margin: 0; }
+.screen a { color: #0f6b66; }
+.screen .muted { color: #566160; font-size: 14px; }
+.screen .small { font-size: 13px; color: #566160; }
+.screen .card { background: #fff; border: 1px solid #d9dcd8; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.screen .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+.screen .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.screen .grow { flex: 1; }
+.screen .btn { border: 0; background: #0f6b66; color: #fff; font: 500 15px system-ui, sans-serif; padding: 10px 18px; min-height: 44px; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
+.screen .btn.alt { background: #fff; color: #0f6b66; border: 1px solid #0f6b66; }
+.screen .btn.sm { padding: 6px 12px; min-height: 36px; font-size: 14px; }
+.screen .btn:disabled { background: #c8ccc9; color: #4a5352; cursor: not-allowed; border-color: #c8ccc9; }
+.screen .banner { padding: 14px 16px; border-radius: 8px; font-size: 15px; border: 1px solid; }
+.screen .b-info { background: #e8f1f0; border-color: #9cc3bf; }
+.screen .b-err { background: #fde8e6; border-color: #d98b84; }
+.screen video { width: 100%; aspect-ratio: 16 / 9; background: #26302d; border-radius: 8px; }
+.screen label { font-size: 14px; font-weight: 500; display: flex; flex-direction: column; gap: 6px; }
+.screen input, .screen select, .screen textarea { font: 15px system-ui, sans-serif; padding: 10px; min-height: 44px; border: 1px solid #aeb5b2; border-radius: 6px; background: #fff; }
+.screen textarea { min-height: 140px; width: 100%; }
+.screen table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.screen th { text-align: left; font-weight: 500; color: #566160; padding: 8px; border-bottom: 1px solid #d9dcd8; }
+.screen td { padding: 10px 8px; border-bottom: 1px solid #eceeeb; vertical-align: top; }
+.screen .flag { color: #9b2a1f; font-weight: 500; }

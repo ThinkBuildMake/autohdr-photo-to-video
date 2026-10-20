@@ -68,5 +68,5 @@ def _api_routes(routes):
 def test_no_route_handler_is_async():
     routes = list(_api_routes(create_app().routes))
 
-    assert len(routes) == 29  # 21 API routes, /healthz and 7 pages
+    assert len(routes) == 30  # 22 API routes, /healthz and 7 pages
     assert [r.path for r in routes if inspect.iscoroutinefunction(r.endpoint)] == []
