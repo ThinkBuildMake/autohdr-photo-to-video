@@ -739,6 +739,11 @@ listPhotos(photoshootId) -> Photo[]
   Uploaded photos only, in upload order, with room and subject if labelled.
   Throws PhotoshootNotFound.
 
+listPhotoshoots() -> [(id, label)]
+  Read only. Every shoot past awaiting_upload, newest first. Used by the Styles page's
+  shoot picker for "Make a reproduction" (S15); Compare (S18) and Create a style (S25)
+  pick shoots the same way.
+
 importPhotoshoot(paths, label) -> photoshootId
   Server-side upload of local files (Files.put), then the same checks and labelling
   as completeUpload. Used by Evals to load the 12 test shoots (GC-6).

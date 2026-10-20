@@ -2,18 +2,35 @@
 {% block title %}Styles{% endblock %}
 {% block content %}
 <h1>Styles</h1>
-<div class="cards">
+<p class="muted">A style is a written description of the look plus a song. Pick one to fill the style box on a new video, then change any words you like. No creator's video is copied or stored.</p>
+<div class="grid3">
   {% for style in styles %}
   <article class="card">
-    <h2>{{ style.name }}</h2>
-    <p class="muted">by {{ style.author_name }}</p>
-    <p>{{ style.style_text }}</p>
-    <p class="muted">Song: {{ style.song.credit }}</p>
-    <p>
-      <a class="button" href="/new?styleId={{ style.id }}">Use this style</a>
-      {% if style.has_reference %}<a href="/styles/{{ style.id }}/reproductions">Compare</a>{% endif %}
-    </p>
+    <div class="row" style="justify-content:space-between"><h3>{{ style.name }}</h3><span class="tag">by {{ style.author_name }}</span></div>
+    <p class="quote">“{{ style.style_text }}”</p>
+    <p class="small">Song: {{ style.song | song_line }}</p>
+    {% if style.has_reference %}<p><span class="chip">Has a reference video</span></p>{% endif %}
+    <div class="row">
+      <a class="btn" href="/new?styleId={{ style.id }}">Use this style</a>
+      {% if style.has_reference %}<a class="btn alt" href="/styles/{{ style.id }}/reproductions">See reproductions</a>{% endif %}
+    </div>
+    {% if style.has_reference %}
+    <details>
+      <summary>Make a reproduction</summary>
+      <form class="repro row" data-style-id="{{ style.id }}" data-song-id="{{ style.song.id }}" data-style-text="{{ style.style_text }}">
+        <label>Shoot
+          <select name="photoshoot" required>
+            {% for shoot_id, label in shoots %}<option value="{{ shoot_id }}">{{ label or "Untitled shoot" }}</option>{% endfor %}
+          </select>
+        </label>
+        <button class="btn sm" type="submit">Start the reproduction</button>
+        <span class="small error" role="alert"></span>
+      </form>
+    </details>
+    {% endif %}
   </article>
   {% endfor %}
 </div>
+<div class="row"><span class="muted">Want to add a style?</span><a class="btn alt" href="/styles/new">Create a style</a></div>
+<script src="/static/styles.js"></script>
 {% endblock %}

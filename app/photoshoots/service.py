@@ -182,6 +182,16 @@ def list_photos(photoshoot_id: str) -> list[Photo]:
     return _read(photoshoot_id, only_uploaded=True)[1]
 
 
+def list_photoshoots() -> list[tuple[str, str | None]]:
+    """(id, label) of every shoot whose upload finished, newest first: the shoot pickers."""
+    with session_scope() as session:
+        return session.execute(
+            select(Photoshoot.id, Photoshoot.label)
+            .where(Photoshoot.status != "awaiting_upload")
+            .order_by(Photoshoot.created_at.desc())
+        ).all()
+
+
 def import_photoshoot(paths: Sequence[str], label: str) -> str:
     if len(paths) > MAX_FILES:
         raise _too_many()

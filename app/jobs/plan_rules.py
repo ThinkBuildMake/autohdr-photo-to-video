@@ -42,6 +42,20 @@ MOVEMENTS: dict[str, str] = {
         "sky hyperlapses naturally in the background, cinematic"
     ),
 }
+MOVEMENT_NAMES: dict[str, str] = {
+    "dolly_in": "Dolly In",
+    "dolly_in_timelapse": "Dolly In (timelapse)",
+    "drone_top_down_descend": "Drone Top Down Descend",
+    "timelapse_variant": "Timelapse Variant",
+    "dolly_out": "Dolly Out",
+    "slider_truck_left_to_right": "Slider Truck Left to Right",
+    "slider_truck_right_to_left": "Slider Truck Right to Left",
+    "parallax_orbit": "Parallax Orbit",
+    "dolly_in_pan_right": "Dolly In + Pan Right",
+    "crane_up": "Crane Up",
+    "crane_down": "Crane Down",
+    "orbit_hyperlapse": "Orbit (Hyperlapse)",
+}
 SPEEDS = ("slow", "medium", "fast")
 TRANSITIONS = ("cut", "crossfade")
 

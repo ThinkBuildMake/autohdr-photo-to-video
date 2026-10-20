@@ -2,9 +2,108 @@
 {% block title %}New video{% endblock %}
 {% block content %}
 <h1>New video</h1>
-<p class="muted">Upload a photoshoot, pick a style and a song. The form arrives in a later story.</p>
-<h2>Styles</h2>
-<ul>{% for style in styles %}<li>{{ style.name }}</li>{% endfor %}</ul>
-<h2>Songs</h2>
-<ul>{% for song in songs %}<li>{{ song.credit }}</li>{% endfor %}</ul>
+<div class="steps"><span class="step on" id="step-1-tab">1. Style and photos</span><span class="step" id="step-2-tab">2. Check the shot plan</span><span class="step">3. Make the video</span></div>
+<div id="step-1" class="stack">
+<section class="card" id="style-card">
+  <div class="row" style="justify-content:space-between">
+    <h2>Style</h2>
+    <div class="row">
+      <label for="start-from" class="inline">Start from</label>
+      <select id="start-from">
+        {% for style in styles %}
+        <option value="{{ style.id }}" data-text="{{ style.style_text }}" data-song="{{ style.song.id }}" {{ "selected" if selected and selected.id == style.id }}>{{ style.name }}</option>
+        {% endfor %}
+        <option value="" {{ "selected" if not selected }}>Blank: write my own</option>
+      </select>
+    </div>
+  </div>
+  <textarea id="style-text" aria-label="Style text" style="min-height:120px">{{ selected.style_text if selected }}</textarea>
+  <div class="row" style="align-items:flex-end">
+    <div class="field">
+      <label for="song">Song</label>
+      <select id="song">
+        {% for song, preview_url in songs %}
+        <option value="{{ song.id }}" data-preview="{{ preview_url }}" {{ "selected" if selected and selected.song.id == song.id }}>{{ song | song_line }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn alt sm" type="button" id="play-song" aria-label="Play the song">Play</button>
+    <audio id="song-preview"></audio>
+  </div>
+  <div class="row" style="align-items:flex-end">
+    <div class="field">
+      <label for="style-name">Style name</label>
+      <input id="style-name" placeholder="My golden hour">
+    </div>
+    <button class="btn alt sm" type="button" id="save-style">Save as my style</button>
+    <span class="small" id="save-result" role="status"></span>
+  </div>
+  <p class="small">Name the movements you want (Dolly In, Slider Truck, Crane Up…), the pacing, the light and the transitions.</p>
+</section>
+<section class="card" id="photos-card">
+  <h2>Photos</h2>
+  <div id="drop-zone" class="ph">
+    <strong>Drop the edited photos of one property here</strong>
+    <span>JPG or PNG, up to 40 photos, 25 MB each</span>
+    <label class="btn alt" for="photo-input">Choose photos</label>
+    <input id="photo-input" type="file" multiple accept="image/jpeg,image/png" hidden>
+  </div>
+  <div class="row" id="photo-summary" hidden><h3 id="photo-count"></h3><span class="small" id="label-note"></span></div>
+  <div id="photo-grid" class="thumbs"></div>
+  <div id="refused" class="banner b-err" hidden></div>
+  <p id="upload-error" class="error" role="alert"></p>
+  <template id="tile">
+    <figure class="tile"><img alt=""><figcaption><span class="name"></span> <span class="tag room"></span><span class="small subject"></span></figcaption></figure>
+  </template>
+</section>
+<div class="row">
+  <button class="btn" type="button" id="next" disabled>Next: write the shot plan</button>
+  <span class="muted" id="next-reason">Add photos to continue.</span>
+</div>
+</div>
+<div id="step-2" class="stack" hidden>
+  <div id="plan-wait" class="banner b-info" hidden><strong>Writing the shot plan from your style text…</strong><span>This usually takes under a minute.</span></div>
+  <div id="plan-failed" class="banner b-err" hidden>
+    <strong>The shot plan could not be written</strong>
+    <span class="reason"></span>
+    <div class="row"><button class="btn alt" type="button" id="try-again">Try again</button></div>
+  </div>
+  <div id="plan-ready" class="stack" hidden>
+    <p class="muted" id="plan-summary"></p>
+    <div id="plan-notes" class="banner b-warn" hidden><strong>Something in the text could not be followed</strong><span class="note"></span></div>
+    <div id="shots" class="shotgrid"></div>
+    <div class="row">
+      <button class="btn alt" type="button" id="add-shot">Add a shot</button>
+      <button class="btn alt" type="button" id="save-plan">Save the plan</button>
+      <span class="small" id="plan-status" role="status"></span>
+    </div>
+    <div class="row">
+      <button class="btn" type="button" id="make-video">Make my video</button>
+      <span class="muted">After you submit you can close this page. The Jobs tab shows the status and the finished video.</span>
+    </div>
+  </div>
+  <template id="shot-card">
+    <article class="card shot-card">
+      <h3 class="shot-title"></h3>
+      <img class="shot-photo" alt="">
+      <label>Photo<select name="photo"></select></label>
+      <label>Camera movement
+        <select name="movement">
+          {% for code, name in movement_names.items() %}<option value="{{ code }}">{{ name }}</option>{% endfor %}
+        </select>
+      </label>
+      <div class="row">
+        <label>Speed<select name="speed"><option value="slow">Slow</option><option value="medium">Medium</option><option value="fast">Fast</option></select></label>
+        <label>Length<input name="length" type="number" min="0.5" step="0.5" style="width:90px"></label>
+        <label>Transition in<select name="transition"><option value="cut">Cut</option><option value="crossfade">Crossfade</option></select></label>
+      </div>
+      <label>Photo edits, in order<textarea name="edits" placeholder="One edit per line; empty means crop only"></textarea></label>
+      <p class="small plan-note"></p>
+      <div class="row"><button class="btn danger sm" type="button" name="remove">Remove shot</button></div>
+    </article>
+  </template>
+</div>
+<p id="page-error" class="error" role="alert"></p>
+<script type="application/json" id="movement-prompts">{{ movement_prompts | tojson }}</script>
+<script src="/static/new_video.js"></script>
 {% endblock %}

@@ -8,12 +8,13 @@
   <script src="/static/htmx.min.js"></script>
 </head>
 <body>
+  {% set path = request.url.path %}
   <nav class="nav">
-    <a class="brand" href="/">AutoHDR Photo to Video</a>
-    <a href="/">Styles</a>
-    <a href="/new">New video</a>
-    <a href="/jobs">Jobs</a>
-    <a href="/styles/new">Create a style</a>
+    <a class="brand" href="/">Photo to Video</a>
+    <a href="/" class="{{ 'on' if path == '/' }}">Styles</a>
+    <a href="/new" class="{{ 'on' if path == '/new' }}">New video</a>
+    <a href="/jobs" class="{{ 'on' if path.startswith('/jobs') }}">Jobs</a>
+    <a href="/styles/new" class="{{ 'on' if path.startswith('/styles/') }}">Create a style</a>
   </nav>
   <main>
     {% block content %}{% endblock %}

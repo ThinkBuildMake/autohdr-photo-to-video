@@ -83,6 +83,10 @@ def reference_video_url(style_id: str) -> str | None:
     return stubs.reference_video_url(style.reference_job_id)
 
 
+def song_preview_url(song_id: str) -> str:
+    return stubs.song_preview_url(song_id)
+
+
 def list_songs() -> list[Song]:
     with session_scope() as session:
         return [_song(row) for row in session.scalars(select(models.Song).order_by("title"))]
