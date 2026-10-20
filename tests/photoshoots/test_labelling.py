@@ -1,7 +1,7 @@
 from sqlalchemy import text
 
 from app.db.base import session_scope
-from app.photoshoots import labelling, stubs
+from app.photoshoots import labelling
 from app.providers.errors import ProviderError
 from tests.photoshoots.conftest import seed_shoot
 
@@ -39,7 +39,7 @@ def test_labeller_failure_marks_shoot_label_failed(monkeypatch):
     def boom(photos, photoshoot_id):
         raise ProviderError("failed", "boom")
 
-    monkeypatch.setattr(stubs, "label_photos", boom)
+    monkeypatch.setattr(labelling, "label_photos", boom)
     labelling.label_photoshoot(shoot_id)
     assert _shoot_status(shoot_id) == "label_failed"
     assert all(row.room is None for row in _photos(shoot_id))
@@ -48,7 +48,7 @@ def test_labeller_failure_marks_shoot_label_failed(monkeypatch):
 def test_labels_written(monkeypatch):
     shoot_id, ids = seed_shoot(["uploaded", "missing", "uploaded"])
     seen: list[str] = []
-    monkeypatch.setattr(stubs, "label_photos", _labeller("kitchen", "kitchen island", seen))
+    monkeypatch.setattr(labelling, "label_photos", _labeller("kitchen", "kitchen island", seen))
     labelling.label_photoshoot(shoot_id)
     assert _shoot_status(shoot_id) == "ready"
     assert seen == [ids[0], ids[2]]
@@ -57,14 +57,14 @@ def test_labels_written(monkeypatch):
         assert (row.room, row.subject, row.width, row.height) == (
             "kitchen",
             "kitchen island",
-            1920,
-            1080,
+            64,
+            48,
         )
     assert rows[1].room is None
 
 
 def test_relabel_interrupted_starts_labelling(monkeypatch):
-    monkeypatch.setattr(stubs, "label_photos", _labeller("kitchen", "k"))
+    monkeypatch.setattr(labelling, "label_photos", _labeller("kitchen", "k"))
     busy, _ = seed_shoot(["uploaded"])
     done, _ = seed_shoot(["uploaded"], shoot_status="ready")
     assert labelling.relabel_interrupted() == [busy]
@@ -76,6 +76,6 @@ def test_relabel_interrupted_starts_labelling(monkeypatch):
 
 def test_unknown_room_becomes_other(monkeypatch):
     shoot_id, _ = seed_shoot(["uploaded"])
-    monkeypatch.setattr(stubs, "label_photos", _labeller("garage", "a garage"))
+    monkeypatch.setattr(labelling, "label_photos", _labeller("garage", "a garage"))
     labelling.label_photoshoot(shoot_id)
     assert _photos(shoot_id)[0].room == "other"

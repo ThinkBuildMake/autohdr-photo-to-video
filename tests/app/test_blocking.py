@@ -10,7 +10,7 @@ from app.photoshoots import service as photoshoots
 from tests.support.fixtures import DEMO_AUTH
 
 
-def test_slow_bucket_call_does_not_block_health(live_server, monkeypatch):
+def test_slow_bucket_call_does_not_block_health(live_server, bucket, monkeypatch):
     import app.files.service as files
 
     started = threading.Event()

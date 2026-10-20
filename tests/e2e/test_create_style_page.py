@@ -41,7 +41,7 @@ class Api:
 
 
 @pytest.fixture
-def seeded():
+def seeded(bucket):
     song_id = add_song(title="Track A", artist="Artist A", licence="BY-NC")
     add_song(title="Track B", artist="Artist B", licence="BY-NC-SA")
     shoot_id, _ = seed_shoot(["uploaded", "uploaded"], "ready", label="Test shoot A")

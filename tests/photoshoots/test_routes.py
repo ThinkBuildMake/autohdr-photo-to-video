@@ -3,8 +3,9 @@ import time
 from sqlalchemy import text
 
 from app.db.base import session_scope
-from app.photoshoots import labelling, stubs
-from tests.photoshoots.conftest import jpeg_bytes
+from app.files.service import head_object
+from app.photoshoots import labelling
+from tests.photoshoots.conftest import jpeg_bytes, put_bytes
 
 
 def _file(name="a.jpg", size=2_097_152, type_="image/jpeg"):
@@ -78,8 +79,8 @@ def test_complete_marks_uploaded_and_missing(client, monkeypatch):
     started = []
     monkeypatch.setattr(labelling, "start", started.append)
     body = _create(client, [_file(f"{i}.jpg") for i in range(3)])
-    stubs.BUCKET[_key(body, 0)] = jpeg_bytes()
-    stubs.BUCKET[_key(body, 2)] = jpeg_bytes()
+    put_bytes(_key(body, 0), jpeg_bytes())
+    put_bytes(_key(body, 2), jpeg_bytes())
 
     response = client.post(f"/api/photoshoots/{body['photoshootId']}/complete")
 
@@ -93,11 +94,11 @@ def test_complete_marks_uploaded_and_missing(client, monkeypatch):
 def test_oversized_object_deleted(client):
     body = _create(client, [_file()])
     key = _key(body, 0)
-    stubs.BUCKET[key] = b"x" * 27_262_976
+    put_bytes(key, b"x" * 27_262_976)
 
     response = client.post(f"/api/photoshoots/{body['photoshootId']}/complete")
 
-    assert key not in stubs.BUCKET
+    assert head_object(key) is None
     assert response.json()["photoshoot"]["photos"][0]["status"] == "too_large"
     got = client.get(f"/api/photoshoots/{body['photoshootId']}").json()
     assert got["photoshoot"]["photos"][0]["status"] == "too_large"
@@ -105,7 +106,7 @@ def test_oversized_object_deleted(client):
 
 def test_labels_arrive(client, monkeypatch):
     monkeypatch.setattr(
-        stubs,
+        labelling,
         "label_photos",
         lambda photos, shoot_id: [
             {"photoId": p["photoId"], "room": "kitchen", "subject": "kitchen island"}
@@ -114,7 +115,7 @@ def test_labels_arrive(client, monkeypatch):
     )
     body = _create(client, [_file("a.jpg"), _file("b.jpg")])
     for index in range(2):
-        stubs.BUCKET[_key(body, index)] = jpeg_bytes()
+        put_bytes(_key(body, index), jpeg_bytes())
     client.post(f"/api/photoshoots/{body['photoshootId']}/complete")
 
     deadline = time.monotonic() + 5
@@ -151,10 +152,10 @@ def test_file_key_never_changes(client, monkeypatch):
                 {"i": shoot_id},
             ).all()
 
-    stubs.BUCKET[_key(body, 0)] = jpeg_bytes()
+    put_bytes(_key(body, 0), jpeg_bytes())
     client.post(f"/api/photoshoots/{shoot_id}/complete")
     first = keys()
-    stubs.BUCKET[_key(body, 1)] = jpeg_bytes()
+    put_bytes(_key(body, 1), jpeg_bytes())
     client.post(f"/api/photoshoots/{shoot_id}/complete")
 
     assert keys() == first

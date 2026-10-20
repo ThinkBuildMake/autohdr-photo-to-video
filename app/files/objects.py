@@ -12,3 +12,7 @@ def put(key: str, path: str) -> None:
 
 def get(key: str, path: str) -> None:
     get_client().download_file(bucket_name(), key, path)
+
+
+def delete_object(key: str) -> None:
+    get_client().delete_object(Bucket=bucket_name(), Key=key)

@@ -2,6 +2,7 @@ import pytest
 
 from app.config import reset_settings
 from app.db.base import reset_engine
+from tests.support.bucket import bucket  # noqa: F401
 
 
 @pytest.fixture(autouse=True)

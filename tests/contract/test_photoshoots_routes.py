@@ -1,10 +1,26 @@
-from app.photoshoots import stubs
-from tests.photoshoots.conftest import jpeg_bytes, seed_shoot
+import pytest
+from fastapi.testclient import TestClient
+
+from app.config import reset_settings
+from app.main import create_app
+from app.photoshoots import labelling
+from tests.photoshoots.conftest import jpeg_bytes, put_bytes, seed_shoot
+from tests.support.fixtures import DEMO_AUTH, DEMO_PASSPHRASE
 
 PHOTO_KEYS = {
     "id", "position", "originalName", "contentType", "sizeBytes", "status", "room", "subject",
     "thumbUrl",
 }  # fmt: skip
+
+
+@pytest.fixture
+def client(_isolated_environment, bucket, monkeypatch):
+    monkeypatch.setenv("DEMO_PASSPHRASE", DEMO_PASSPHRASE)
+    reset_settings()
+    with TestClient(create_app()) as test_client:
+        test_client.auth = DEMO_AUTH
+        yield test_client
+    labelling.wait_idle()
 
 
 def _file(name="a.jpg", size=1000, type_="image/jpeg"):
@@ -50,9 +66,8 @@ def test_create_upload_no_valid_files(client):
 
 
 def _shoot(client):
-    stubs.BUCKET.clear()
     body = client.post("/api/photoshoots", json={"files": [_file()]}).json()
-    stubs.BUCKET[body["uploads"][0]["fields"]["key"]] = jpeg_bytes()
+    put_bytes(body["uploads"][0]["fields"]["key"], jpeg_bytes())
     return body["photoshootId"]
 
 

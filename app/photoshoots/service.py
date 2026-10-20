@@ -10,7 +10,8 @@ from sqlalchemy import select, update
 
 from app.db.base import session_scope
 from app.errors import AppError
-from app.photoshoots import labelling, stubs
+from app.files import service as files
+from app.photoshoots import labelling
 from app.photoshoots.models import Photo as PhotoRow
 from app.photoshoots.models import Photoshoot
 from app.photoshoots.schemas import (
@@ -97,7 +98,7 @@ def create_upload(body: UploadRequest) -> UploadResponse:
     shoot_id, rows = _insert_shoot(body.label, accepted)
     uploads = []
     for row in rows:
-        form = stubs.presign_upload(row["key"], row["content_type"], MAX_BYTES)
+        form = files.presign_upload(row["key"], row["content_type"], MAX_BYTES)
         uploads.append(
             UploadTicket(
                 photo_id=row["photo_id"], name=row["name"], url=form["url"], fields=form["fields"]
@@ -116,7 +117,7 @@ def _to_photo(row: PhotoRow) -> Photo:
         status=row.status,
         room=row.room,
         subject=row.subject,
-        thumb_url=stubs.presign_download(row.file_key),
+        thumb_url=files.presign_download(row.file_key),
     )
 
 
@@ -148,11 +149,11 @@ def complete_upload(photoshoot_id: str) -> CompletedPhotoshoot:
         ).all()
     outcomes: dict[str, str] = {}
     for photo_id, file_key in pending:
-        head = stubs.head_object(file_key)
+        head = files.head_object(file_key)
         if head is None:
             outcomes[photo_id] = "missing"
         elif head["sizeBytes"] > MAX_BYTES:
-            stubs.delete_object(file_key)
+            files.delete_object(file_key)
             outcomes[photo_id] = "too_large"
         else:
             outcomes[photo_id] = "uploaded"
@@ -211,7 +212,7 @@ def import_photoshoot(paths: Sequence[str], label: str) -> str:
         raise _no_valid()
     shoot_id, rows = _insert_shoot(label, accepted)
     for row, path in zip(rows, sources, strict=True):
-        stubs.put(row["key"], path)
+        files.put(row["key"], path)
     complete_upload(shoot_id)
     return shoot_id
 

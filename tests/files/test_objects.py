@@ -6,7 +6,7 @@ import requests
 from app.files.client import bucket_name, get_client
 from app.files.downloads import presign_download
 from app.files.keys import attempt_clip_key
-from app.files.objects import get, put
+from app.files.objects import delete_object, get, put
 from app.files.uploads import head_object
 
 THREE_MIB = 3 * 1024 * 1024
@@ -37,6 +37,13 @@ def test_put_get_round_trip(bucket, tmp_path):
     out = tmp_path / "back.mp4"
     get(key, str(out))
     assert out.read_bytes() == source.read_bytes()
+
+
+def test_delete_object_removes_the_key(bucket, tmp_path):
+    key = attempt_clip_key("j1", 1, 0, 1)
+    put(key, str(make_clip(tmp_path)))
+    delete_object(key)
+    assert head_object(key) is None
 
 
 def test_put_sets_content_type_and_no_acl(bucket, tmp_path):

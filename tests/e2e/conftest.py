@@ -2,6 +2,7 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.support.fixtures import DEMO_PASSPHRASE, live_server  # noqa: F401
+from tests.support.library_rows import stub_presets  # noqa: F401
 
 
 @pytest.fixture(scope="session")

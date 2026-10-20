@@ -9,8 +9,10 @@ from sqlalchemy import select, update
 
 from app.config import get_settings
 from app.db.base import session_scope
-from app.photoshoots import stubs
+from app.files.service import get
+from app.media.service import probe, thumbnail
 from app.photoshoots.models import Photo, Photoshoot
+from app.providers.interface import label_photos
 from app.shared.enums import Room
 
 log = logging.getLogger(__name__)
@@ -41,12 +43,12 @@ def label_photoshoot(photoshoot_id: str) -> None:
         for photo_id, file_key in rows:
             with tempfile.TemporaryDirectory() as folder:
                 path = str(Path(folder) / "photo")
-                stubs.get(file_key, path)
-                info = stubs.probe(path)
+                get(file_key, path)
+                info = probe(path)
                 sizes[photo_id] = (info["width"], info["height"])
-                jpeg = stubs.thumbnail(Path(path).read_bytes(), long_side)
+                jpeg = thumbnail(Path(path).read_bytes(), long_side)
             to_label.append({"photoId": photo_id, "jpegBytes": jpeg})
-        labels = {item["photoId"]: item for item in stubs.label_photos(to_label, photoshoot_id)}
+        labels = {item["photoId"]: item for item in label_photos(to_label, photoshoot_id)}
     except Exception as error:
         kind = getattr(error, "kind", type(error).__name__)
         log.warning("labelling failed for shoot %s: %s", photoshoot_id, kind)

@@ -1,3 +1,5 @@
+import base64
+import json
 import subprocess
 from pathlib import Path
 
@@ -7,9 +9,10 @@ from sqlalchemy import text
 from app.db.base import session_scope
 from app.db.schema import init_db
 from app.errors import AppError
-from app.photoshoots import labelling, service, stubs
+from app.files.service import head_object
+from app.photoshoots import labelling, service
 from app.photoshoots.schemas import UploadFile, UploadRequest
-from tests.photoshoots.conftest import jpeg_bytes, write_jpegs
+from tests.photoshoots.conftest import jpeg_bytes, object_keys, put_bytes, write_jpegs
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -39,25 +42,20 @@ def test_de2_count_boundary():
     assert error.value.code == "too_many_files"
 
 
-def test_de2_gif_refused_and_presign_arguments(monkeypatch):
-    calls = []
-
-    def recorder(key, content_type, max_bytes):
-        calls.append((content_type, max_bytes))
-        return {"url": "u", "fields": {"key": key}}
-
-    monkeypatch.setattr(stubs, "presign_upload", recorder)
+def test_de2_gif_refused_and_presign_arguments():
     body = service.create_upload(_req([("a.gif", 10, "image/gif"), ("b.png", 10, "image/png")]))
     assert [r.reason for r in body.refused] == ["wrong_type"]
-    assert calls == [("image/png", 26_214_400)]
+    policy = json.loads(base64.b64decode(body.uploads[0].fields["policy"]))
+    assert {"Content-Type": "image/png"} in policy["conditions"]
+    assert ["content-length-range", 1, 26_214_400] in policy["conditions"]
 
 
 def test_de2_complete_deletes_oversized_object():
     body = service.create_upload(_req([("a.jpg", 100, "image/jpeg")]))
     key = body.uploads[0].fields["key"]
-    stubs.BUCKET[key] = b"x" * 26_214_401
+    put_bytes(key, b"x" * 26_214_401)
     done = service.complete_upload(body.photoshoot_id)
-    assert key not in stubs.BUCKET
+    assert head_object(key) is None
     assert done.photos[0].status == "too_large"
 
 
@@ -82,7 +80,7 @@ def test_fr36_import_stores_no_video(tmp_path):
     video.write_bytes(b"\0" * 100)
     paths = [*write_jpegs(tmp_path, 1), str(video)]
     shoot_id = service.import_photoshoot(paths, "S")
-    assert not any(key.endswith(".mp4") for key in stubs.BUCKET)
+    assert not any(key.endswith(".mp4") for key in object_keys())
     assert [p.original_name for p in service.get_photoshoot(shoot_id).photos] == ["photo-1.jpg"]
     labelling.wait_idle()
 
@@ -108,7 +106,7 @@ def _images():
 def test_gc9_no_photo_written_to_repo(tmp_path):
     before = _images()
     body = service.create_upload(_req([("a.jpg", 10, "image/jpeg")]))
-    stubs.BUCKET[body.uploads[0].fields["key"]] = jpeg_bytes()
+    put_bytes(body.uploads[0].fields["key"], jpeg_bytes())
     service.complete_upload(body.photoshoot_id)
     service.import_photoshoot(write_jpegs(tmp_path, 2), "S")
     labelling.wait_idle()

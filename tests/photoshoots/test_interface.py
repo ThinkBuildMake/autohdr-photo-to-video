@@ -4,15 +4,15 @@ from fastapi.testclient import TestClient
 
 from app.config import reset_settings
 from app.main import create_app
-from app.photoshoots import labelling, service, stubs
+from app.photoshoots import labelling, service
 from app.shared.types import Photo
-from tests.photoshoots.conftest import jpeg_bytes, seed_shoot, write_jpegs
+from tests.photoshoots.conftest import jpeg_bytes, object_keys, put_bytes, seed_shoot, write_jpegs
 from tests.support.fixtures import DEMO_AUTH, DEMO_PASSPHRASE
 
 
 def _kitchen(monkeypatch):
     monkeypatch.setattr(
-        stubs,
+        labelling,
         "label_photos",
         lambda photos, shoot_id: [
             {"photoId": p["photoId"], "room": "kitchen", "subject": "kitchen island"}
@@ -45,7 +45,7 @@ def test_list_photos_upload_order(client, monkeypatch):
     files = [{"name": f"{i}.jpg", "size": 1000, "type": "image/jpeg"} for i in range(3)]
     body = client.post("/api/photoshoots", json={"files": files}).json()
     for index in (0, 2):
-        stubs.BUCKET[body["uploads"][index]["fields"]["key"]] = jpeg_bytes()
+        put_bytes(body["uploads"][index]["fields"]["key"], jpeg_bytes())
     client.post(f"/api/photoshoots/{body['photoshootId']}/complete")
     labelling.wait_idle()
 
@@ -68,5 +68,5 @@ def test_import_photoshoot(client, monkeypatch, tmp_path):
     assert shoot["label"] == "Test shoot A"
     assert [p["status"] for p in shoot["photos"]] == ["uploaded"] * 3
     assert shoot["status"] == "labelling"
-    assert len(stubs.BUCKET) == 3
+    assert len(object_keys()) == 3
     assert started == [shoot_id]

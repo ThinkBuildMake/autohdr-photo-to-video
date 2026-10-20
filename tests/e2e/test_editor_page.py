@@ -313,7 +313,7 @@ def test_length_change_only_recuts(page, world):
 
 
 @pytest.fixture
-def real_job(live_server):
+def real_job(live_server, bucket):
     """A ready job of six 3 s shots in the database, edited through the real Jobs routes."""
     shoot_id, photos = add_shoot(n_photos=6)
     job_id = add_job(shoot_id, add_song(), status="ready", submitted_at="2026-10-19T08:00:00.000Z")

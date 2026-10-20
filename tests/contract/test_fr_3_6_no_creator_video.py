@@ -68,7 +68,7 @@ def test_upload_of_only_a_video_has_no_valid_files(client):
     assert response.json()["error"] == "no_valid_files"
 
 
-def test_upload_refuses_the_video_beside_a_photo(client):
+def test_upload_refuses_the_video_beside_a_photo(client, bucket):
     files = [
         {"name": "a.jpg", "size": 1000, "type": "image/jpeg"},
         {"name": "tour.mp4", "size": 1000, "type": "video/mp4"},
