@@ -1,10 +1,11 @@
 """One shot's clip: generate, extract frames, check, store, record -- up to 4 attempts."""
 
+import contextlib
 import logging
 import math
 import shutil
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from app.config import get_settings
@@ -52,12 +53,54 @@ def make_clip(
     requested_s: float,
     folder: Path,
     earlier: Sequence[tuple[str, str | None]] = (),
+    has_time: Callable[[], bool] = lambda: True,
 ) -> str | None:
     """Run the shot's attempts; return the passed attempt's id, or None when the shot failed.
 
     `earlier` is the round's already-recorded attempts as (model, error kind or None), oldest
     first; a resumed round replays it so a shot that switched keeps using the fallback.
+    `has_time` is asked before every attempt; once it says no, the shot fails `out_of_time`.
+    An unexpected error closes the running attempt as an error, then goes up to the caller.
     """
+    started: list[str] = []
+    try:
+        return _attempts(
+            job_id,
+            shot,
+            round_no,
+            first_frame,
+            prompt,
+            requested_s,
+            folder,
+            earlier,
+            has_time,
+            started,
+        )
+    except ProviderError:
+        raise
+    except Exception as e:
+        if started:
+            with contextlib.suppress(Exception):
+                clip_stubs.finish_attempt(
+                    started[-1],
+                    "error",
+                    error=ProviderError("failed", f"The worker hit an error: {type(e).__name__}"),
+                )
+        raise
+
+
+def _attempts(
+    job_id: str,
+    shot: JobShot,
+    round_no: int,
+    first_frame: bytes,
+    prompt: str,
+    requested_s: float,
+    folder: Path,
+    earlier: Sequence[tuple[str, str | None]],
+    has_time: Callable[[], bool],
+    started: list[str],
+) -> str | None:
     fallback = get_settings().VIDEO_MODEL_FALLBACK
     model = fallback if shot.used_fallback else shot.model
     failures = 0
@@ -72,12 +115,16 @@ def make_clip(
     flagged = 0
     errored = False
     for n in range(shot.attempts + 1, MAX_ATTEMPTS + 1):
+        if not has_time():
+            clip_stubs.set_shot_result(shot.id, "failed", "out_of_time")
+            return None
         via = f" with the fallback video model ({model})" if model == fallback != shot.model else ""
         clip_stubs.set_shot_state(shot.id, "generating", f"Attempt {n} of 4: making the clip{via}")
         try:
             attempt_id = clip_stubs.start_attempt(shot.id, prompt, model, requested_s)
         except AttemptLimitReached:
             break
+        started.append(attempt_id)
         ids = {"jobId": job_id, "jobShotId": shot.id, "attemptId": attempt_id}
         try:
             result = clip_stubs.generate_clip(first_frame, prompt, model, requested_s, ids)

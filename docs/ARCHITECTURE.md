@@ -873,6 +873,11 @@ finishJob(jobId, status, stopReason?, video?: { key, durationS, width, height, f
   Also totals provider_calls.cost_usd into total_cost_usd.
 stopJob(jobId, stopReason)
   Marks every pending or in-flight shot failed with job_stopped and the job stopped.
+cutPlan(jobId) -> { songKey, songOffsetS, fps, videoVersion,
+                    shots: [{ position, status, clipKey | None, lengthS, transition, transitionS }] }
+  What assembly needs: the song's bucket key, the job's offset, fps and current video
+  version, and every shot not removed, in position order. clipKey is the clip of the
+  shot's final attempt, if it has one. Throws JobNotFound.
 
 After a job is no longer running, every write for it except finishJob's first call
 raises JobNotRunning, and the Pipeline drops that shot's work.

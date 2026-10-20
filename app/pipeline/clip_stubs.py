@@ -1,7 +1,8 @@
 """Stand-ins S28 borrows until S22 removes them.
 
 Jobs (set_shot_state, start_attempt, finish_attempt, set_shot_result), Providers (generate_clip,
-check_clip), Media (extract_frames) and Files (put, into the in-memory BUCKET). Signatures match
+check_clip), Media (extract_frames) and Files (put and get, on the in-memory BUCKET; S30's
+assembly reads clips back with get). Signatures match
 the architecture so S22 swaps in the real calls. Named clip_stubs so it never collides with
 app/pipeline/stubs.py.
 """
@@ -80,3 +81,8 @@ def extract_frames(clip_path: str, per_second: float) -> list[bytes]:
 def put(key: str, path: str) -> None:
     with open(path, "rb") as handle:
         BUCKET[key] = handle.read()
+
+
+def get(key: str, path: str) -> None:
+    with open(path, "wb") as handle:
+        handle.write(BUCKET[key])

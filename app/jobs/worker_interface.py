@@ -5,6 +5,7 @@ are serialised by SQLite's write lock. Shot and attempt writes live in shot_writ
 """
 
 import json
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from sqlalchemy import exists, func, select, update
@@ -23,6 +24,7 @@ from app.jobs.shot_writes import (
     start_attempt,
 )
 from app.library import service as library
+from app.library.models import Song
 from app.library.service import StyleNotFound
 from app.providers.models import ProviderCall
 from app.shared import types
@@ -31,6 +33,7 @@ from app.shared.enums import StopReason
 __all__ = [
     "RUN_BUDGET",
     "claim_next_job",
+    "cut_plan",
     "finish_attempt",
     "finish_job",
     "recover_interrupted",
@@ -147,6 +150,53 @@ def finish_job(
                 first_finished_at=func.coalesce(Job.first_finished_at, now),
                 total_cost_usd=_total_cost(job_id),
             )
+        )
+
+
+@dataclass(frozen=True)
+class CutShot:
+    position: int
+    status: str
+    clip_key: str | None
+    length_s: float
+    transition: str
+    transition_s: float
+
+
+@dataclass(frozen=True)
+class CutPlan:
+    song_key: str
+    song_offset_s: float
+    fps: int
+    video_version: int
+    shots: list[CutShot]
+
+
+def cut_plan(job_id: str) -> CutPlan:
+    """What assembly needs: the song, fps, video version and every shot not removed, in order."""
+    with session_scope() as session:
+        job = session.get(Job, job_id)
+        if job is None:
+            raise JobNotFound(job_id)
+        shots = session.execute(
+            select(
+                JobShot.position,
+                JobShot.status,
+                Attempt.clip_key,
+                JobShot.length_s,
+                JobShot.transition,
+                JobShot.transition_s,
+            )
+            .outerjoin(Attempt, Attempt.id == JobShot.final_attempt_id)
+            .where(JobShot.job_id == job_id, JobShot.removed == 0)
+            .order_by(JobShot.position)
+        ).all()
+        return CutPlan(
+            song_key=session.scalar(select(Song.file_key).where(Song.id == job.song_id)),
+            song_offset_s=job.song_offset_s,
+            fps=job.fps,
+            video_version=job.video_version,
+            shots=[CutShot(*shot) for shot in shots],
         )
 
 
