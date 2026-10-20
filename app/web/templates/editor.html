@@ -1,16 +1,111 @@
 {% extends "base.html" %}
-{% block title %}Editor{% endblock %}
+{% block title %}Edit the video{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="/static/editor.css">
 {% if error %}
 <h1>Editor</h1>
 <p class="error">{{ error }}</p>
 {% else %}
-<h1>Edit: {{ job.style_name }}</h1>
-<ol>
-  {% for shot in job.shots %}
-  <li>{{ shot.room }}, {{ shot.movement_name }}, {{ shot.length_s }} s</li>
-  {% endfor %}
-</ol>
-<p><a href="/jobs/{{ job.id }}">Back to the job</a></p>
+<div class="ed" data-job-id="{{ job.id }}">
+  <div class="ed-row ed-head">
+    <h1>Edit the video</h1>
+    <a class="ed-btn alt" href="/jobs/{{ job.id }}">Back to the video</a>
+  </div>
+  <div class="ed-muted">{{ shoot.label or "Photoshoot" }} · Style: {{ job.style_name }} · Changes are drafts until you re-export</div>
+  {% if busy %}
+  <div class="ed-banner warn"><strong>This video is being made</strong><span>You can edit it once it is finished.</span></div>
+  {% endif %}
+
+  <div class="ed-card">
+    <div class="songbar">
+      <span class="song-label">Song: {{ job.song_credit }} · <span class="song-total"></span></span>
+      <div class="song-track">
+        {% for shot in job.shots %}
+        <div class="seg" data-position="{{ shot.position }}">{{ loop.index }}</div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="timeline">
+      {% for shot in job.shots %}
+      <button type="button" class="tl" data-position="{{ shot.position }}" data-length="{{ shot.length_s }}"
+              data-pending="{{ shot.pending_change }}" data-removed="{{ shot.removed|lower }}">
+        <span class="ed-ph">{{ shot.room|replace("_", " ")|capitalize }}</span>
+        <strong>Shot {{ loop.index }}</strong>
+        <span class="ed-small">{{ movement_labels.get(shot.movement_name, shot.movement_name) }}</span>
+        <span class="ed-small"><span class="tl-len"></span> · <span class="tl-change"></span></span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <fieldset class="ed-controls" {% if busy %}disabled{% endif %}>
+    {% for shot in job.shots %}
+    <div class="ed-grid" data-position="{{ shot.position }}" {% if not loop.first %}hidden{% endif %}>
+      <div class="ed-card">
+        {% if shot.clip_url %}
+        <video class="ed-video" src="{{ shot.clip_url }}" controls preload="metadata"></video>
+        {% else %}
+        <div class="ed-video">No clip yet</div>
+        {% endif %}
+      </div>
+      <form class="ed-card shot-form" data-position="{{ shot.position }}">
+        <h2>Shot {{ loop.index }} · {{ shot.room|replace("_", " ")|capitalize }}</h2>
+        <label>Swap the room (photo)
+          <select name="photoId">
+            {% if shot.photo_id not in shoot.photos|map(attribute="id")|list %}<option value="{{ shot.photo_id or '' }}" selected>Current photo</option>{% endif %}
+            {% for photo in shoot.photos %}
+            <option value="{{ photo.id }}" {% if photo.id == shot.photo_id %}selected{% endif %}>{{ photo.original_name }}{% if photo.room %} · {{ photo.room|replace("_", " ") }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <span class="field-error" data-for="photoId"></span>
+        <label>Camera movement
+          <select name="movementName">
+            {% for value, label in movement_labels.items() %}
+            <option value="{{ value }}" data-prompt="{{ movement_prompts[value] }}" {% if value == shot.movement_name %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <span class="field-error" data-for="movementName"></span>
+        <div class="ed-row">
+          <div><label>Speed
+            <select name="speed">
+              {% for value in ["slow", "medium", "fast"] %}
+              <option value="{{ value }}" {% if value == shot.speed %}selected{% endif %}>{{ value|capitalize }}</option>
+              {% endfor %}
+            </select>
+          </label><span class="field-error" data-for="speed"></span></div>
+          <div><label>Length
+            <input name="lengthS" type="number" step="0.5" min="0.5" value="{{ "%g"|format(shot.length_s) }}">
+          </label><span class="field-error" data-for="lengthS"></span></div>
+          <div><label>Transition in
+            <select name="transition">
+              <option value="cut" {% if shot.transition == "cut" %}selected{% endif %}>Cut</option>
+              <option value="crossfade" {% if shot.transition == "crossfade" %}selected{% endif %}>Crossfade 0.4 s</option>
+            </select>
+          </label><span class="field-error" data-for="transition"></span></div>
+        </div>
+        <label>Movement prompt
+          <textarea name="movementPrompt">{{ shot.movement_prompt }}</textarea>
+        </label>
+        <span class="field-error" data-for="movementPrompt"></span>
+        <label>Photo edit
+          <textarea name="photoEditPrompts">{{ shot.photo_edit_prompts|join("\n") }}</textarea>
+        </label>
+        <span class="field-error" data-for="photoEditPrompts"></span>
+        <div class="ed-small">Changing the photo, movement, speed or prompts makes a new clip. Changing length or transition only re-cuts.</div>
+        <div class="ed-row"><button type="button" class="ed-btn danger sm remove"></button></div>
+        <span class="field-error" data-for="removed"></span>
+      </form>
+    </div>
+    {% endfor %}
+
+    <div class="ed-row">
+      <button type="button" class="ed-btn export">Re-export video</button>
+      <span class="ed-muted export-note"></span>
+    </div>
+  </fieldset>
+</div>
+<script src="/static/editor.js"></script>
 {% endif %}
 {% endblock %}

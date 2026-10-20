@@ -109,7 +109,7 @@ HLD entity mapping: HLD *Video* is the `video_*` columns of `jobs` (one video pe
 | getVideo | client → Jobs.getVideo → Files.presignDownload | sync | n/a |
 | restartJob | client → Jobs.restartJob → every shot not `passed`, `skipped` or removed → `pending`, round + 1 (skipped and removed shots stay as they are); job → queued | sync | yes |
 | redoShot | client → Jobs.redoShot → one shot → `pending`, round + 1, job → queued | sync | yes |
-| editShot | client (editor) → Jobs.editShot → update one `job_shots` row's fields or `removed`; mark `needs_new_clip` if the photo, movement, prompts, speed or photo edit changed, or the new length + transition is longer than the shot's clip | sync | yes |
+| editShot | client (editor) → Jobs.editShot → update one `job_shots` row's fields or `removed`; mark `needs_new_clip` if the photo, movement, prompts, speed or photo edit changed, or the new length + transition is longer than the shot's clip; a shot removed and put back with nothing else changed since the last video is unchanged | sync | yes |
 | exportJob | client (editor) → Jobs.exportJob → shots with `needs_new_clip` → `pending`, round + 1; job → queued → worker makes those shots and re-cuts all shots not removed into a new video version | sync accept, work async | yes |
 | Run next job | worker loop → Jobs.claimNextJob → per pending shot in parallel: Media.crop, Providers.editPhoto + checkEdit, Providers.generateClip + checkClip, Jobs attempt updates → Media.assemble → Files.put → Jobs.finishJob → Comparison.recordCuts | async | each step committed as it happens |
 | Startup recovery | worker start → Jobs.recoverInterrupted (running job → `stopped`, open attempts closed) → Providers.recoverCalls (finished clips downloaded, open calls closed); app start → Photoshoots relabels any shoot left `labelling` | async | yes |
@@ -395,7 +395,7 @@ One shot of the job's shot plan.
 | job_id | TEXT → jobs.id | no | | |
 | removed | INTEGER | no | 0 | 1 when the photographer removed this room in the editor (FR-1.15); a removed shot is left out of the video and can be put back |
 | needs_new_clip | INTEGER | no | 0 | 1 after an editor change that needs a new clip; cleared when exportJob sets the shot pending |
-| edited_at | TEXT | yes | null | Last editor change |
+| edited_at | TEXT | yes | null | Last editor change to a shot field. Removing or putting back a shot does not set it; queuing a run again (restart, redo, export; a draft has no removed shot) sets every removed shot's `edited_at` to the run's `submitted_at`, so a shot put back reads as re-cut only if it was left out of the last video |
 | position | INTEGER | no | | Order in the video, from 1 |
 | room | TEXT | no | | What the shot shows: a `Room` value (Shared types) |
 | photo_id | TEXT → photos.id | yes | null | The photo the shot is made from; null = skipped, the text asked for a room the photos lack (FR-1.10) |

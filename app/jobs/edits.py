@@ -2,8 +2,10 @@
 
 Restart, redo and export set shots back to `pending` in a new round and queue the job; the
 worker makes the pending shots and re-cuts the video from every shot not removed. An edit only
-marks what the next export will do. Every function is one transaction whose first statement is
-a write on the job, so it is serialised with the worker.
+marks what the next export will do; a removal alone leaves edited_at alone, and queuing a run
+stamps each removed shot's edited_at with the run's submitted_at, so a shot put back reads as
+re-cut only if it was left out of the last video. Every function is one transaction whose first
+statement is a write on the job, so it is serialised with the worker.
 """
 
 import json
@@ -50,6 +52,11 @@ def _requeue(session, job_id: str, *shots_where) -> None:
             needs_new_clip=0,
             updated_at=now,
         )
+    )
+    session.execute(
+        update(models.JobShot)
+        .where(models.JobShot.job_id == job_id, models.JobShot.removed == 1)
+        .values(edited_at=now)
     )
     session.execute(
         update(models.Job)
@@ -154,8 +161,7 @@ def edit_shot(job_id: str, position: int, body: ShotEdit) -> ShotEditResult:
         if problems:
             message = " ".join(p.replace("Shot 1:", f"Shot {position}:", 1) for p in problems)
             raise AppError(400, "invalid_edit", message)
-        changed = edited != current
-        if changed:
+        if edited != current:
             if edited.photo_id is not None and (
                 any(getattr(edited, f) != getattr(current, f) for f in _NEW_CLIP_FIELDS)
                 or edited.length_s + edited.transition_s > _clip_s(session, row)
@@ -165,11 +171,9 @@ def edit_shot(job_id: str, position: int, body: ShotEdit) -> ShotEditResult:
                 setattr(row, field, getattr(edited, field))
             row.photo_edit_prompts = json.dumps(edited.photo_edit_prompts)
             row.plan_note = "changed_by_photographer"
-        if removed is not None and int(removed) != row.removed:
-            row.removed = int(removed)
-            changed = True
-        if changed:
             row.edited_at = reading.now_utc()
+        if removed is not None:
+            row.removed = int(removed)
     job = reading.load_job(job_id)
     shot = next(s for s in job.shots if s.position == position)
     return ShotEditResult(shot=shot, export_plan=_export_plan(job))
@@ -183,6 +187,7 @@ def export_job(job_id: str) -> Job:
         if not any(
             reading.pending_change(s, job_row.submitted_at) != "none"
             or reading.edited_since(s, job_row.submitted_at)
+            or (s.removed and not reading.removed_in_run(s, job_row.submitted_at))
             for s in shots
         ):
             raise AppError(409, "nothing_to_export", "Nothing changed since the last video.")

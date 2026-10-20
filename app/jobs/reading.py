@@ -62,13 +62,20 @@ def edited_since(row: models.JobShot, submitted_at: str | None) -> bool:
     return row.edited_at is not None and (submitted_at is None or row.edited_at > submitted_at)
 
 
+def removed_in_run(row: models.JobShot, submitted_at: str | None) -> bool:
+    """The shot was left out of the current run: queuing a run stamps a removed shot's
+    edited_at with the run's submitted_at."""
+    return row.edited_at is not None and row.edited_at == submitted_at
+
+
 def pending_change(row: models.JobShot, submitted_at: str | None) -> str:
     """What the next re-export does with the shot; a removed shot is left out, so none."""
     if row.removed:
         return "none"
     if row.needs_new_clip:
         return "new_clip"
-    return "recut_only" if edited_since(row, submitted_at) else "none"
+    changed = edited_since(row, submitted_at) or removed_in_run(row, submitted_at)
+    return "recut_only" if changed else "none"
 
 
 def _shot(

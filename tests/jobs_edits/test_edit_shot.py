@@ -164,3 +164,51 @@ def test_removed_shot_shows_no_pending_change(bucket, client, make_job):
 
     assert response.json()["shot"]["pendingChange"] == "none"
     assert response.json()["exportPlan"] == {"newClips": 0, "recutOnly": 0, "removed": 1}
+
+
+def _finish_run(job_id):
+    with session_scope() as session:
+        session.execute(text("update jobs set status = 'ready' where id = :j"), {"j": job_id})
+
+
+def test_remove_then_put_back_changes_nothing(bucket, client, make_job):
+    job_id = make_job(status="ready", passed=6)
+    _patch(client, job_id, 5, {"removed": True})
+
+    response = _patch(client, job_id, 5, {"removed": False})
+
+    assert response.json()["shot"]["pendingChange"] == "none"
+    assert response.json()["exportPlan"] == {"newClips": 0, "recutOnly": 0, "removed": 0}
+    export = client.post(f"/api/jobs/{job_id}/export")
+    assert (export.status_code, export.json()["error"]) == (409, "nothing_to_export")
+
+
+def test_removing_a_shot_of_the_last_video_is_exported(bucket, client, make_job):
+    job_id = make_job(status="ready", passed=6)
+    _patch(client, job_id, 5, {"removed": True})
+
+    export = client.post(f"/api/jobs/{job_id}/export")
+
+    assert export.status_code == 202
+
+
+def test_putting_back_a_shot_left_out_of_the_last_video_recuts(bucket, client, make_job):
+    job_id = make_job(status="ready", passed=6)
+    _patch(client, job_id, 5, {"removed": True})
+    assert client.post(f"/api/jobs/{job_id}/export").status_code == 202
+    _finish_run(job_id)
+
+    response = _patch(client, job_id, 5, {"removed": False})
+
+    assert response.json()["shot"]["pendingChange"] == "recut_only"
+    assert client.post(f"/api/jobs/{job_id}/export").status_code == 202
+
+
+def test_put_back_after_another_change_recuts(bucket, client, make_job):
+    job_id = make_job(status="ready", passed=6)
+    _patch(client, job_id, 5, {"removed": True})
+    _patch(client, job_id, 5, {"lengthS": 3.5})
+
+    response = _patch(client, job_id, 5, {"removed": False})
+
+    assert response.json()["shot"]["pendingChange"] == "recut_only"
