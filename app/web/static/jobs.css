@@ -1,0 +1,33 @@
+/* The Jobs and Job pages, after the wireframe. */
+.screen { display: flex; flex-direction: column; gap: 20px; color: #1d2321; }
+.screen h1 { margin: 0; font-size: 30px; }
+.screen h2 { margin: 0; font-size: 20px; }
+.screen h3 { margin: 0; font-size: 16px; }
+.screen a { color: #0f6b66; }
+.screen .muted { color: #566160; font-size: 14px; }
+.screen .small { font-size: 13px; color: #566160; }
+.screen .card { background: #fff; border: 1px solid #d9dcd8; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.screen .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.screen .row.spread { justify-content: space-between; }
+.screen .banner { padding: 14px 16px; border-radius: 8px; font-size: 15px; display: flex; flex-direction: column; gap: 4px; border: 1px solid; }
+.screen .b-info { background: #e8f1f0; border-color: #9cc3bf; }
+.screen .b-warn { background: #fff3dc; border-color: #e0b25a; }
+.screen .b-err { background: #fde8e6; border-color: #d98b84; }
+.screen .b-ok { background: #e6f3e8; border-color: #8cc095; }
+.screen .action-error:empty { display: none; }
+.screen .banner ul { margin: 4px 0 0; padding-left: 20px; }
+.screen .player video { width: 100%; aspect-ratio: 16 / 9; background: #26302d; border-radius: 8px; }
+.screen .shotgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.screen .btn { display: inline-block; border: 0; background: #0f6b66; color: #fff; font: 500 15px system-ui, sans-serif; padding: 10px 18px; min-height: 44px; border-radius: 8px; cursor: pointer; text-decoration: none; }
+.screen .btn.alt { background: #fff; color: #0f6b66; border: 1px solid #0f6b66; }
+.screen .btn.sm { padding: 6px 12px; min-height: 36px; font-size: 14px; }
+.screen .chip { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.tone-done { background: #d4ecd9; color: #17421f; }
+.tone-work { background: #dbe9f7; color: #123a63; }
+.tone-wait { background: #e6e8e6; color: #3d4543; }
+.tone-retry { background: #fde9c4; color: #6a4300; }
+.tone-fail { background: #f7d3cf; color: #7a1b12; }
+.screen table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.screen th { text-align: left; font-weight: 500; color: #566160; padding: 8px; border-bottom: 1px solid #d9dcd8; }
+.screen td { padding: 10px 8px; border-bottom: 1px solid #eceeeb; vertical-align: middle; }
+.screen .tablebox { overflow-x: auto; }

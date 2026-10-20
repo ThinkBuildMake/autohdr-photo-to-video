@@ -9,4 +9,4 @@ JOB_KEYS = {
     "planNotes", "status", "stopReason", "submittedAt", "startedAt", "finishedAt", "elapsedS",
     "totalCostUsd", "waitingBehind", "shots", "video", "songCredit",
 }  # fmt: skip
-VIDEO_KEYS = {"url", "durationS", "width", "height"}
+VIDEO_KEYS = {"url", "durationS", "width", "height", "version"}

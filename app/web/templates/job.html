@@ -1,18 +1,84 @@
 {% extends "base.html" %}
 {% block title %}Job{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="/static/jobs.css">
+<div class="screen">
 {% if error %}
-<h1>Job</h1>
+<h1>Your video</h1>
 <p class="error">{{ error }}</p>
 {% else %}
-<h1>Job: {{ job.style_name }}</h1>
-<p>Status: {{ job.status }}</p>
-<ol>
-  {% for shot in job.shots %}
-  <li>{{ shot.room }}, {{ shot.movement_name }}: {{ shot.status }}</li>
-  {% endfor %}
-</ol>
-<p><a href="/jobs/{{ job.id }}/edit">Edit</a></p>
-<p class="muted">Song: {{ job.song_credit }}</p>
+{% set in_progress = job.status in ("queued", "running") %}
+{% set done = job.status in ("ready", "ready_with_failures") %}
+{% set shots = job.shots | rejectattr("removed") | list %}
+{% set left_out = shots | selectattr("status", "in", ["failed", "skipped"]) | list %}
+<div id="job" class="screen"{% if in_progress %} hx-get="/jobs/{{ job.id }}" hx-trigger="every 5s" hx-select="#job" hx-swap="outerHTML"{% endif %}>
+<div class="row spread"><h1>Your video</h1>{% if links %}<a class="btn" href="/jobs/{{ job.id }}/edit">Open in editor</a>{% endif %}</div>
+<div class="muted meta">Style: {{ job.style_name }}
+  {%- if job.submitted_at %} · Submitted <time datetime="{{ job.submitted_at }}">{{ job.submitted_at }}</time>{% endif %}
+  {%- if in_progress %} · Elapsed {{ view.elapsed(job.elapsed_s) }}{% endif %}</div>
+<p class="error action-error" role="alert"></p>
+
+{% if job.status == "running" %}
+{% set finished = shots | selectattr("status", "in", ["passed", "failed", "skipped"]) | list | length %}
+<div class="banner b-info"><strong>Making your video: {{ finished }} of {{ shots | length }} shots finished</strong><span>All shots are made at the same time. Usually under 10 minutes, never more than 30. You can close this page and come back from Jobs.</span></div>
+{% elif job.status == "queued" %}
+<div class="banner b-warn">
+  {% if job.waiting_behind %}
+  <strong>Waiting for job <a href="/jobs/{{ job.waiting_behind }}">{{ job.waiting_behind[:8] }}</a> to finish</strong>
+  {% else %}
+  <strong>Waiting to start</strong>
+  {% endif %}
+  <span>This tool makes one video at a time. Yours starts as soon as the one before it finishes.</span>
+</div>
+{% elif job.status == "stopped" %}
+{% set title, advice = view.stop_message(job.stop_reason) %}
+<div class="banner b-err"><strong>{{ title }}</strong><span>{{ advice }}</span>
+  <div class="row"><button class="btn alt" type="button" hx-post="/api/jobs/{{ job.id }}/restart" hx-swap="none" hx-disabled-elt="this">Start again</button></div>
+</div>
+{% elif job.status == "ready" %}
+<div class="banner b-ok"><strong>Your video is ready</strong><span>Took {{ view.elapsed(job.elapsed_s) }}. Watch it before you send it to the agent.</span></div>
 {% endif %}
+
+{% if links %}
+{% set song, source = view.credit_parts(job.song_credit) %}
+<div class="card player">
+  {% if done and left_out %}
+  <div class="banner b-warn failures">
+    <strong>Ready, with {{ left_out | length }} shot{{ "s" if left_out | length > 1 }} that did not work</strong>
+    <span>Shots that did not work are left out of the video. Redo them, or change them in the editor.</span>
+    <ul>
+      {% for shot in left_out %}
+      <li><strong>Shot {{ shot.position }}</strong> · {{ view.failure(shot.failure_reason) }}{% if shot.status_detail %}: {{ shot.status_detail }}{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  <video controls preload="metadata" src="{{ links.url }}"></video>
+  <div class="row">
+    <a class="btn" href="{{ links.download_url }}" download>Download video</a>
+    <span class="small">Version {{ job.video.version }} · {{ job.video.width }} × {{ job.video.height }}</span>
+    <span class="small credit">Song: {{ song }}{% if source %} · <a href="{{ source }}">source</a>{% endif %}</span>
+  </div>
+</div>
+{% endif %}
+
+<h2>Shots</h2>
+<div class="shotgrid">
+  {% for shot in shots %}
+  {% set label, tone = view.shot_chip(shot) %}
+  <div class="card shot" id="shot-{{ shot.position }}">
+    <div class="row spread"><h3>Shot {{ shot.position }} · {{ view.words(shot.room) }}</h3><span class="chip tone-{{ tone }}">{{ label }}</span></div>
+    <div class="small">{{ view.words(shot.movement_name) }} · {{ view.words(shot.speed) }} · {{ shot.length_s }} s · {{ view.words(shot.transition) }}</div>
+    {% if shot.failure_reason %}<div class="muted"><strong>{{ view.failure(shot.failure_reason) }}</strong></div>{% endif %}
+    {% if shot.status_detail %}<div class="muted">{{ shot.status_detail }}</div>{% endif %}
+    {% if shot.edit_status == "crop_only" and shot.edit_note %}<div class="small">Photo edit not used (crop only): {{ shot.edit_note }}</div>{% endif %}
+    {% if shot.used_fallback %}<div class="small">Made with the fallback model ({{ shot.model }}).</div>{% endif %}
+    {% if done and links and shot.photo_id %}<div class="row"><button class="btn alt sm" type="button" hx-post="/api/jobs/{{ job.id }}/shots/{{ shot.position }}/redo" hx-swap="none" hx-disabled-elt="this">Redo this shot</button></div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+</div>
+{% endif %}
+</div>
+<script src="/static/jobs.js"></script>
 {% endblock %}

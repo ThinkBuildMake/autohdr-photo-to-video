@@ -68,6 +68,8 @@ def submit_job(job_id: str) -> Job:
 
 
 def get_video(job_id: str) -> dict:
+    if job_id == stubs.STUB_JOB_ID:
+        return stubs.stub_video_links()
     with session_scope() as session:
         row = session.get(models.Job, job_id)
         if row is None:

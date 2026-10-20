@@ -67,9 +67,19 @@ def stub_job() -> Job:
         total_cost_usd=0.0,
         waiting_behind=None,
         shots=[stub_shot(0), stub_shot(1)],
-        video=JobVideo(url="/stub-media/video.mp4", duration_s=6.0, width=1920, height=1080),
+        video=JobVideo(
+            url="/stub-media/video.mp4", duration_s=6.0, width=1920, height=1080, version=1
+        ),
         song_credit=STUB_SONG.credit,
     )
+
+
+def stub_video_links() -> dict:
+    return {
+        "url": "/stub-media/video.mp4",
+        "download_url": "/stub-media/video.mp4",
+        "duration_s": 6.0,
+    }
 
 
 def stub_list_item() -> JobListItem:

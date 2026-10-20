@@ -144,12 +144,14 @@ def test_ready_job_carries_the_video_and_credit(bucket, song, shoot):
         video_duration_s=42.5,
         video_width=1920,
         video_height=1080,
+        video_version=3,
     )
 
     job = reading.load_job(job_id)
 
     assert "video-v1.mp4" in job.video.url
     assert (job.video.duration_s, job.video.width, job.video.height) == (42.5, 1920, 1080)
+    assert job.video.version == 3
     assert job.song_credit.startswith("Track A, Artist A")
 
 

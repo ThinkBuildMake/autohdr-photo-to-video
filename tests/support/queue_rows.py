@@ -50,6 +50,7 @@ def add_job(
     video_duration_s=None,
     video_width=None,
     video_height=None,
+    video_version=0,
     style_id=None,
     stop_reason=None,
 ) -> str:
@@ -74,6 +75,7 @@ def add_job(
         "video_duration_s": video_duration_s,
         "video_width": video_width,
         "video_height": video_height,
+        "video_version": video_version,
     }
     if created_at is not None:
         columns["created_at"] = created_at

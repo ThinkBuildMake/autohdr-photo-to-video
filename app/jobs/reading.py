@@ -137,6 +137,7 @@ def load_job(job_id: str) -> Job:
             duration_s=row.video_duration_s or 0.0,
             width=row.video_width or 0,
             height=row.video_height or 0,
+            version=row.video_version,
         )
     return Job(
         id=row.id,

@@ -581,7 +581,8 @@ Job {
   totalCostUsd
   waitingBehind  id of the running job when this one is queued, else null (SC-1)
   shots        JobShot[]
-  video        { url, durationS, width, height } or null
+  video        { url, durationS, width, height, version } or null
+               version is jobs.video_version (INDEX architectural issue 3)
   songCredit   Song.credit
 }
 

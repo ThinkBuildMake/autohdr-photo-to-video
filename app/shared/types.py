@@ -104,6 +104,7 @@ class JobVideo(CamelModel):
     duration_s: float
     width: int
     height: int
+    version: int
 
 
 class Job(CamelModel):
