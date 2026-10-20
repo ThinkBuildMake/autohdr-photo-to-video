@@ -161,13 +161,17 @@ def update_style(style_id: str, body: StyleUpdate) -> Style:
     return get_style(style_id)
 
 
-def set_reference_job(style_id: str, job_id: str) -> None:
-    try:
-        with session_scope() as session:
-            row = session.get(models.Style, style_id)
-            if row is None:
-                raise StyleNotFound(style_id)
-            row.reference_job_id = job_id
-            row.updated_at = _now()
-    except IntegrityError as error:
-        raise AppError(404, "job_not_found", f"No job with id {job_id}.") from error
+def set_reference_job(style_id: str, job_id: str, session=None) -> None:
+    """With a session, writes inside the caller's transaction (Comparison checks eligibility)."""
+    if session is None:
+        try:
+            with session_scope() as own:
+                set_reference_job(style_id, job_id, own)
+        except IntegrityError as error:
+            raise AppError(404, "job_not_found", f"No job with id {job_id}.") from error
+        return
+    row = session.get(models.Style, style_id)
+    if row is None:
+        raise StyleNotFound(style_id)
+    row.reference_job_id = job_id
+    row.updated_at = _now()

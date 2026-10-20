@@ -484,7 +484,7 @@ The cut times detected in one finished video, one row per shot boundary.
 | job_id | TEXT → jobs.id | no | | |
 | position | INTEGER | no | | The style position of the shot that starts at this cut |
 | expected_s | REAL | no | | Where the cut should land: the sum of `length_s` of the shots before it that are in the video (failed, skipped and removed shots are left out) |
-| detected_s | REAL | yes | null | Where the cut detector found it; null if not found |
+| detected_s | REAL | yes | null | Where the cut detector found it; null if not found. A detected cut matches the nearest expected cut within 0.5 s, and each detected cut is used once; a cut further off than 0.5 s is stored as not found. The window is wider than VR-2's ±0.1 s so out-of-limit cuts keep their error |
 | error_s | REAL | yes | null | `detected_s − expected_s` |
 | transition | TEXT | no | | Copied from the shot, so crossfade misses are read correctly |
 | checked_at | TEXT | no | now | |
