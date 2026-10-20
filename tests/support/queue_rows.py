@@ -119,14 +119,14 @@ def add_shot(
     return shot_id
 
 
-def add_attempt(shot_id, attempt_no, status, clip_key=None, round=0) -> str:
+def add_attempt(shot_id, attempt_no, status, clip_key=None, round=0, requested_s=3.0) -> str:
     attempt_id = str(uuid.uuid4())
     with session_scope() as session:
         session.execute(
             text(
                 "insert into attempts (id, job_shot_id, round, attempt_no, prompt, model,"
                 " requested_s, status, clip_key, started_at)"
-                " values (:i, :s, :r, :n, 'Slow dolly in.', 'google/veo-3.1', 3.0, :st, :k,"
+                " values (:i, :s, :r, :n, 'Slow dolly in.', 'google/veo-3.1', :q, :st, :k,"
                 " '2026-10-19T08:00:00.000Z')"
             ),
             {
@@ -136,6 +136,7 @@ def add_attempt(shot_id, attempt_no, status, clip_key=None, round=0) -> str:
                 "n": attempt_no,
                 "st": status,
                 "k": clip_key,
+                "q": requested_s,
             },
         )
     return attempt_id
@@ -153,3 +154,12 @@ def job_row(job_id) -> dict:
     with session_scope() as session:
         row = session.execute(text("select * from jobs where id = :i"), {"i": job_id}).mappings()
         return dict(row.one())
+
+
+def shot_rows(job_id) -> dict[int, dict]:
+    """The job's job_shots rows keyed by position."""
+    with session_scope() as session:
+        rows = session.execute(
+            text("select * from job_shots where job_id = :i"), {"i": job_id}
+        ).mappings()
+        return {row["position"]: dict(row) for row in rows}

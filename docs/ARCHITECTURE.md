@@ -107,9 +107,9 @@ HLD entity mapping: HLD *Video* is the `video_*` columns of `jobs` (one video pe
 | submitJob | client → Jobs.submitJob → `jobs` draft → queued | sync | yes |
 | listJobs, getJob | client polls every 5 s → read `jobs`, `job_shots`, latest `attempts` | sync | n/a |
 | getVideo | client → Jobs.getVideo → Files.presignDownload | sync | n/a |
-| restartJob | client → Jobs.restartJob → every shot not `passed` → `pending`, round + 1; job → queued | sync | yes |
+| restartJob | client → Jobs.restartJob → every shot not `passed`, `skipped` or removed → `pending`, round + 1 (skipped and removed shots stay as they are); job → queued | sync | yes |
 | redoShot | client → Jobs.redoShot → one shot → `pending`, round + 1, job → queued | sync | yes |
-| editShot | client (editor) → Jobs.editShot → update one `job_shots` row's fields or `removed`; mark `needs_new_clip` if the photo, movement, prompts or photo edit changed | sync | yes |
+| editShot | client (editor) → Jobs.editShot → update one `job_shots` row's fields or `removed`; mark `needs_new_clip` if the photo, movement, prompts, speed or photo edit changed, or the new length + transition is longer than the shot's clip | sync | yes |
 | exportJob | client (editor) → Jobs.exportJob → shots with `needs_new_clip` → `pending`, round + 1; job → queued → worker makes those shots and re-cuts all shots not removed into a new video version | sync accept, work async | yes |
 | Run next job | worker loop → Jobs.claimNextJob → per pending shot in parallel: Media.crop, Providers.editPhoto + checkEdit, Providers.generateClip + checkClip, Jobs attempt updates → Media.assemble → Files.put → Jobs.finishJob → Comparison.recordCuts | async | each step committed as it happens |
 | Startup recovery | worker start → Jobs.recoverInterrupted (running job → `stopped`, open attempts closed) → Providers.recoverCalls (finished clips downloaded, open calls closed); app start → Photoshoots relabels any shoot left `labelling` | async | yes |
@@ -369,7 +369,7 @@ One run of photoshoot + style text + song → shot plan → video. The video's o
 | song_offset_s | REAL | no | | From the preset, or 0 |
 | created_at | TEXT | no | now | |
 | first_submitted_at | TEXT | yes | null | Set once, by the first submit; PF-1 and PF-2 are measured from here |
-| submitted_at | TEXT | yes | null | Set by submit, restart and redo: when the current run was queued |
+| submitted_at | TEXT | yes | null | Set by submit, restart, redo and export: when the current run was queued |
 | started_at | TEXT | yes | null | When the worker claimed the current run |
 | deadline_at | TEXT | yes | null | `started_at` + 30 min: the generation budget of the current run (PF-3). Time spent waiting behind another job is not taken from it |
 | finished_at | TEXT | yes | null | When the current run reached `ready`, `ready_with_failures` or `stopped`; for a stop, also when the user was told (RL-1) |
@@ -411,7 +411,7 @@ One shot of the job's shot plan.
 | status | TEXT | no | `pending` | `ShotStatus` (Shared types) |
 | status_detail | TEXT | yes | null | What the photographer reads, e.g. "Attempt 2 of 4: flagged, a person appears" |
 | failure_reason | TEXT | yes | null | `FailureReason` when status is `failed` |
-| round | INTEGER | no | 0 | 0 on the first run; +1 for every shot a restart or redo sets back to `pending` |
+| round | INTEGER | no | 0 | 0 on the first run; +1 for every shot a restart, redo or export sets back to `pending` |
 | cropped_key | TEXT | yes | null | Bucket key of the 16:9 crop |
 | edited_key | TEXT | yes | null | Bucket key of the edited photo used as first frame |
 | edit_status | TEXT | yes | null | `edited` or `crop_only` |
@@ -820,6 +820,7 @@ Errors     404 job_not_found | shot_not_found
            409 job_busy — job is queued or running
            409 not_finished — the job is a draft or stopped (use restart)
            409 no_photo — the shot has no photo
+           409 shot_removed — the shot is removed; put it back first
 
 listJobs     GET /api/jobs                             serves FR-1.11, HLD I-6
 Response   200 { jobs: [{ id, styleName, photoshootLabel, purpose, status, submittedAt, elapsedS }] }
@@ -894,7 +895,7 @@ Files.presignDownload for the video (inline and as an attachment) and for final 
 ### Must hold
 - Only Jobs writes `jobs`, `job_shots`, `attempts`.
 - At most one job is `running` (unique partial index, SC-1).
-- A job's copied shot fields never change after creation (CH-1).
+- A job's copied shot fields change only through updateJobShots before submit and editShot after (CH-1); restart, redo and export never change them.
 - `attempt_no` never exceeds 4 per shot per round (QC-2).
 - A shot never moves to `failed` without a `failure_reason`, and a failed shot is always listed in `getJob` (RL-2).
 - A job never reaches `ready` with a shot still `pending` or in flight.

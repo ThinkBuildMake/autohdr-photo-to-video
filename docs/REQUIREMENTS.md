@@ -111,7 +111,7 @@ Not given as inputs beyond GC-3 and GC-4; covered in 3.7.
 | FR-1.13 | In the web editor, the photographer swaps the room of a shot by choosing another photo from the photoshoot. | F10, PRD p.7 | Must |
 | FR-1.14 | In the web editor, the photographer changes a shot: its camera movement (one of the movement names), speed, movement prompt, photo edit, length or transition. | F10, PRD p.7 | Must |
 | FR-1.15 | In the web editor, the photographer removes a room (a shot) from the video, and can put it back before re-exporting. | F10, PRD p.7 | Must |
-| FR-1.16 | The photographer re-exports the edited video. Only shots whose photo, movement, prompts or photo edit changed are made again; the others are reused, and the video is re-cut to the song. Shots the photographer did not touch never change. | F10, PRD p.7, CH-1 | Must |
+| FR-1.16 | The photographer re-exports the edited video. Only shots whose photo, movement, speed, prompts or photo edit changed, or whose new length is longer than their clip, are made again; the others are reused, and the video is re-cut to the song. Shots the photographer did not touch never change. | F10, PRD p.7, CH-1 | Must |
 
 ### FR-2 Create and reproduce a style (UC-2)
 

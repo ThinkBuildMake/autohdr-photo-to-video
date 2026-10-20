@@ -57,7 +57,23 @@ def _song_credit(song_id: str) -> str:
     return ""
 
 
-def _shot(row: models.JobShot, attempts: int, clip_key: str | None) -> JobShot:
+def edited_since(row: models.JobShot, submitted_at: str | None) -> bool:
+    """The shot was edited after the job's current run was queued."""
+    return row.edited_at is not None and (submitted_at is None or row.edited_at > submitted_at)
+
+
+def pending_change(row: models.JobShot, submitted_at: str | None) -> str:
+    """What the next re-export does with the shot; a removed shot is left out, so none."""
+    if row.removed:
+        return "none"
+    if row.needs_new_clip:
+        return "new_clip"
+    return "recut_only" if edited_since(row, submitted_at) else "none"
+
+
+def _shot(
+    row: models.JobShot, attempts: int, clip_key: str | None, submitted_at: str | None
+) -> JobShot:
     return JobShot(
         id=row.id,
         position=row.position,
@@ -71,7 +87,7 @@ def _shot(row: models.JobShot, attempts: int, clip_key: str | None) -> JobShot:
         transition_s=row.transition_s,
         photo_id=row.photo_id,
         removed=bool(row.removed),
-        pending_change="new_clip" if row.needs_new_clip else "none",
+        pending_change=pending_change(row, submitted_at),
         plan_note=row.plan_note or "",
         edit_status=row.edit_status,
         edit_note=row.edit_note,
@@ -139,7 +155,7 @@ def load_job(job_id: str) -> Job:
         elapsed_s=elapsed_s(row.status, row.submitted_at, row.finished_at, now_utc()),
         total_cost_usd=row.total_cost_usd,
         waiting_behind=waiting_behind,
-        shots=[_shot(*parts) for parts in shots],
+        shots=[_shot(*parts, row.submitted_at) for parts in shots],
         video=video,
         song_credit=_song_credit(row.song_id),
     )
