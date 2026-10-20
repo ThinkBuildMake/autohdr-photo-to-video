@@ -1120,7 +1120,9 @@ evals run --suite ev1 | ev2 --style {name}       run by the builder
 Writes         jobs through Jobs.createJob + submitJob (the queue runs them one at a time);
                then a report and a reviewer sheet with one row per attempt, flagged ones
                included, each with a clip link: visibly_ai, room_changed,
-               movement_matches, transition_matches
+               movement_matches, transition_matches; one row per plan with
+               text_followed (VR-3) and one row per reproduction with
+               looks_like_reference (VR-4)
 evals report --sheet {csv}
 Reads          the filled sheet, jobs, attempts, cut_checks
 Writes         the final report: per video, visibly AI shots (VR-1), rooms changed (VR-5),
