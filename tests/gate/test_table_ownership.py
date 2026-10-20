@@ -17,7 +17,7 @@ def _tree(tmp_path, files):
 
 def test_real_app_has_no_violations():
     assert find_ownership_violations(REPO / "app") == []
-    assert main() == 0
+    assert main([]) == 0
 
 
 @pytest.mark.parametrize(
