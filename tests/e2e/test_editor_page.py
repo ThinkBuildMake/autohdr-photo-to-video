@@ -615,3 +615,26 @@ def test_a_thrown_save_does_not_stop_later_saves(page, world):
 
     expect(tile_change(page, 1)).to_have_text("will be made again")
     assert (1, {"speed": "fast"}) in world.edits
+
+
+def test_length_reply_preserves_an_unsent_prompt_then_saves_and_reexports(page, world):
+    world.reply_delays = {"lengthS": 0.6}
+    page.goto(world.url)
+    form = open_shot(page, 3)
+    length = form.get_by_label("Length")
+    prompt = form.get_by_label("Movement prompt")
+
+    length.fill("3.5")
+    length.blur()
+    prompt.fill("New prompt typed while length saves.")
+    expect(tile_change(page, 3)).to_have_text("only re-cut")
+    expect(prompt).to_have_value("New prompt typed while length saves.")
+    assert world.edits == [(3, {"lengthS": 3.5})]
+
+    prompt.blur()
+    expect(tile_change(page, 3)).to_have_text("will be made again")
+    assert world.job.shots[2].movement_prompt == "New prompt typed while length saves."
+    assert world.edits[-1] == (3, {"movementPrompt": "New prompt typed while length saves."})
+    page.get_by_role("button", name="Re-export video").click()
+    expect(page).to_have_url(world.url.removesuffix("/edit"))
+    assert world.exports == [JOB_ID]

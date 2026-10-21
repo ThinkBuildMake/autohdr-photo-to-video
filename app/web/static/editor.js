@@ -108,10 +108,14 @@
         }
         return;
       }
+      const promptMatchesSave = form.elements.movementPrompt.value === form.dataset.savedPrompt ||
+        form.elements.movementPrompt.value === body.movementPrompt;
       form.dataset.savedMovement = data.shot.movementName;
       form.dataset.savedPrompt = data.shot.movementPrompt;
       if (!stillQueued("movementName")) form.elements.movementName.value = data.shot.movementName;
-      if (!stillQueued("movementPrompt")) form.elements.movementPrompt.value = data.shot.movementPrompt;
+      if (!stillQueued("movementPrompt") && promptMatchesSave) {
+        form.elements.movementPrompt.value = data.shot.movementPrompt;
+      }
       if (!stillQueued("movementName") && !stillQueued("movementPrompt")) {
         form.querySelector('.field-error[data-for="movementName"]').textContent = "";
       }
