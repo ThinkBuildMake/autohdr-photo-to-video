@@ -1,7 +1,6 @@
 import pytest
 
 from app.jobs import store
-from app.library.stubs import STUB_SONG_ID
 from app.shared.types import PlannedShot
 from tests.contract._jobs_common import JOB_KEYS, SHOT_KEYS
 from tests.support.jobs_rows import (
@@ -12,6 +11,7 @@ from tests.support.jobs_rows import (
     scripted_planner,  # noqa: F401
 )
 from tests.support.library_rows import stub_presets  # noqa: F401
+from tests.support.stub_data import STUB_SONG_ID
 
 pytestmark = pytest.mark.usefixtures("bucket", "stub_presets", "planning_idle")
 

@@ -65,6 +65,8 @@ The gate (`scripts/gate.sh`) runs `uv sync --locked`, `ruff check`, `ruff format
 
 Production is one Railway service built from the `Dockerfile` (`railway.json`); the container runs `honcho start`, so the app and the worker share it. It needs a volume mounted at `/data` (`DATABASE_PATH=/data/app.db` is the image's default), a Railway Storage Bucket, and the variables above set on the service. Railway checks `/healthz` before switching traffic.
 
+Demo day: [`docs/DEMO.md`](docs/DEMO.md) is the written script (redeploy, live clip check, live flow, the offline demo video, the deploy freeze).
+
 ## Design
 
 Two processes of one Python codebase run in one container: the **app server** (FastAPI, pages rendered with Jinja2 and HTMX) and the **background worker**. They share one database, the `jobs` table is the queue, and one job runs at a time (SC-1). The browser sends photos to and fetches videos from the bucket directly through presigned links, so the app server never carries video.

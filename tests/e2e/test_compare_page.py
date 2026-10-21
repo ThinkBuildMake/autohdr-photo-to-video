@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from app.library.stubs import GOLDEN_HOUR_ID, STUB_REFERENCE_JOB_ID
 from tests.support.library_rows import stub_presets  # noqa: F401
+from tests.support.stub_data import GOLDEN_HOUR_ID, STUB_REFERENCE_JOB_ID
 
 pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("stub_presets")]
 

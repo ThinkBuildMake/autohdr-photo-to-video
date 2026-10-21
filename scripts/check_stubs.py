@@ -1,4 +1,4 @@
-"""Fail when app code that is not itself a stubs module imports one or names "stub-media"."""
+"""Fail when app/ holds a stubs module, imports one, or names "stub-media"."""
 
 import ast
 import sys
@@ -21,10 +21,10 @@ def _imports_stubs(tree: ast.AST) -> bool:
 def find_stub_uses(repo_root: Path) -> list[str]:
     found = []
     for path in sorted((repo_root / "app").rglob("*.py")):
-        if path.name == "stubs.py":
-            continue
         source = path.read_text(encoding="utf-8")
         name = path.relative_to(repo_root).as_posix()
+        if path.name == "stubs.py":
+            found.append(f"{name}: is a stubs module")
         if _imports_stubs(ast.parse(source)):
             found.append(f"{name}: imports a stubs module")
         if "stub-media" in source:

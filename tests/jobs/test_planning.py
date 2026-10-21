@@ -5,7 +5,7 @@ from sqlalchemy import text
 from app.db.base import session_scope
 from app.jobs import planning
 from app.jobs.plan_rules import MOVEMENTS
-from app.library import stubs as library_stubs
+from tests.support import stub_data as library_stubs
 from tests.support.jobs_rows import add_draft_job, add_ready_shoot, planned_shot
 
 SONG_ID = library_stubs.STUB_SONG.id

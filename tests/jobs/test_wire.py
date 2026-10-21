@@ -10,13 +10,13 @@ from app.config import reset_settings
 from app.db.base import session_scope
 from app.jobs import planning
 from app.jobs.plan_rules import MOVEMENTS
-from app.library.stubs import STUB_SONG_ID
 from app.main import create_app
 from app.providers import chat, video_api
 from tests.photoshoots.conftest import seed_shoot
 from tests.providers.chat.conftest import BASE, TEST_KEY, _chat_answer
 from tests.providers.video.conftest import MODEL_LIST
 from tests.support.fixtures import DEMO_AUTH, DEMO_PASSPHRASE
+from tests.support.stub_data import STUB_SONG_ID
 
 STYLE = "Slow dolly through the rooms."
 

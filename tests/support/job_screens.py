@@ -5,9 +5,10 @@ from dataclasses import dataclass, field
 import pytest
 
 from app.errors import AppError
-from app.jobs import queue, stubs
+from app.jobs import queue
 from app.jobs.errors import JobNotFound
 from app.shared.types import Job, JobListItem, JobShot
+from tests.support import stub_data as stubs
 
 JOB_A = "aaaaaaaa-0000-4000-8000-000000000001"
 JOB_B = "bbbbbbbb-0000-4000-8000-000000000002"

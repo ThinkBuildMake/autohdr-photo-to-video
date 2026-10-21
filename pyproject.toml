@@ -42,4 +42,4 @@ select = ["E", "F", "W", "I", "B", "UP"]
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "--import-mode=importlib"
-markers = ["e2e: Playwright browser tests"]
+markers = ["e2e: Playwright browser tests", "live: paid call to the real provider, hand-run only"]

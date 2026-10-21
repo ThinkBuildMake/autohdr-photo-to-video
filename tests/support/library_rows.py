@@ -7,8 +7,8 @@ from sqlalchemy import text
 
 from app.db.base import session_scope
 from app.db.schema import init_db
-from app.library import stubs
 from app.library.models import Song, Style
+from tests.support import stub_data as stubs
 
 SOURCE_URL = "https://example.com/music/track-a"
 

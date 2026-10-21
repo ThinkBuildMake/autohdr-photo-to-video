@@ -4,8 +4,8 @@ from sqlalchemy import text
 
 from app.db.base import session_scope
 from app.jobs import planning, store
-from app.library import stubs as library_stubs
 from app.shared.types import PlannedShot
+from tests.support import stub_data as library_stubs
 from tests.support.fixtures import DEMO_AUTH, DEMO_PASSPHRASE
 from tests.support.jobs_rows import add_draft_job, add_ready_shoot, planned_shot
 

@@ -1,9 +1,9 @@
 import pytest
 
 from app.library import service as library
-from app.library.stubs import CRISP_MODERN_ID, GOLDEN_HOUR_ID, STUB_SONG_ID, STUB_STYLES
 from tests.support.comparison_rows import add_cut_check, add_job, add_shot, add_shots
 from tests.support.library_rows import add_song, stub_presets  # noqa: F401
+from tests.support.stub_data import CRISP_MODERN_ID, GOLDEN_HOUR_ID, STUB_SONG_ID, STUB_STYLES
 
 pytestmark = pytest.mark.usefixtures("stub_presets")
 

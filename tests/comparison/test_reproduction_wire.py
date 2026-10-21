@@ -9,9 +9,9 @@ from app.comparison import service
 from app.files import service as files
 from app.jobs.reading import load_job
 from app.library import service as library
-from app.library.stubs import GOLDEN_HOUR_ID, STUB_SONG_ID, STUB_STYLES
 from tests.support.comparison_rows import add_cut_check, add_job, add_shot, add_shots
 from tests.support.library_rows import stub_presets  # noqa: F401
+from tests.support.stub_data import GOLDEN_HOUR_ID, STUB_SONG_ID, STUB_STYLES
 
 pytestmark = pytest.mark.usefixtures("stub_presets")
 

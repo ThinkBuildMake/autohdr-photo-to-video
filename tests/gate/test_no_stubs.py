@@ -34,11 +34,14 @@ def test_imports_of_a_stubs_module_are_found(tmp_path):
     ]
 
 
-def test_stubs_modules_may_import_each_other_but_not_name_stub_media_elsewhere(tmp_path, capsys):
+def test_a_stubs_module_under_app_is_found_and_stub_media_too(tmp_path, capsys):
     root = _tree(
         tmp_path,
-        {"a/stubs.py": "from app.b import stubs\n", "b/r.py": "KEY = 'stub-media/x'\n"},
+        {"a/stubs.py": "X = 1\n", "b/r.py": "KEY = 'stub-media/x'\n"},
     )
-    assert find_stub_uses(root) == ["app/b/r.py: names stub-media"]
+    assert find_stub_uses(root) == [
+        "app/a/stubs.py: is a stubs module",
+        "app/b/r.py: names stub-media",
+    ]
     assert main([str(root)]) == 1
     assert "stub-media" in capsys.readouterr().out

@@ -2,9 +2,9 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from app.library.stubs import STUB_DEMO_PHOTOSHOOT_ID, STUB_SONG_ID, STUB_STYLES
 from tests.support.fixtures import DEMO_AUTH
 from tests.support.library_rows import stub_presets  # noqa: F401
+from tests.support.stub_data import STUB_DEMO_PHOTOSHOOT_ID, STUB_SONG_ID, STUB_STYLES
 
 pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("stub_presets")]
 

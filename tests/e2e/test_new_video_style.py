@@ -7,11 +7,11 @@ from playwright.sync_api import expect
 
 from app.config import reset_settings
 from app.files.client import reset_client
-from app.library.stubs import GOLDEN_HOUR_ID, STUB_SONG_ID, STUB_STYLES
 from app.main import create_app
 from tests.support.bucket import BUCKET, MOTO_ENDPOINT, REGION, SECRET
 from tests.support.fixtures import DEMO_PASSPHRASE, serve
 from tests.support.library_rows import add_song, stub_presets  # noqa: F401
+from tests.support.stub_data import GOLDEN_HOUR_ID, STUB_SONG_ID, STUB_STYLES
 
 pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("stub_presets")]
 

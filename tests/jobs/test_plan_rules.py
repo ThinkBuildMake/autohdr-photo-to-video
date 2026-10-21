@@ -137,7 +137,7 @@ def test_create_job_reads_the_real_photoshoot_status(shoot, stub_presets):
     from app.errors import AppError
     from app.jobs import drafts
     from app.jobs.schemas import JobCreate
-    from app.library import stubs as library_stubs
+    from tests.support import stub_data as library_stubs
 
     song = library_stubs.STUB_SONG.id
     with pytest.raises(AppError) as unknown:

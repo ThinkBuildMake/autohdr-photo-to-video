@@ -6,8 +6,8 @@ from playwright.sync_api import expect
 from sqlalchemy import text
 
 from app.db.base import session_scope
-from app.library.stubs import GOLDEN_HOUR_ID, STUB_SONG_ID, STUB_STYLES
 from tests.support.library_rows import stub_presets  # noqa: F401
+from tests.support.stub_data import GOLDEN_HOUR_ID, STUB_SONG_ID, STUB_STYLES
 
 pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("stub_presets")]
 

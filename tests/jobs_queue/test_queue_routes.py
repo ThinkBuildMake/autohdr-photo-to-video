@@ -174,7 +174,7 @@ def test_submit_never_starts_a_second_running_job(client, song, shoot):
 
 
 def test_magic_stub_id_is_not_a_job(client):
-    from app.jobs.stubs import STUB_JOB_ID
+    from tests.support.stub_data import STUB_JOB_ID
 
     for suffix in ("", "/video"):
         response = client.get(f"/api/jobs/{STUB_JOB_ID}{suffix}")
