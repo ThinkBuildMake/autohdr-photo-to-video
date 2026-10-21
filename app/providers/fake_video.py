@@ -25,6 +25,12 @@ def fail_on(call_no: int, error_kind: str) -> None:
         _scripts[call_no] = error_kind
 
 
+def clear() -> None:
+    """Disarm numbered failures without restarting call numbering."""
+    with _lock:
+        _scripts.clear()
+
+
 def reset() -> None:
     global _call_count
     with _lock:

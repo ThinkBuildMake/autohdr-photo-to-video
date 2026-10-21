@@ -1,5 +1,6 @@
 """Pipeline: runs the next queued job, every pending shot at once up to SHOTS_IN_FLIGHT."""
 
+import contextlib
 import logging
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
@@ -8,6 +9,7 @@ from pathlib import Path
 from app.config import get_settings
 from app.jobs import worker_interface
 from app.pipeline import clip, prepare, prompt, run
+from app.shared.enums import StopReason
 from app.shared.types import Job, JobShot
 
 log = logging.getLogger(__name__)
@@ -36,6 +38,7 @@ def _run_shot(job: Job, shot: JobShot, folder: Path, state: run.Run) -> None:
         prompt.clip_length(shot),
         folder,
         earlier=context.earlier,
+        recovered=context.recovered,
         has_time=state.has_time,
     )
 
@@ -61,5 +64,11 @@ def run_next_job() -> bool:
             ]
             for future in futures:
                 future.result()
-        run.finish_run(state, Path(folder))
+        try:
+            run.finish_run(state, Path(folder))
+        except Exception:
+            # Keep the worker alive; the job stops with a reason and can be started again.
+            log.exception("job %s could not be finished", job.id)
+            with contextlib.suppress(Exception):
+                state.stop(StopReason.assembly_failed)
     return True

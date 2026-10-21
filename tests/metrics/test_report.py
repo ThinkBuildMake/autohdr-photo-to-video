@@ -3,11 +3,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from app.comparison.models import CutCheck
 from app.db.base import session_scope
 from app.db.schema import init_db
 from app.jobs.models import Attempt, Job, JobShot
 from app.library.models import Song
+from app.metrics import queries
 from app.metrics.report import render_report
 from app.photoshoots.models import Photoshoot
 from app.providers.models import ProviderCall
@@ -85,7 +88,8 @@ def test_seeded_rows_print_the_expected_numbers():
                     song_offset_s=0,
                     fps=24,
                     status=status,
-                    stop_reason="no_shot_passed" if status == "stopped" else None,
+                    stop_reason="out_of_credit" if status == "stopped" else None,
+                    started_at=t(m=2, s=0),
                     first_submitted_at=submitted,
                     first_finished_at=finished,
                     finished_at=finished,
@@ -157,6 +161,7 @@ def test_seeded_rows_print_the_expected_numbers():
                 model="m",
                 job_id="j2",
                 status="error",
+                error_kind="out_of_credit",
                 started_at=t(m=19, s=0),
                 finished_at=t(m=20, s=30),
             )
@@ -200,3 +205,84 @@ def test_seeded_rows_print_the_expected_numbers():
     assert "0.070 s" in cut
     for panel in (slowest, typical, provider_error, attempts, dropped, cut):
         assert "no data yet" not in panel
+
+
+def test_error_rows_identify_unmeasured_calls():
+    init_db()
+    with session_scope() as s:
+        s.add(
+            ProviderCall(
+                id="unmatched",
+                kind="generate_clip",
+                model="m",
+                status="error",
+                error_kind="rate_limited",
+                started_at="2026-01-01T00:00:00Z",
+            )
+        )
+    with session_scope() as s:
+        panel = _panels(render_report(s))[2]
+    assert "call=unmatched" in panel
+    assert "rate_limited" in panel
+    assert "unmeasured" in panel
+    assert "message availability" in panel
+
+
+def test_error_measurements_survive_requeue_and_identify_each_call():
+    test_seeded_rows_print_the_expected_numbers()
+    with session_scope() as s:
+        job = s.get(Job, "j2")
+        job.status = "queued"
+        job.finished_at = None
+        job.stop_reason = None
+    with session_scope() as s:
+        panel = _panels(render_report(s))[2]
+    assert "call=c1 job=j1 shot=s1 attempt=a1 error=unknown: 42.0 s" in panel
+    # A job-only stop timestamp is cleared on requeue; do not invent a delay
+    # from a later completion. Actual pipeline errors keep their attempt timestamp.
+    assert "call=c2 job=j2 shot=- attempt=- error=out_of_credit: unmeasured" in panel
+    assert "call=c3" not in panel
+
+
+def test_early_edit_error_is_not_measured_against_a_later_stop():
+    init_db()
+    _seed()
+    t = "2026-10-18T10:{m:02d}:{s:02d}.000Z".format
+    with session_scope() as s:
+        s.add(
+            Job(
+                id="j",
+                style_text="x",
+                photoshoot_id="ps",
+                song_id="song",
+                song_offset_s=0,
+                fps=24,
+                status="stopped",
+                stop_reason="out_of_credit",
+                started_at=t(m=0, s=0),
+                finished_at=t(m=20, s=0),
+            )
+        )
+        s.flush()
+        # a handled edit error at minute 1 (no attempt), and the credit error that stopped the job
+        for call_id, kind, finished in (
+            ("early", "rate_limited", t(m=1, s=0)),
+            ("cause", "out_of_credit", t(m=19, s=58)),
+        ):
+            s.add(
+                ProviderCall(
+                    id=call_id,
+                    kind="edit_photo",
+                    model="m",
+                    job_id="j",
+                    status="error",
+                    error_kind=kind,
+                    started_at=t(m=0, s=59),
+                    finished_at=finished,
+                )
+            )
+    with session_scope() as s:
+        delays = {r["call_id"]: r["delay_s"] for r in queries.provider_error_delays(s)}
+        assert queries.provider_error_to_user_s(s) == pytest.approx(2.0, abs=0.01)
+    assert delays["early"] is None
+    assert delays["cause"] == pytest.approx(2.0, abs=0.01)

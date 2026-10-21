@@ -78,7 +78,7 @@ Every client route also passes through **Access** (the shared passphrase); those
 - **One job runs at a time is a database rule:** a partial unique index allows at most one `jobs` row with status `running` (SC-1).
 - **Only the Jobs module writes job state.** The worker's Pipeline owns no tables and changes jobs, shots and attempts only through Jobs' interface, so the app and worker never write the same rows two ways.
 - **A style is text; each job gets its own shot plan.** A style is a name, a style text and a song (REQUIREMENTS 0a #8); no storyboard or creator video is stored. On createJob the planner turns the job's style text and photos into `job_shots`, which the photographer edits before submitting. The job keeps the text it was made from, so editing a preset never changes a job (CH-1, OB-1). After submit, only the web editor changes a job's shot, one shot at a time.
-- **Restart, redo, editor re-export and first run are one path.** The worker runs every shot whose status is `pending`, then re-assembles the video from every shot not removed. "Start again", "Redo this shot" and "Re-export" only set shots back to `pending` and queue the job; a re-export with only length, transition or removal changes sets no shot pending and just re-cuts (FR-1.5, FR-1.12, FR-1.16).
+- **Restart, redo, editor re-export and first run are one path.** The worker runs every shot whose status is `pending`, then re-assembles the video from every shot not removed. "Start again", "Redo this shot" and "Re-export" only set shots back to `pending` and queue the job; a re-export with only length, transition or removal changes sets no shot pending and just re-cuts (FR-1.5, FR-1.12, FR-1.16). Queueing again clears the previous run's start, deadline and finish timestamps, preserving first-run metrics. Redo rejects pending editor changes until they are re-exported.
 - **A style's reference video is a job.** The author tries the style on a demo photoshoot and marks the job they like as the reference video. Reproductions are laid beside it, and every video's cuts are checked against its own plan (FR-2.4, VR-2), so no outside video is ever needed (FR-3.6).
 - **Every outside call writes one `provider_calls` row**, with cost reported by OpenRouter or computed from the list price under BYOK (CO-1).
 
@@ -371,9 +371,9 @@ One run of photoshoot + style text + song → shot plan → video. The video's o
 | created_at | TEXT | no | now | |
 | first_submitted_at | TEXT | yes | null | Set once, by the first submit; PF-1 and PF-2 are measured from here |
 | submitted_at | TEXT | yes | null | Set by submit, restart, redo and export: when the current run was queued |
-| started_at | TEXT | yes | null | When the worker claimed the current run |
-| deadline_at | TEXT | yes | null | `started_at` + 30 min: the generation budget of the current run (PF-3). Time spent waiting behind another job is not taken from it |
-| finished_at | TEXT | yes | null | When the current run reached `ready`, `ready_with_failures` or `stopped`; for a stop, also when the user was told (RL-1) |
+| started_at | TEXT | yes | null | When the worker claimed the current run; null while queued again |
+| deadline_at | TEXT | yes | null | `started_at` + 30 min: the generation budget of the current run (PF-3). Time spent waiting behind another job is not taken from it; cleared when queued again |
+| finished_at | TEXT | yes | null | When the current run reached `ready`, `ready_with_failures` or `stopped`; for a stop, also when the user was told (RL-1); cleared when queued again |
 | first_finished_at | TEXT | yes | null | Set once, when the first run finished; PF-1 uses it |
 | fps | INTEGER | no | | From the preset, or 30 |
 | video_key | TEXT | yes | null | Bucket key of the current video version |
@@ -508,6 +508,7 @@ FailureReason
             out_of_time             no time left before deadline_at (PF-3)
             no_photo                the plan skipped this shot: no matching photo (FR-1.10)
             job_stopped             the job stopped before this shot finished
+            internal_error          the worker hit its own error on this shot (not the provider)
             (more may be added)
 ProviderErrorKind
             rate_limited | out_of_credit | refused | failed | timeout | bad_response   (more may be added)
@@ -836,7 +837,8 @@ Errors     404 job_not_found | shot_not_found
            409 no_photo — the shot has no photo
            409 shot_removed — the shot is removed; put it back first
            409 pending_edits — export saved editor changes before redoing a shot;
-               rejection preserves the run clock, flags and attempts
+               rejection preserves the run clock, flags and attempts; checked in the job's
+               write transaction before changing run timestamps or clip pointers
 
 listJobs     GET /api/jobs                             serves FR-1.11, HLD I-6
 Response   200 { jobs: [{ id, styleName, photoshootLabel, purpose, status, submittedAt, elapsedS }] }

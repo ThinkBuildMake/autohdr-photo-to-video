@@ -12,6 +12,7 @@ from app.jobs.errors import JobNotFound
 from app.library import service as library
 from app.library.service import StyleNotFound
 from app.photoshoots.models import Photo, Photoshoot
+from app.providers.models import ProviderCall
 from app.shared.types import Job, JobListItem, JobShot, JobVideo
 
 CUSTOM_STYLE = "Custom style"
@@ -117,6 +118,17 @@ def _shot(
     )
 
 
+def _total_cost(session, row) -> float:
+    """A stopped job's calls can finish after it stopped, so its total is summed on read."""
+    if row.status != "stopped":
+        return row.total_cost_usd
+    return session.scalar(
+        select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+            ProviderCall.job_id == row.id
+        )
+    )
+
+
 def load_job(job_id: str) -> Job:
     with session_scope() as session:
         row = session.get(models.Job, job_id)
@@ -148,7 +160,27 @@ def load_job(job_id: str) -> Job:
             )
             clip_key = final.clip_key if final is not None and final.status == "passed" else None
             photo_key = session.scalar(select(Photo.file_key).where(Photo.id == shot.photo_id))
-            shots.append(_shot(shot, count, clip_key, row.submitted_at, photo_key))
+            shown = _shot(shot, count, clip_key, row.submitted_at, photo_key)
+            if row.status == "running" and shot.status in ("editing", "generating", "checking"):
+                last_error = session.scalar(
+                    select(models.Attempt.error)
+                    .where(
+                        models.Attempt.job_shot_id == shot.id,
+                        models.Attempt.round == shot.round,
+                        models.Attempt.error.is_not(None),
+                    )
+                    .order_by(models.Attempt.attempt_no.desc())
+                    .limit(1)
+                )
+                if last_error:
+                    kind = last_error.split(":", 1)[0]
+                    message = (
+                        "provider busy, trying again"
+                        if kind in ("rate_limited", "timeout")
+                        else f"provider error ({kind}), trying again"
+                    )
+                    shown.status_detail += f" Previous attempt: {message}."
+            shots.append(shown)
         running = running_job_id(session)
         running_label = (
             session.scalar(
@@ -187,7 +219,7 @@ def load_job(job_id: str) -> Job:
         started_at=row.started_at,
         finished_at=row.finished_at,
         elapsed_s=elapsed_s(row.status, row.submitted_at, row.finished_at, now_utc()),
-        total_cost_usd=row.total_cost_usd,
+        total_cost_usd=_total_cost(session, row),
         waiting_behind=waiting_behind,
         shots=shots,
         video=video,

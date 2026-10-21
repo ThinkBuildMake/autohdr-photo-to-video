@@ -311,3 +311,76 @@ def test_no_wait_after_the_last_busy_answer(monkeypatch, tmp_path):
 
     assert world.named("wait") == []
     assert world.result(shot.id)["failure_reason"] == "provider_error"
+
+
+def _failing_put(monkeypatch, failures):
+    from app.files import service as files
+
+    tries = []
+
+    def put(key, path):
+        tries.append(key)
+        if len(tries) <= failures:
+            raise OSError("bucket unavailable")
+        BUCKET[key] = Path(path).read_bytes()
+
+    monkeypatch.setattr(files, "put", put)
+    return tries
+
+
+def test_storage_error_after_a_passed_check_retries_the_upload(monkeypatch, tmp_path):
+    world = clip_world.install(monkeypatch)
+    shot = make_shot(1)
+    tries = _failing_put(monkeypatch, 2)
+
+    assert run(world, shot, tmp_path) == "att-1-1"
+
+    assert len(tries) == 3
+    assert len(world.named("generate_clip")) == 1
+    assert world.finishes(shot.id)[0]["status"] == "passed"
+    assert len(world.named("wait")) == 2
+
+
+def test_storage_that_stays_down_never_generates_a_passed_clip_again(monkeypatch, tmp_path):
+    world = clip_world.install(monkeypatch)
+    shot = make_shot(1)
+    tries = _failing_put(monkeypatch, 99)
+
+    with pytest.raises(OSError):
+        run(world, shot, tmp_path)
+
+    assert len(tries) == 3
+    assert len(world.named("generate_clip")) == 1
+
+
+def test_recovered_clip_is_checked_and_used_without_generating(monkeypatch, tmp_path):
+    world = clip_world.install(monkeypatch)
+    shot = make_shot(1)
+    BUCKET["clips/recovered/c1.mp4"] = b"paid"
+    world.current_shot.id = shot.id  # the fake frame reader reads the shot of the last clip
+    recovered = jobs.RecoveredClip("clips/recovered/c1.mp4", "google/veo-3.1", 6.0)
+
+    result = clip.make_clip(JOB, shot, 1, b"jpeg", "p", 4.0, tmp_path, recovered=recovered)
+
+    assert result == "att-1-1"
+    assert world.named("generate_clip") == []
+    assert world.named("put") == []
+    assert len(world.named("check_clip")) == 1
+    (start,) = world.attempts(shot.id)
+    assert (start["model"], start["requested_s"]) == ("google/veo-3.1", 6.0)
+    (done,) = world.finishes(shot.id)
+    assert (done["status"], done["clip_key"]) == ("passed", "clips/recovered/c1.mp4")
+
+
+def test_flagged_recovered_clip_is_followed_by_a_new_clip(monkeypatch, tmp_path):
+    world = clip_world.install(monkeypatch)
+    shot = make_shot(1)
+    BUCKET["clips/recovered/c1.mp4"] = b"paid"
+    world.current_shot.id = shot.id  # the fake frame reader reads the shot of the last clip
+    world.checks[shot.id] = [flagged_check()]
+    recovered = jobs.RecoveredClip("clips/recovered/c1.mp4", "google/veo-3.1", 4.0)
+
+    result = clip.make_clip(JOB, shot, 1, b"jpeg", "p", 4.0, tmp_path, recovered=recovered)
+
+    assert result == "att-1-2"
+    assert len(world.named("generate_clip")) == 1

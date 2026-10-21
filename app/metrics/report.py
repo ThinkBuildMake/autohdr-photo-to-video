@@ -92,4 +92,19 @@ def render_report(session: Session) -> str:
             f"  Threshold:   {panel.threshold}\n"
             f"  Value:       {shown}\n"
         )
+        if panel.requirement == "RL-1":
+            rows = queries.provider_error_delays(session)
+            if rows:
+                blocks[-1] += (
+                    "  Per-error persisted message availability "
+                    "(browser polling measured separately):\n"
+                )
+            for row in rows:
+                delay = row["delay_s"]
+                shown = _seconds(delay) if delay is not None and delay >= 0 else "unmeasured"
+                blocks[-1] += (
+                    f"    call={row['call_id']} job={row['job_id'] or '-'} "
+                    f"shot={row['job_shot_id'] or '-'} attempt={row['attempt_id'] or '-'} "
+                    f"error={row['error_kind'] or 'unknown'}: {shown}\n"
+                )
     return "\n".join(blocks)

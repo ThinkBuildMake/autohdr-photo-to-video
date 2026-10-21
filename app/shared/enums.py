@@ -36,6 +36,7 @@ class FailureReason(StrEnum):
     out_of_time = "out_of_time"
     no_photo = "no_photo"
     job_stopped = "job_stopped"
+    internal_error = "internal_error"
 
 
 class ProviderErrorKind(StrEnum):

@@ -178,7 +178,7 @@ def test_failed_shot_is_marked_beside_the_player(page, live_server, stub_jobs): 
     failures = page.locator("#job > .failures").inner_text()
     assert page.locator(".failures").bounding_box()["y"] < player.bounding_box()["y"]
     assert "Shot 3" in failures
-    assert "Failed the check on every attempt" in failures
+    assert "flagged every attempt" in failures
     assert CHECK_NOTES in failures
     assert page.locator("#shot-3 .chip").inner_text() == "Failed"
     assert page.locator("#shot-3 .attempts").inner_text() == "Attempts: 4 of 4 this round"
@@ -400,3 +400,14 @@ def test_a_poll_with_the_server_down_says_so(page, live_server, stub_jobs):  # n
     page.route(f"**/jobs/{JOB_A}", lambda route: route.abort("connectionrefused"))
 
     expect(page.locator(".action-error")).to_contain_text("Could not refresh", timeout=8000)
+
+
+def test_worker_restart_explains_recovery(page, live_server, stub_jobs):  # noqa: F811
+    stub_jobs.add(
+        job(status=JobStatus.stopped, stop_reason=StopReason.worker_restarted, video=None)
+    )
+    page.goto(f"{live_server}/jobs/{JOB_A}")
+    banner = page.locator(".banner.b-err")
+    assert "the worker restarted" in banner.inner_text()
+    assert "only the unfinished shots are made" in banner.inner_text()
+    assert banner.get_by_role("button", name="Start again").is_visible()

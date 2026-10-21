@@ -19,6 +19,7 @@ _lock = threading.Lock()
 _calls: Counter[str] = Counter()
 _scripts: dict[tuple[str, int], Any] = {}
 _edited_jpeg: bytes | None = None
+_flagged_shots: set[str] = set()
 _ROOMS = [room for room in Room if room != Room.other]
 
 
@@ -40,8 +41,22 @@ def answer_on(kind: str, call_no: int, result: Any) -> None:
         _scripts[(kind, call_no)] = result
 
 
+def flag_shot(shot_id: str) -> None:
+    """Flag every clip check for this durable shot ID, across all its attempts."""
+    with _lock:
+        _flagged_shots.add(shot_id)
+
+
+def clear() -> None:
+    """Disarm scenarios without changing call numbering."""
+    with _lock:
+        _scripts.clear()
+        _flagged_shots.clear()
+
+
 def reset() -> None:
     with _lock:
+        _flagged_shots.clear()
         _calls.clear()
         _scripts.clear()
 
@@ -174,6 +189,8 @@ class FakeProviders:
         source_jpeg: bytes,
         ids: dict[str, Any],
     ) -> ClipCheck:
+        with _lock:
+            flagged = ids.get("jobShotId") in _flagged_shots
         return _run(
             "check_clip",
             get_settings().QUALITY_CHECK_MODEL,
@@ -185,8 +202,10 @@ class FakeProviders:
                 added_objects=[],
                 removed_objects=[],
                 changed_objects=[],
-                passed=True,
-                notes="fake check passed",
+                passed=not flagged,
+                notes=f"Injected flag for {ids.get('jobShotId')}"
+                if flagged
+                else "fake check passed",
             ),
         )
 

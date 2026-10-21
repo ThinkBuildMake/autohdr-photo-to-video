@@ -30,7 +30,7 @@ def finish(world, job):
     ("script", "reason", "attempts"),
     [
         ({"checks": [flagged_check()] * 4}, "flagged_every_attempt", ["flagged"] * 4),
-        ({"generate": [RuntimeError("disk full")]}, "provider_error", ["error"]),
+        ({"generate": [RuntimeError("disk full")]}, "internal_error", ["error"]),
     ],
     ids=["flagged", "crash"],
 )
@@ -51,6 +51,8 @@ def test_one_failed_shot_leaves_the_rest(monkeypatch, tmp_path, script, reason, 
     assert row["video_duration_s"] == 20.0
     shot = world.shots(job_id)[3]
     assert (shot["status"], shot["failure_reason"]) == ("failed", reason)
+    if reason == "internal_error":
+        assert shot["status_detail"] == "Something went wrong on our side while making this shot."
     tried = rows(
         "select status, finished_at from attempts where job_shot_id = :s order by attempt_no",
         s=shot["id"],
@@ -78,7 +80,7 @@ def test_no_shot_passed_lists_every_reason(monkeypatch, tmp_path):
         2: "flagged_every_attempt",
         3: "flagged_every_attempt",
         4: "provider_error",
-        5: "provider_error",
+        5: "internal_error",
         6: "refused",
     }
     assert world.assembled == []

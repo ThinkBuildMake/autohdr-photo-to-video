@@ -29,20 +29,40 @@ def typical_wait_s(session: Session) -> float | None:
     return median(waits) if waits else None
 
 
+def provider_error_delays(session: Session) -> list[dict]:
+    """Persisted message availability; browser polling is measured separately.
+
+    An attempt's error shows when the attempt is written. A call with no attempt shows only
+    when it stopped the job (out of credit, in this run); other such calls are unmeasured.
+    """
+    return [
+        dict(row)
+        for row in session.execute(
+            text(
+                "SELECT c.id AS call_id, c.job_id, c.job_shot_id, c.attempt_id, c.error_kind, "
+                "CASE WHEN c.finished_at IS NOT NULL THEN "
+                "(julianday(COALESCE(a.finished_at, "
+                "CASE WHEN j.status = 'stopped' AND j.stop_reason = 'out_of_credit' "
+                "AND c.error_kind = 'out_of_credit' AND c.finished_at >= j.started_at "
+                "AND j.finished_at >= c.finished_at THEN j.finished_at END)) "
+                "- julianday(c.finished_at)) * :day END AS delay_s "
+                "FROM provider_calls c LEFT JOIN attempts a ON a.id = c.attempt_id "
+                "LEFT JOIN jobs j ON j.id = c.job_id "
+                "WHERE c.status = 'error' ORDER BY c.started_at, c.id"
+            ),
+            {"day": _SECONDS},
+        ).mappings()
+    ]
+
+
 def provider_error_to_user_s(session: Session) -> float | None:
-    """Worst gap from a failed provider call to the moment the user could be told."""
-    return session.execute(
-        text(
-            "SELECT max((julianday(COALESCE(a.finished_at, j.finished_at)) "
-            "- julianday(c.finished_at)) * :day) "
-            "FROM provider_calls c "
-            "LEFT JOIN attempts a ON a.id = c.attempt_id "
-            "LEFT JOIN jobs j ON j.id = c.job_id AND j.status = 'stopped' "
-            "WHERE c.status = 'error' AND c.finished_at IS NOT NULL "
-            "AND COALESCE(a.finished_at, j.finished_at) IS NOT NULL"
-        ),
-        {"day": _SECONDS},
-    ).scalar()
+    """Worst measured gap from a failed call to message availability."""
+    values = [
+        r["delay_s"]
+        for r in provider_error_delays(session)
+        if r["delay_s"] is not None and r["delay_s"] >= 0
+    ]
+    return max(values) if values else None
 
 
 def max_regenerations_per_shot(session: Session) -> int | None:

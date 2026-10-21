@@ -124,7 +124,7 @@ def test_one_failing_shot_does_not_stop_the_others(world, monkeypatch, caplog):
     runner.run_next_job()
 
     assert [world.result(s.id) is not None for s in shots] == [True, True, True]
-    assert world.result(shots[1].id)["failure_reason"] == "provider_error"
+    assert world.result(shots[1].id)["failure_reason"] == "internal_error"
     (logged,) = [r for r in caplog.records if r.name == "app.pipeline.run"]
     assert logged.levelname == "ERROR"
     assert logged.getMessage() == f"shot {shots[1].id} failed"
@@ -192,3 +192,21 @@ def test_temporary_files_stay_off_the_volume(world, monkeypatch):
     assert not any(p.exists() for p in paths)
     assert not any(p.parent.exists() for p in paths)
     assert sorted(volume.rglob("*")) == before
+
+
+def test_a_failing_finish_stops_the_job_and_keeps_the_worker_alive(world, monkeypatch, caplog):
+    from app.pipeline import run
+
+    claims(monkeypatch, make_shot(1))
+    stopped = []
+
+    def finish_run(state, folder):
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(run, "finish_run", finish_run)
+    monkeypatch.setattr(worker_interface, "stop_job", lambda job_id, reason: stopped.append(reason))
+
+    assert runner.run_next_job() is True
+
+    assert stopped == ["assembly_failed"]
+    assert any("could not be finished" in r.getMessage() for r in caplog.records)

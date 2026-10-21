@@ -32,6 +32,7 @@ from app.shared.enums import StopReason
 
 __all__ = [
     "RUN_BUDGET",
+    "RecoveredClip",
     "claim_next_job",
     "cut_plan",
     "finish_attempt",
@@ -317,9 +318,19 @@ def _claimed_job(job_id: str, now: datetime) -> types.Job:
 
 
 @dataclass(frozen=True)
+class RecoveredClip:
+    """A clip the provider finished for an interrupted attempt, collected at startup."""
+
+    key: str
+    model: str
+    requested_s: float
+
+
+@dataclass(frozen=True)
 class RunContext:
     round_no: int
     earlier: list[tuple[str, str | None]]
+    recovered: RecoveredClip | None = None
 
 
 def run_context(job_shot_id: str) -> RunContext:
@@ -341,4 +352,25 @@ def run_context(job_shot_id: str) -> RunContext:
                 if ": check:" in attempt.error or ": check failed" in attempt.error:
                     kind = f"check_error:{kind}"
             earlier.append((attempt.model, kind))
-        return RunContext(shot.round, earlier)
+        # Offered until a later attempt records its key; that attempt still runs the normal check.
+        used = set(session.scalars(select(Attempt.clip_key).where(Attempt.clip_key.is_not(None))))
+        found = session.execute(
+            select(ProviderCall.id, Attempt.model, Attempt.requested_s)
+            .join(Attempt, Attempt.id == ProviderCall.attempt_id)
+            .where(
+                Attempt.job_shot_id == shot.id,
+                Attempt.status == "error",
+                ProviderCall.kind == "generate_clip",
+                ProviderCall.status == "ok",
+            )
+            .order_by(ProviderCall.finished_at.desc())
+        ).all()
+        recovered = next(
+            (
+                RecoveredClip(f"clips/recovered/{call_id}.mp4", model, requested_s)
+                for call_id, model, requested_s in found
+                if f"clips/recovered/{call_id}.mp4" not in used
+            ),
+            None,
+        )
+        return RunContext(shot.round, earlier, recovered)

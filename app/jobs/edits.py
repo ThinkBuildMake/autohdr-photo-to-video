@@ -64,7 +64,14 @@ def _requeue(session, job_id: str, *shots_where) -> None:
     session.execute(
         update(models.Job)
         .where(models.Job.id == job_id)
-        .values(status="queued", stop_reason=None, submitted_at=now)
+        .values(
+            status="queued",
+            stop_reason=None,
+            submitted_at=now,
+            started_at=None,
+            deadline_at=None,
+            finished_at=None,
+        )
     )
 
 
@@ -105,13 +112,13 @@ def redo_shot(job_id: str, position: int) -> Job:
         job = _lock_job(session, job_id)
         _check_finished(job.status)
         shot = _shot_row(session, job_id, position)
+        shots = session.scalars(select(models.JobShot).where(models.JobShot.job_id == job_id))
+        if any(_awaiting_export(s, job.submitted_at) for s in shots):
+            raise AppError(409, "pending_edits", "Export your saved edits before redoing a shot.")
         if shot.photo_id is None:
             raise AppError(409, "no_photo", "This shot has no photo to make a clip from.")
         if shot.removed:
             raise AppError(409, "shot_removed", "Put this shot back before redoing it.")
-        shots = session.scalars(select(models.JobShot).where(models.JobShot.job_id == job_id))
-        if any(_awaiting_export(s, job.submitted_at) for s in shots):
-            raise AppError(409, "pending_edits", "Export your saved edits before redoing a shot.")
         _requeue(session, job_id, models.JobShot.id == shot.id)
     return reading.load_job(job_id)
 

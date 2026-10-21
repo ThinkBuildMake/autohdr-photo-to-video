@@ -336,3 +336,40 @@ def test_interface_exposes_shot_writes():
         "set_shot_result",
     ):
         assert getattr(worker_interface, name) is getattr(shot_writes, name)
+
+
+def test_stopped_job_total_includes_calls_that_finish_after_the_stop(running_job):
+    from app.jobs import reading
+
+    add_provider_call(running_job, 0.30)
+    worker_interface.stop_job(running_job, "out_of_credit")
+    add_provider_call(running_job, 0.50)  # a sibling shot's clip finishing after the stop
+
+    assert reading.load_job(running_job).total_cost_usd == pytest.approx(0.80)
+
+
+def test_run_context_offers_a_paid_recovered_clip_until_an_attempt_uses_it(running_job, shoot):
+    shot = add_shot(running_job, 1, shoot[1][0], status="pending")
+    attempt = add_attempt(shot, 1, status="error", error="worker_restarted")
+    with session_scope() as session:
+        session.execute(
+            text(
+                "insert into provider_calls (id,kind,model,job_id,job_shot_id,attempt_id,status,"
+                "cost_usd,started_at) values ('call1','generate_clip','google/veo-3.1',:j,:s,:a,"
+                "'ok',0.8,'2026-10-19T09:00:00.000Z')"
+            ),
+            {"j": running_job, "s": shot, "a": attempt},
+        )
+
+    offered = worker_interface.run_context(shot).recovered
+    assert offered == worker_interface.RecoveredClip(
+        "clips/recovered/call1.mp4", "google/veo-3.1", 3
+    )
+
+    used = add_attempt(shot, 2, round=1, status="passed")
+    with session_scope() as session:
+        session.execute(
+            text("update attempts set clip_key='clips/recovered/call1.mp4' where id=:a"),
+            {"a": used},
+        )
+    assert worker_interface.run_context(shot).recovered is None

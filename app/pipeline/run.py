@@ -61,7 +61,7 @@ class Run:
                 return
             log.exception("shot %s failed", shot_id)
             with contextlib.suppress(Exception):
-                worker_interface.set_shot_result(shot_id, "failed", "provider_error")
+                worker_interface.set_shot_result(shot_id, "failed", "internal_error")
 
 
 def finish_run(run: Run, folder: Path) -> None:

@@ -30,6 +30,7 @@ _FAILURE_SENTENCES = {
     "out_of_time": "Ran out of time.",
     "no_photo": "No photo of this room.",
     "job_stopped": "The job stopped before this shot finished.",
+    "internal_error": "Something went wrong on our side while making this shot.",
 }
 
 

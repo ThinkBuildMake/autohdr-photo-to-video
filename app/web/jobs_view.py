@@ -26,7 +26,7 @@ STOP_MESSAGES = {
         "Top up the account, then start again: only the unfinished shots are made.",
     ),
     "worker_restarted": (
-        "Stopped: the app restarted while your video was being made",
+        "Stopped: the worker restarted while your video was being made",
         "Start again: only the unfinished shots are made.",
     ),
     "assembly_failed": (
@@ -40,12 +40,13 @@ STOP_MESSAGES = {
 }
 
 FAILURE_REASONS = {
-    "flagged_every_attempt": "Failed the check on every attempt",
+    "flagged_every_attempt": "flagged every attempt",
     "provider_error": "The video service returned an error",
     "refused": "The video service refused this shot",
     "out_of_time": "Ran out of time",
     "no_photo": "No photo of this room",
     "job_stopped": "The job stopped before this shot finished",
+    "internal_error": "Something went wrong on our side",
 }
 
 

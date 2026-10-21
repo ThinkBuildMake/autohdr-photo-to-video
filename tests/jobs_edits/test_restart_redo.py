@@ -1,5 +1,7 @@
 import pytest
+from sqlalchemy import text
 
+from app.db.base import session_scope
 from app.jobs import worker_interface as worker
 from app.jobs.errors import AttemptLimitReached
 from tests.support.queue_rows import add_attempt, add_shot, job_row, shot_rows
@@ -53,6 +55,7 @@ def test_redo_one_shot(bucket, client, make_job):
     assert after[4]["status"] == "pending"
     assert after[4]["round"] == 1
     assert after[4]["final_attempt_id"] is None
+    assert job["shots"][3]["clipUrl"] is None
     for position in (1, 2, 3, 5, 6):
         assert after[position] == before[position]
         assert job["shots"][position - 1]["clipUrl"] is not None
@@ -75,6 +78,12 @@ def test_redo_errors(bucket, client, make_job, shoot):
     ready = make_job(status="ready", passed=2)
     no_photo = add_shot(ready, 3, None, status="skipped", failure_reason="no_photo")
     removed = add_shot(ready, 4, shoot[1][3], status="passed", removed=1)
+
+    with session_scope() as session:
+        session.execute(
+            text("update job_shots set edited_at = :t where id = :i"),
+            {"t": job_row(ready)["submitted_at"], "i": removed},
+        )
 
     answers = [
         client.post(url)
@@ -102,13 +111,19 @@ def test_redo_errors(bucket, client, make_job, shoot):
     assert job_row(ready)["status"] == "ready"
 
 
-def test_restart_gives_four_new_attempts(bucket, client, make_job):
-    job_id = make_job(status="stopped", passed=1, failed=1, stop_reason="out_of_credit")
+@pytest.mark.parametrize("action", ["restart", "shots/2/redo"])
+def test_restart_gives_four_new_attempts(bucket, client, make_job, action):
+    job_id = make_job(
+        status="stopped" if action == "restart" else "ready_with_failures",
+        passed=1,
+        failed=1,
+        stop_reason="out_of_credit" if action == "restart" else None,
+    )
     shot_id = shot_rows(job_id)[2]["id"]
     for attempt_no in (1, 2, 3, 4):
         add_attempt(shot_id, attempt_no, "flagged")
 
-    client.post(f"/api/jobs/{job_id}/restart")
+    assert client.post(f"/api/jobs/{job_id}/{action}").status_code == 202
     worker.claim_next_job()
     worker.set_shot_state(shot_id, "editing", "Editing the photo")
     new_round = [worker.start_attempt(shot_id, "p", "google/veo-3.1", 4.0) for _ in range(4)]
@@ -187,3 +202,33 @@ def test_concurrent_claim_waits_for_job_write_transaction(bucket, make_job):
 
     assert claimed.id == job_id
     assert job_row(job_id)["status"] == "running"
+
+
+def test_restart_preserves_history_and_excludes_ineligible_shots(bucket, client, make_job, shoot):
+    job_id = make_job(status="stopped", passed=1, failed=1, stop_reason="out_of_credit")
+    add_shot(job_id, 3, shoot[1][2], status="skipped")
+    add_shot(job_id, 4, shoot[1][3], status="failed", removed=1, failure_reason="job_stopped")
+    add_shot(job_id, 5, None, status="failed", failure_reason="job_stopped")
+    before = shot_rows(job_id)
+    attempt_id = add_attempt(before[2]["id"], 1, "error", "historical.mp4")
+    with session_scope() as session:
+        history = [dict(r) for r in session.execute(text("select * from attempts")).mappings()]
+
+    response = client.post(f"/api/jobs/{job_id}/restart")
+
+    assert response.status_code == 202
+    assert job_row(job_id)["stop_reason"] is None
+    after = shot_rows(job_id)
+    for position in (1, 3, 5):
+        assert after[position] == before[position]
+    assert after[4]["status"] == "failed"
+    assert after[4]["round"] == 0
+    assert after[4]["final_attempt_id"] == before[4]["final_attempt_id"]
+    assert response.json()["job"]["shots"][0]["clipUrl"] is not None
+    with session_scope() as session:
+        assert [
+            dict(r) for r in session.execute(text("select * from attempts")).mappings()
+        ] == history
+    assert attempt_id in {row["id"] for row in history}
+    claimed = worker.claim_next_job()
+    assert [shot.position for shot in claimed.shots] == [2]
