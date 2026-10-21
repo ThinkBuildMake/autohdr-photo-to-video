@@ -31,7 +31,7 @@ class Panel:
     title: str
     requirement: str
     threshold: str
-    query: Callable[[Session], float | None]
+    query: Callable[..., float | None]
     fmt: Callable[[float], str]
 
 
@@ -81,10 +81,10 @@ PANELS = (
 )
 
 
-def render_report(session: Session) -> str:
+def render_report(session: Session, job_ids: list[str] | None = None) -> str:
     blocks = []
     for panel in PANELS:
-        value = panel.query(session)
+        value = panel.query(session, job_ids)
         shown = NO_DATA if value is None else panel.fmt(value)
         blocks.append(
             f"{panel.title}\n"
@@ -93,7 +93,7 @@ def render_report(session: Session) -> str:
             f"  Value:       {shown}\n"
         )
         if panel.requirement == "RL-1":
-            rows = queries.provider_error_delays(session)
+            rows = queries.provider_error_delays(session, job_ids)
             if rows:
                 blocks[-1] += (
                     "  Per-error persisted message availability "

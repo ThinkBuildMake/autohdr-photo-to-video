@@ -1,26 +1,33 @@
 """Synthetic shoot folders and raw-SQL rows for the Evals tests (test-only)."""
 
+import io
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from PIL import Image
 from sqlalchemy import text
 
 from app.db.base import session_scope
 from app.db.schema import init_db
 
-JPEG_BYTES = b"\xff\xd8\xff\xe0synthetic"
 SUBMITTED = datetime(2026, 10, 19, 9, 0, 0)
 
 
+def _jpeg() -> bytes:
+    buffer = io.BytesIO()
+    Image.new("RGB", (64, 48), (120, 90, 60)).save(buffer, "JPEG")
+    return buffer.getvalue()
+
+
 def make_shoot_folders(root: Path, count: int = 12) -> Path:
-    """`count` subfolders "Shoot 01".., each with two tiny synthetic photo files."""
+    """`count` subfolders "Shoot 01".., each with two tiny synthetic photos (real JPEGs)."""
     folder = root / "shoots"
     for n in range(1, count + 1):
         sub = folder / f"Shoot {n:02d}"
         sub.mkdir(parents=True)
         for name in ("a.jpg", "b.jpg"):
-            (sub / name).write_bytes(JPEG_BYTES)
+            (sub / name).write_bytes(_jpeg())
     return folder
 
 
@@ -37,23 +44,35 @@ def _run(sql: str, **params) -> None:
         session.execute(text(sql), params)
 
 
-def add_photoshoot(label: str) -> str:
+def add_photoshoot(label: str, created_at: str = "2026-10-19T08:00:00.000Z") -> str:
+    """A ready shoot with no photos (a job on it cannot be planned)."""
     init_db()
     shoot = _uid()
-    _run("insert into photoshoots (id, label, status) values (:i, :l, 'ready')", i=shoot, l=label)
+    _run(
+        "insert into photoshoots (id, label, status, created_at) values (:i, :l, 'ready', :c)",
+        i=shoot,
+        l=label,
+        c=created_at,
+    )
     return shoot
 
 
-def add_style(name: str, song_id: str, demo_photoshoot_id: str | None = None) -> str:
+def add_style(
+    name: str,
+    song_id: str,
+    demo_photoshoot_id: str | None = None,
+    reference_job_id: str | None = None,
+) -> str:
     style = _uid()
     _run(
         "insert into styles (id, name, author_name, style_text, song_id, fps,"
-        " demo_photoshoot_id) values (:i, :n, 'AutoHDR', :t, :s, 24, :d)",
+        " demo_photoshoot_id, reference_job_id) values (:i, :n, 'AutoHDR', :t, :s, 24, :d, :r)",
         i=style,
         n=name,
         t=f"{name}: slow and warm.",
         s=song_id,
         d=demo_photoshoot_id,
+        r=reference_job_id,
     )
     return style
 
@@ -91,6 +110,31 @@ def add_job(
     for position, attempts in enumerate(shots, start=1):
         add_shot(job, position, attempts)
     return job
+
+
+def finish_job(
+    job_id: str,
+    status: str = "ready",
+    stop_reason: str | None = None,
+    minutes: float = 10.0,
+    shots: list[list[str]] | None = None,
+) -> None:
+    """Ends a real submitted job at once; `shots` (attempt statuses per shot) replaces its plan."""
+    _run(
+        "update jobs set status = :st, stop_reason = :sr, video_key = :vk,"
+        " first_finished_at = strftime('%Y-%m-%dT%H:%M:%S.000Z', first_submitted_at, :plus),"
+        " finished_at = strftime('%Y-%m-%dT%H:%M:%S.000Z', first_submitted_at, :plus)"
+        " where id = :i",
+        st=status,
+        sr=stop_reason,
+        plus=f"+{minutes} minutes",
+        vk=None if status == "stopped" else f"videos/{job_id}.mp4",
+        i=job_id,
+    )
+    if shots is not None:
+        _run("delete from job_shots where job_id = :i", i=job_id)
+        for position, attempts in enumerate(shots, start=1):
+            add_shot(job_id, position, attempts)
 
 
 def add_shot(job_id: str, position: int, attempts: list[str]) -> None:

@@ -286,3 +286,25 @@ def test_early_edit_error_is_not_measured_against_a_later_stop():
         assert queries.provider_error_to_user_s(s) == pytest.approx(2.0, abs=0.01)
     assert delays["early"] is None
     assert delays["cause"] == pytest.approx(2.0, abs=0.01)
+
+
+def test_sheet_restricts_every_panel_to_its_jobs(tmp_path, capsys):
+    from app.metrics.__main__ import main
+
+    test_seeded_rows_print_the_expected_numbers()
+    with session_scope() as s:
+        everything = render_report(s)
+        only_j1 = render_report(s, ["j1"])
+        nothing = render_report(s, [])
+    assert "15.5 min" in everything and "15.5 min" not in only_j1
+    slowest, typical, provider_error, attempts, dropped, cut = _panels(only_j1)
+    assert "10.0 min" in slowest and "10.0 min" in typical
+    assert "42.0 s" in provider_error and "call=c2" not in provider_error
+    assert "Value:       2\n" in attempts and "Value:       2\n" in dropped
+    assert all("no data yet" in panel for panel in _panels(nothing))
+
+    sheet = tmp_path / "sheet.csv"
+    sheet.write_text("kind,job_id\nplan,j2\nattempt,j2\nplan,\n")
+    assert main(["--sheet", str(sheet)]) == 0
+    printed = capsys.readouterr().out
+    assert "21.0 min" in _panels(printed)[1]

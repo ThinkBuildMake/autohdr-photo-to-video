@@ -1,7 +1,7 @@
 """Jobs: drafts and the shot plan (createJob, replanJob, updateJobShots)."""
 
 from app.errors import AppError
-from app.jobs import plan_rules, planning, reading, store, stubs
+from app.jobs import plan_rules, planning, reading, store
 from app.jobs.schemas import JobCreate, JobReplan
 from app.library import service as library
 from app.photoshoots import service as photoshoots
@@ -28,10 +28,7 @@ def create_job(body: JobCreate) -> Job:
         style = library.get_style(body.style_id)
         fps, song_offset_s = style.fps, style.song_offset_s
     _find_song(body.song_id)
-    status = stubs.photoshoot_status(body.photoshoot_id)
-    if status is None:
-        raise AppError(404, "photoshoot_not_found", f"No photoshoot with id {body.photoshoot_id}.")
-    if status == "awaiting_upload":
+    if photoshoots.get_photoshoot(body.photoshoot_id).status == "awaiting_upload":
         raise AppError(409, "photoshoot_not_ready", "The photoshoot is still uploading.")
     job_id = store.insert_job(
         body.photoshoot_id,

@@ -5,7 +5,6 @@ from sqlalchemy import text
 
 from app.db.base import session_scope
 from app.db.schema import init_db
-from app.jobs import stubs
 from app.jobs.plan_rules import MOVEMENTS, renumber, validate_plan
 from app.shared.enums import MovementName
 from app.shared.types import PlannedShot
@@ -134,9 +133,21 @@ def shoot():
     return shoot_id
 
 
-def test_photoshoot_status(shoot):
-    assert stubs.photoshoot_status(shoot) == "ready"
-    assert stubs.photoshoot_status("unknown") is None
+def test_create_job_reads_the_real_photoshoot_status(shoot, stub_presets):
+    from app.errors import AppError
+    from app.jobs import drafts
+    from app.jobs.schemas import JobCreate
+    from app.library import stubs as library_stubs
+
+    song = library_stubs.STUB_SONG.id
+    with pytest.raises(AppError) as unknown:
+        drafts.create_job(JobCreate(photoshootId="unknown", styleText="x", songId=song))
+    assert (unknown.value.status_code, unknown.value.code) == (404, "photoshoot_not_found")
+    with session_scope() as session:
+        session.execute(text("update photoshoots set status = 'awaiting_upload'"))
+    with pytest.raises(AppError) as uploading:
+        drafts.create_job(JobCreate(photoshootId=shoot, styleText="x", songId=song))
+    assert uploading.value.status_code == 409
 
 
 @pytest.mark.parametrize("field", ["length_s", "transition_s"])

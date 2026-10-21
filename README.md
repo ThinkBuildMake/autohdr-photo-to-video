@@ -49,8 +49,8 @@ The model settings in `.env.example` are the defaults; each comment says what it
 
 Other commands:
 - `uv run python -m app.library.seed --manifest PATH`: add Creative Commons songs from a JSON manifest (the format is in `app/library/seed.py`).
-- `uv run python -m app.metrics`: print the key metrics from the job tables.
-- `uv run python -m app.evals import|run|report`: the evaluation runs on the test photoshoots (`--help` for the options).
+- `uv run python -m app.metrics [--sheet SHEET]`: print the key metrics from the job tables, or only for the jobs on a reviewer sheet.
+- `uv run python -m app.evals import|run|links|report|all`: the evaluation runs on the test photoshoots (`--help` for the options).
 
 ### Tests
 
@@ -98,7 +98,23 @@ The demo is sized for one job at a time; scaling is written down, not built. [`d
 
 ## Results on the 12 test shoots
 
-*Placeholder: filled in by story S26 from the evaluation report. No runs on the test shoots have been recorded yet, so there are no numbers here.*
+**Status: no paid run has been recorded yet, so there are no numbers here.** The tables below replace this text only when `report --readme` is run on a fully reviewed sheet from a real run. Nothing here comes from the fake providers.
+
+How to get the numbers. The real run makes about 20 paid videos (12 for EV-1, 2 per preset for EV-2), so it spends money and needs the owner's go-ahead first. The test photos stay outside the repo (they are never committed), for example in `../test-shoots`.
+
+1. Run everything with one command: `python -m app.evals all --folder ../test-shoots --yes`. Without `--yes` it only prints what it would spend and exits 1. It imports the 12 shoots, runs EV-1 on the first preset, runs EV-2 for each style that has a reference video, and prints each sheet path.
+2. Watch every video and fill the sheet's marks. The video links expire after 1 hour; `python -m app.evals links --sheet SHEET` writes the sheet again with fresh links.
+3. Check the numbers with `python -m app.evals report --sheet SHEET [--sheet SHEET2 ...]`. It exits 2 and lists any delivered shot that is still unreviewed.
+4. Put them here with `python -m app.evals report --sheet SHEET [--sheet SHEET2 ...] --readme README.md`. It replaces only this section, and only when every delivered shot is reviewed.
+5. `python -m app.metrics --sheet SHEET` shows the typical wait over just the sheet's jobs.
+
+Reports are written beside the sheet under `evals/`, which git ignores because the sheets hold signed links.
+
+What the numbers mean:
+- EV-1: one video per test shoot in one style, with job time (PF-1) and the typical wait (PF-2).
+- EV-2: each preset reproduced on 2 shoots other than its demo shoot, judged against its reference video.
+- VR-1 to VR-5: per video the visibly AI shots and rooms changed, the movement and transition matches, the worst cut error, and per style whether the plan followed its text and the reproduction looks like the reference.
+- QC-1: how many reviewer-failed shots the automatic check had flagged (the catch rate).
 
 ## Documents
 
