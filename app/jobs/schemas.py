@@ -51,6 +51,7 @@ class ExportPlan(CamelModel):
 class ShotEditResult(CamelModel):
     shot: JobShot
     export_plan: ExportPlan
+    warning: str | None = None
 
 
 class VideoLinks(CamelModel):

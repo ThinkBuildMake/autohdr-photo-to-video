@@ -45,7 +45,8 @@ def test_edit_shot(bucket, client):  # noqa: F811
 
     body = response.json()
     assert response.status_code == 200
-    assert set(body) == {"shot", "exportPlan"}
+    assert set(body) == {"shot", "exportPlan", "warning"}
+    assert body["warning"] is None
     assert set(body["shot"]) == SHOT_KEYS
     assert set(body["exportPlan"]) == {"newClips", "recutOnly", "removed"}
     assert body["shot"]["lengthS"] == 2.0

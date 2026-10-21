@@ -79,3 +79,35 @@ def test_unknown_room_becomes_other(monkeypatch):
     monkeypatch.setattr(labelling, "label_photos", _labeller("garage", "a garage"))
     labelling.label_photoshoot(shoot_id)
     assert _photos(shoot_id)[0].room == "other"
+
+
+def test_complete_is_idempotent_while_labelling_runs(monkeypatch):
+    import threading
+
+    from app.photoshoots import service
+
+    shoot_id, _ = seed_shoot(["uploaded"], shoot_status="awaiting_upload")
+    inside, release = threading.Event(), threading.Event()
+    calls = []
+
+    def label(photos, photoshoot_id):
+        calls.append(photoshoot_id)
+        inside.set()
+        assert release.wait(10)
+        if len(calls) > 1:
+            raise ProviderError("failed", "duplicate labelling")
+        return _labeller("kitchen", "island")(photos, photoshoot_id)
+
+    monkeypatch.setattr(labelling, "label_photos", label)
+    try:
+        service.complete_upload(shoot_id)
+        assert inside.wait(10)
+        repeated = service.complete_upload(shoot_id)
+        assert repeated.status == "labelling"
+    finally:
+        release.set()
+        labelling.wait_idle()
+
+    assert calls == [shoot_id]
+    assert _shoot_status(shoot_id) == "ready"
+    assert _photos(shoot_id)[0].room == "kitchen"

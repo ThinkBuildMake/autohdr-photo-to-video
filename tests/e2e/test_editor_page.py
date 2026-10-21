@@ -128,6 +128,7 @@ class EditorWorld:
         self.reply_delays: dict[str, float] = {}
         self.answered: list[str] = []
         self.edit_error: AppError | None = None
+        self.warning = None
         self.fail_next = 0
         self.exports: list[str] = []
         self.export_error: AppError | None = None
@@ -163,7 +164,7 @@ class EditorWorld:
         self.job.shots[index] = shot
         plan = ExportPlan(new_clips=0, recut_only=0, removed=0)
         self._reply("edit", body)
-        return ShotEditResult(shot=shot, export_plan=plan)
+        return ShotEditResult(shot=shot, export_plan=plan, warning=self.warning)
 
     def export_job(self, job_id: str) -> Job:
         self.exports.append(job_id)
@@ -635,6 +636,35 @@ def test_length_reply_preserves_an_unsent_prompt_then_saves_and_reexports(page, 
     expect(tile_change(page, 3)).to_have_text("will be made again")
     assert world.job.shots[2].movement_prompt == "New prompt typed while length saves."
     assert world.edits[-1] == (3, {"movementPrompt": "New prompt typed while length saves."})
+    page.get_by_role("button", name="Re-export video").click()
+    expect(page).to_have_url(world.url.removesuffix("/edit"))
+    assert world.exports == [JOB_ID]
+
+
+@pytest.mark.parametrize("field", ["lengthS", "movementName"])
+def test_saved_edit_during_model_outage_reconciles_and_allows_export(page, world, field):
+    world.warning = (
+        "Your edit was saved, but video model limits could not be checked. "
+        "Check the shot lengths before exporting."
+    )
+    page.goto(world.url)
+    form = open_shot(page, 1)
+    if field == "lengthS":
+        form.get_by_label("Length").fill("3.5")
+        form.get_by_label("Length").blur()
+        expect(page.locator(".tl").first.locator(".tl-len")).to_have_text("3.5 s")
+        expect(tile_change(page, 1)).to_have_text("only re-cut")
+        expect(page.locator(".song-total")).to_have_text("0:37.5")
+        assert world.job.shots[0].length_s == 3.5
+    else:
+        form.get_by_label("Camera movement").select_option(label="Crane Up")
+        expect(tile_change(page, 1)).to_have_text("will be made again")
+        expect(form.get_by_label("Camera movement")).to_have_value("crane_up")
+        expect(form.get_by_label("Movement prompt")).to_have_value(MOVEMENTS["crane_up"])
+        assert world.job.shots[0].movement_name == "crane_up"
+    expect(form.locator(".save-warning")).to_have_text(world.warning)
+    for error in form.locator(".field-error").all():
+        expect(error).to_be_empty()
     page.get_by_role("button", name="Re-export video").click()
     expect(page).to_have_url(world.url.removesuffix("/edit"))
     assert world.exports == [JOB_ID]

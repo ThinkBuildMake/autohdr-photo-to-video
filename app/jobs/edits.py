@@ -159,7 +159,9 @@ def edit_shot(job_id: str, position: int, body: ShotEdit) -> ShotEditResult:
             )
         current = _planned(row)
         edited = current.model_copy(update=changes)
-        problems = plan_rules.validate_plan([edited], set(rooms), math.inf, allowed_lengths)
+        problems, warning = plan_rules.validate_saved_plan(
+            [edited], set(rooms), math.inf, allowed_lengths
+        )
         if problems:
             message = " ".join(p.replace("Shot 1:", f"Shot {position}:", 1) for p in problems)
             raise AppError(400, "invalid_edit", message)
@@ -174,11 +176,22 @@ def edit_shot(job_id: str, position: int, body: ShotEdit) -> ShotEditResult:
             row.photo_edit_prompts = json.dumps(edited.photo_edit_prompts)
             row.plan_note = "changed_by_photographer"
             row.edited_at = reading.now_utc()
+        if warning:
+            row.plan_note = "\n".join(n for n in (row.plan_note, warning) if n)
         if removed is not None:
             row.removed = int(removed)
     job = reading.load_job(job_id)
     shot = next(s for s in job.shots if s.position == position)
-    return ShotEditResult(shot=shot, export_plan=_export_plan(job))
+    return ShotEditResult(
+        shot=shot,
+        export_plan=_export_plan(job),
+        warning=(
+            "Your edit was saved, but video model limits could not be checked. "
+            "Check the shot lengths before exporting."
+        )
+        if warning
+        else None,
+    )
 
 
 def export_job(job_id: str) -> Job:

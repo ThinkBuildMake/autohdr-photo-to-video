@@ -10,7 +10,8 @@ from typing import Any
 import httpx
 
 from app.config import get_settings
-from app.providers import clip_calls, video_api
+from app.providers import calls as clip_calls
+from app.providers import video_api
 from app.providers.errors import ProviderError
 
 log = logging.getLogger(__name__)

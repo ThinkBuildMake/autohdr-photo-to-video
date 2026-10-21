@@ -108,6 +108,9 @@
         }
         return;
       }
+      const warning = form.querySelector(".save-warning");
+      warning.textContent = data.warning || "";
+      warning.hidden = !data.warning;
       const promptMatchesSave = form.elements.movementPrompt.value === form.dataset.savedPrompt ||
         form.elements.movementPrompt.value === body.movementPrompt;
       form.dataset.savedMovement = data.shot.movementName;

@@ -168,11 +168,19 @@ def complete_upload(photoshoot_id: str) -> CompletedPhotoshoot:
                 PhotoRow.photoshoot_id == photoshoot_id, PhotoRow.status == "uploaded"
             )
         ).first()
-        shoot = session.get(Photoshoot, photoshoot_id)
-        if uploaded is not None and shoot is not None and shoot.status != "ready":
-            shoot.status = "labelling"
+        start_labelling = False
+        if uploaded is not None:
+            claimed = session.execute(
+                update(Photoshoot)
+                .where(
+                    Photoshoot.id == photoshoot_id,
+                    Photoshoot.status.not_in(("ready", "labelling")),
+                )
+                .values(status="labelling")
+            )
+            start_labelling = claimed.rowcount == 1
     shoot, photos = _read(photoshoot_id)
-    if shoot.status == "labelling":
+    if start_labelling:
         labelling.start(photoshoot_id)
     return CompletedPhotoshoot(id=photoshoot_id, status=shoot.status, photos=photos)
 

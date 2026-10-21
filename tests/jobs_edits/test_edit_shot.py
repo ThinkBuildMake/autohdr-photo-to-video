@@ -212,3 +212,36 @@ def test_put_back_after_another_change_recuts(bucket, client, make_job):
     response = _patch(client, job_id, 5, {"removed": False})
 
     assert response.json()["shot"]["pendingChange"] == "recut_only"
+
+
+@pytest.mark.parametrize(
+    ("body", "saved_field", "saved_value", "plan_field"),
+    [
+        ({"lengthS": 3.5}, "lengthS", 3.5, "recutOnly"),
+        ({"movementName": "crane_up"}, "movementName", "crane_up", "newClips"),
+    ],
+)
+def test_shot_edit_survives_model_list_timeout(
+    bucket, client, make_job, monkeypatch, body, saved_field, saved_value, plan_field
+):
+    from app.config import reset_settings
+    from app.providers.errors import ProviderError
+    from app.providers.openrouter import OpenRouterProviders
+
+    job_id = make_job(status="ready", passed=6)
+
+    def timeout(self, model):
+        raise ProviderError("timeout", "Model list timed out")
+
+    monkeypatch.setenv("FAKE_PROVIDERS", "0")
+    reset_settings()
+    monkeypatch.setattr(OpenRouterProviders, "allowed_lengths", timeout)
+    response = _patch(client, job_id, 1, body)
+
+    assert response.status_code == 200
+    assert "Your edit was saved" in response.json()["warning"]
+    assert response.json()["shot"][saved_field] == saved_value
+    assert response.json()["exportPlan"][plan_field] == 1
+    saved = client.get(f"/api/jobs/{job_id}").json()["job"]["shots"][0]
+    assert saved[saved_field] == saved_value
+    assert "Saved without checking video model limits" in saved["planNote"]

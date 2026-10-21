@@ -8,7 +8,8 @@ from typing import Any
 
 import httpx
 
-from app.providers import clip_calls, video_api
+from app.providers import calls as clip_calls
+from app.providers import video_api
 from app.providers.errors import ProviderError
 from app.shared.types import ClipResult
 
@@ -102,7 +103,7 @@ def generate_clip(
     length_s: float,
     ids: dict[str, Any],
 ) -> ClipResult:
-    call_id = clip_calls.start(clip_calls.KIND, model, ids)
+    call_id = clip_calls.start_call(clip_calls.KIND, model, ids)
     try:
         try:
             result = _run(call_id, first_frame_jpeg, prompt, model, length_s)

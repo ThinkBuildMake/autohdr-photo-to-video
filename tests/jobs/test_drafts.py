@@ -295,3 +295,26 @@ def test_unknown_song_is_404(client, stub_presets):
 
     assert response.status_code == 404
     assert response.json()["error"] == "song_not_found"
+
+
+def test_plan_edit_survives_model_list_timeout(client, stub_presets, monkeypatch):
+    from app.providers.errors import ProviderError
+    from app.providers.openrouter import OpenRouterProviders
+
+    job_id, photo_ids = _ready_draft()
+    shots = _plan(photo_ids)[:3]
+
+    def timeout(self, model):
+        raise ProviderError("timeout", "Model list timed out")
+
+    monkeypatch.setenv("FAKE_PROVIDERS", "0")
+    from app.config import reset_settings
+
+    reset_settings()
+    monkeypatch.setattr(OpenRouterProviders, "allowed_lengths", timeout)
+    response = client.put(f"/api/jobs/{job_id}/shots", json={"shots": shots})
+
+    assert response.status_code == 200
+    saved = client.get(f"/api/jobs/{job_id}").json()["job"]
+    assert len(saved["shots"]) == 3
+    assert "Saved without checking video model limits" in saved["planNotes"]

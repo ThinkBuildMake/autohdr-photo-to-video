@@ -8,7 +8,8 @@ from sqlalchemy import text
 
 from app.config import reset_settings
 from app.db.base import session_scope
-from app.providers import clip_calls, video_api
+from app.providers import calls as clip_calls
+from app.providers import video_api
 from app.providers.errors import ProviderError
 from app.providers.video import generate_clip
 from tests.providers.video.conftest import API_KEY, CLIP_BYTES, completed

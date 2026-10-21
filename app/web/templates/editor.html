@@ -49,6 +49,7 @@
         {% endif %}
       </div>
       <form class="ed-card shot-form" data-position="{{ shot.position }}">
+        <p class="save-warning ed-muted" role="status" hidden></p>
         <h2>Shot {{ loop.index }} · {{ shot.room|replace("_", " ")|capitalize }}</h2>
         <label>Swap the room (photo)
           <select name="photoId">

@@ -75,12 +75,13 @@ def update_job_shots(job_id: str, shots: list[PlannedShot]) -> Job:
     song = _find_song(inputs["song_id"])
     photo_ids = {photo.id for photo in photoshoots.list_photos(inputs["photoshoot_id"])}
     ordered = plan_rules.renumber(shots)
-    problems = plan_rules.validate_plan(
+    problems, warning = plan_rules.validate_saved_plan(
         ordered, photo_ids, song.duration_s - inputs["song_offset_s"], allowed_lengths
     )
     if problems:
         raise AppError(400, "invalid_plan", " ".join(problems))
-    store.replace_plan(job_id, ordered, job.plan_notes)
+    notes = "\n".join(n for n in (job.plan_notes, warning) if n) or None
+    store.replace_plan(job_id, ordered, notes)
     return reading.load_job(job_id)
 
 

@@ -3,6 +3,7 @@
 import math
 from collections.abc import Callable
 
+from app.providers.errors import ProviderError
 from app.shared.types import PlannedShot
 
 # PRD pp.8-9 starter kit, keyed by MovementName value.
@@ -118,3 +119,33 @@ def renumber(shots: list[PlannedShot]) -> list[PlannedShot]:
     """Sort by position and set positions 1..n."""
     ordered = sorted(shots, key=lambda s: s.position)
     return [s.model_copy(update={"position": i}) for i, s in enumerate(ordered, start=1)]
+
+
+MODEL_LIMIT_WARNING = (
+    "Saved without checking video model limits: the provider is unavailable. "
+    "Check the shot lengths before exporting."
+)
+
+
+def validate_saved_plan(
+    shots: list[PlannedShot],
+    photo_ids: set[str],
+    song_budget_s: float,
+    lengths_for: Callable[[str], list[float]],
+) -> tuple[list[str], str | None]:
+    """Keep edits during an outage, with a warning about deferred model validation."""
+    warning = None
+    lengths: dict[str, list[float]] = {}
+
+    def available_lengths(model: str) -> list[float]:
+        nonlocal warning
+        if model not in lengths:
+            try:
+                lengths[model] = lengths_for(model)
+            except ProviderError:
+                warning = MODEL_LIMIT_WARNING
+                lengths[model] = [math.inf]
+        return lengths[model]
+
+    problems = validate_plan(shots, photo_ids, song_budget_s, available_lengths)
+    return problems, warning

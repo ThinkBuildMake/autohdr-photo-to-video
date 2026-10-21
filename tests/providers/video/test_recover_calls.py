@@ -4,7 +4,8 @@ from sqlalchemy import text
 
 from app.config import reset_settings
 from app.db.base import session_scope
-from app.providers import clip_calls, video_api, video_recovery
+from app.providers import calls as clip_calls
+from app.providers import video_api, video_recovery
 from app.providers.errors import ProviderError
 from app.providers.openrouter import OpenRouterProviders
 from tests.providers.video.conftest import CLIP_BYTES, completed
@@ -28,7 +29,7 @@ def bucket(monkeypatch):
 
 
 def _running(request_id="job-9", model="google/veo-3.1"):
-    call_id = clip_calls.start(clip_calls.KIND, model, {})
+    call_id = clip_calls.start_call(clip_calls.KIND, model, {})
     if request_id:
         clip_calls.set_request_id(call_id, request_id)
     return call_id
