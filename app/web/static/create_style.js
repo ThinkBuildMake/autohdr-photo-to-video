@@ -8,7 +8,10 @@ const useReference = document.getElementById("use-reference");
 const tryButton = form.querySelector("button[type=submit]");
 const POLL_MS = 5000;
 const FINISHED = ["ready", "ready_with_failures", "stopped"];
-let styleId = null;
+const saveButton = document.getElementById("save-style");
+let styleId = form.dataset.styleId || null;
+let saveError = "";
+let pollError = "";
 let tries = 0;
 let current = null;
 
@@ -26,9 +29,11 @@ async function api(method, url, body) {
   return data;
 }
 
-function showError(message) {
-  errorBox.textContent = message;
-  errorBox.hidden = !message;
+function showError(message, polling = false) {
+  if (polling) pollError = message;
+  else saveError = message;
+  errorBox.textContent = [saveError, pollError].filter(Boolean).join(" ");
+  errorBox.hidden = !errorBox.textContent;
 }
 
 function words(code) {
@@ -51,6 +56,7 @@ form.elements.songId.addEventListener("change", () => {
   credit.replaceChildren();
   if (song.source) credit.append(`${song.licence} · ${song.credit} · `, sourceLink(song.source));
 });
+form.elements.songId.dispatchEvent(new Event("change"));
 
 function describe(job) {
   if (job.planStatus === "planning") return "writing the shot plan…";
@@ -100,11 +106,11 @@ async function follow(id) {
     try {
       job = (await api("GET", `/api/jobs/${id}`)).job;
     } catch (error) {
-      if (current === id) showError(`${error.message} Checking again in a few seconds.`);
+      if (current === id) showError(`${error.message} Checking again in a few seconds.`, true);
       continue;
     }
     if (current !== id) return;
-    showError("");
+    showError("", true);
     render(job);
     if (FINISHED.includes(job.status) || job.planStatus === "failed") return;
     if (job.planStatus === "ready" && job.status === "draft") {
@@ -112,7 +118,7 @@ async function follow(id) {
         job = (await api("POST", `/api/jobs/${id}/submit`)).job;
       } catch (error) {
         if (current !== id) return;
-        showError(error.message);
+        showError(error.message, true);
         return;
       }
       if (current !== id) return;
@@ -124,8 +130,11 @@ async function follow(id) {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (tryButton.disabled) return;
+  const saveOnly = event.submitter === saveButton;
   tryButton.disabled = true;
+  saveButton.disabled = true;
   const f = Object.fromEntries(new FormData(form));
+  f.demoPhotoshootId = form.elements.demoPhotoshootId.value;
   const style = { name: f.name, styleText: f.styleText, songId: f.songId, fps: Number(f.fps) };
   showError("");
   let job;
@@ -138,6 +147,16 @@ form.addEventListener("submit", async (event) => {
           demoPhotoshootId: f.demoPhotoshootId,
         });
     styleId = saved.style.id;
+    document.getElementById("reference-note").textContent = "";
+    form.elements.authorName.readOnly = true;
+    form.elements.demoPhotoshootId.disabled = true;
+    document.getElementById("identity-note").hidden = false;
+    if (saveOnly) {
+      window.location.assign("/");
+      return;
+    }
+    pollError = "";
+    showError("");
     useReference.disabled = true;
     current = null;
     ({ job } = await api("POST", "/api/jobs", {
@@ -152,8 +171,10 @@ form.addEventListener("submit", async (event) => {
     return;
   } finally {
     tryButton.disabled = false;
+    saveButton.disabled = false;
   }
   tries += 1;
+  document.getElementById("prior-try-note").textContent = tries > 1 ? `Try ${tries - 1} is kept in Jobs.` : "";
   current = job.id;
   document.getElementById("reference-note").textContent = "";
   follow(job.id);

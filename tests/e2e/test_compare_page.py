@@ -67,6 +67,13 @@ def open_page(page, live_server, body, status=200, jobs=JOBS, query=""):
         route.fulfill(status=status, content_type=content_type, body=text)
 
     page.route("**/api/jobs", lambda route: route.fulfill(json={"jobs": jobs}))
+    page.route(
+        "**/api/jobs/*",
+        lambda route: route.fulfill(json={"job": {"shots": [
+            {"position": s["position"], "movementName": s["movementName"],
+             "transition": s["transition"]} for s in body["shots"]]}})
+        if isinstance(body, dict) and "shots" in body else route.fulfill(status=404, json={}),
+    )  # fmt: skip
     page.route(f"**/api/styles/{GOLDEN_HOUR_ID}/reproductions/*", reproduction)
     page.goto(live_server + PAGE + query)
     return seen
@@ -111,8 +118,12 @@ def test_both_plans_line_up(page, live_server):
     ]
     rows = [r.split("\t") for r in page.locator("#shots tr").all_inner_texts()]
     assert [r[0] for r in rows] == ["1", "2", "3", "4", "5", "6", "7"]
-    assert rows[0][1:4] == ["Drone top down descend · Cut", "6 s", "6.5 s"]
-    assert rows[6][1:4] == ["Dolly out · Cut", "6 s", "–"]
+    assert rows[0][1:4] == [
+        "6 s · Drone top down descend · Cut",
+        "6.5 s · Drone top down descend · Cut",
+        "0.02 s / 0.01 s",
+    ]
+    assert rows[6][1:3] == ["6 s · Dolly out · Cut", "–"]
 
 
 def test_flagged_shot_and_worst_cut_error(page, live_server):
@@ -121,7 +132,45 @@ def test_flagged_shot_and_worst_cut_error(page, live_server):
     page.get_by_role("heading", name="Shot by shot").wait_for()
     flags = [r.split("\t")[-1] for r in page.locator("#shots tr").all_inner_texts()]
     assert flags == ["", "", "Flagged", "", "", "", ""]
-    assert "0.06 s" in page.locator("#worst-cut").inner_text()
+    assert page.locator("#worst-cut").inner_text() == (
+        "Worst cut error · Reference: 0.02 s · Reproduction: 0.06 s"
+    )
+
+
+def test_each_video_has_its_own_worst_error(page, live_server):
+    late = {**SHOTS[1], "reference": timing(6.0, -0.12)}
+    open_page(page, live_server, with_changes(shots=[SHOTS[0], late, *SHOTS[2:]]))
+
+    page.get_by_role("heading", name="Shot by shot").wait_for()
+    assert "Reference: 0.12 s · Reproduction: 0.06 s" in page.locator("#worst-cut").inner_text()
+    assert "-0.12 s over" in page.locator("#shots tr").nth(1).inner_text()
+
+
+def test_unmeasured_cuts_are_not_called_passing(page, live_server):
+    blank = [{**s, "reproduction": timing(6.5, None)} for s in SHOTS[:6]]
+    open_page(page, live_server, with_changes(shots=[*blank, SHOTS[6]]))
+
+    page.get_by_role("heading", name="Shot by shot").wait_for()
+    assert "Reproduction: No cut was measured." in page.locator("#worst-cut").inner_text()
+
+
+def test_partly_unmeasured_cuts_are_called_out(page, live_server):
+    partial = [{**s, "reproduction": timing(6.5, None)} for s in SHOTS[1:3]]
+    open_page(page, live_server, with_changes(shots=[SHOTS[0], *partial, *SHOTS[3:]]))
+
+    page.get_by_role("heading", name="Shot by shot").wait_for()
+    assert "Reproduction: 0.01 s (2 cuts not measured)" in page.locator("#worst-cut").inner_text()
+
+
+def test_navigation_controls_match_the_wireframe(page, live_server):
+    open_page(page, live_server, COMPARISON)
+
+    page.get_by_role("heading", name="Shot by shot").wait_for()
+    run = page.get_by_role("link", name="Run on another shoot")
+    assert run.get_attribute("href") == f"/?reproduce={GOLDEN_HOUR_ID}"
+    assert page.get_by_role("link", name="Keep style in the library").get_attribute("href") == "/"
+    edit = page.get_by_role("link", name="Edit the style text")
+    assert edit.get_attribute("href") == f"/styles/new?styleId={GOLDEN_HOUR_ID}"
 
 
 def test_no_reference_yet(page, live_server):
@@ -140,7 +189,7 @@ def test_early_cut_beyond_the_limit_is_marked_over(page, live_server):
 
     page.get_by_role("heading", name="Shot by shot").wait_for()
     first = page.locator("#shots tr").first.inner_text().split("\t")
-    assert first[4] == "-0.3 s over / 0.01 s"
+    assert first[3] == "-0.3 s over / 0.01 s"
 
 
 def test_length_rounds_the_total_before_splitting_minutes(page, live_server):

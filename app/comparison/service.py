@@ -9,7 +9,6 @@ from tempfile import TemporaryDirectory
 
 from sqlalchemy import delete, select
 
-from app.comparison import stubs
 from app.comparison.models import CutCheck
 from app.comparison.schemas import (
     Reproduction,
@@ -46,9 +45,15 @@ def set_reference(style_id: str, job_id: str) -> Style:
         job = session.get(Job, job_id)
         if job is None:
             raise JobNotFound(job_id)
-        if job.status != "ready" or job.style_text != style.style_text:
+        if job.status != "ready" or (job.style_text, job.song_id, job.fps) != (
+            style.style_text,
+            style.song_id,
+            style.fps,
+        ):
             raise AppError(
-                409, "not_eligible", "The reference must be a ready job made from the style's text."
+                409,
+                "not_eligible",
+                "The reference must be a ready job made from the style's saved text, song and fps.",
             )
         library.set_reference_job(style_id, job_id, session)
     return library.get_style(style_id)
@@ -76,7 +81,7 @@ def _summary(shots: list[JobShot]) -> VideoSummary:
 
 
 def _timing(shot: JobShot | None, errors: dict[int, float | None]) -> ShotTiming | None:
-    if shot is None:
+    if shot is None or not _in_video(shot):
         return None
     return ShotTiming(length_s=shot.length_s, cut_error_s=errors.get(shot.position))
 
@@ -91,7 +96,7 @@ def _read(session, job: Job) -> tuple[VideoRef, list[JobShot], dict[int, float |
     ).all()
     video = VideoRef(
         job_id=job.id,
-        video_url=stubs.presign_download(job.video_key),
+        video_url=files.presign_download(job.video_key),
         photoshoot_label=label,
     )
     return video, shots, dict(errors)
@@ -105,12 +110,16 @@ def get_reproduction(style_id: str, job_id: str) -> Reproduction:
             raise JobNotFound(job_id)
         if style.reference_job_id is None:
             raise AppError(409, "no_reference", "This style has no reference video yet.")
+        if job.style_id != style_id or job.purpose != "reproduction":
+            raise AppError(
+                409, "not_a_reproduction", "That job is not a reproduction of this style."
+            )
         reference = session.get(Job, style.reference_job_id)
-        if any(j.status not in _FINISHED or not j.video_key for j in (reference, job)):
+        if any(j is None or j.status not in _FINISHED or not j.video_key for j in (reference, job)):
             raise AppError(409, "not_ready", "Both videos must be finished first.")
         ref_video, ref_shots, ref_errors = _read(session, reference)
         rep_video, rep_shots, rep_errors = _read(session, job)
-        song_id, style_text = job.song_id, job.style_text
+        song_id, style_text, ref_song_id = job.song_id, job.style_text, reference.song_id
     ref_by, rep_by = {s.position: s for s in ref_shots}, {s.position: s for s in rep_shots}
     rows = []
     for position in sorted(ref_by | rep_by):
@@ -131,7 +140,7 @@ def get_reproduction(style_id: str, job_id: str) -> Reproduction:
         reference=ref_video,
         reproduction=rep_video,
         song=SongSame(
-            same_song=song_id == style.song.id,
+            same_song=song_id == ref_song_id,
             credit=next(song.credit for song in library.list_songs() if song.id == song_id),
         ),
         same_text=style_text == style.style_text,

@@ -104,3 +104,26 @@ def test_reproduction_starts_with_the_style_text_unchanged(page, live_server):
             "purpose": "reproduction",
         }
     ]
+
+
+def test_reproduction_reads_current_saved_text(page, live_server):
+    add_ready_shoot("Second house")
+    page.goto(live_server + "/")
+    with session_scope() as session:
+        session.execute(
+            text("update styles set style_text='Revised after page load' where id=:id"),
+            {"id": GOLDEN_HOUR_ID},
+        )
+    received = []
+    page.route(
+        "**/api/jobs",
+        lambda route: (
+            received.append(route.request.post_data_json),
+            route.fulfill(status=503, json={"message": "Try later"}),
+        ),
+    )
+    golden = card(page, "Golden hour")
+    golden.get_by_text("Make a reproduction").click()
+    golden.get_by_role("button", name="Start the reproduction").click()
+    expect(golden.get_by_role("alert")).to_have_text("Try later")
+    assert received[0]["styleText"] == "Revised after page load"

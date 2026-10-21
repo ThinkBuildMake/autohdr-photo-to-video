@@ -11,9 +11,13 @@ router = APIRouter()
 
 
 @router.get("/styles/new", response_class=HTMLResponse)
-def create_style_page(request: Request):
+def create_style_page(request: Request, styleId: str | None = None):
     return templates.TemplateResponse(
         request,
         "create_style.html",
-        {"songs": service.list_songs(), "photoshoots": photoshoots.list_photoshoots()},
+        {
+            "songs": service.list_songs(),
+            "photoshoots": photoshoots.list_photoshoots(),
+            "style": service.get_style(styleId) if styleId else None,
+        },
     )

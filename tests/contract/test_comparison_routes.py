@@ -32,7 +32,7 @@ def _compare(client, job_id, style_id=GOLDEN_HOUR_ID):
 
 
 def test_set_reference(client):
-    job_id = add_job(STUB_SONG_ID, style_id=GOLDEN_HOUR_ID, style_text=GOLDEN_TEXT)
+    job_id = add_job(STUB_SONG_ID, style_id=GOLDEN_HOUR_ID, style_text=GOLDEN_TEXT, fps=24)
 
     response = client.post(f"/api/styles/{GOLDEN_HOUR_ID}/reference", json={"jobId": job_id})
 
@@ -215,3 +215,94 @@ def test_get_reproduction_not_ready(client, reference_kwargs, job_kwargs):
 
     assert response.status_code == 409
     assert response.json()["error"] == "not_ready"
+
+
+@pytest.mark.parametrize("side", ["reference", "reproduction"])
+@pytest.mark.parametrize("omitted", [{"removed": 1}, {"status": "failed"}, {"status": "skipped"}])
+def test_omitted_shots_keep_diagnostic_rows_without_video_timing(client, side, omitted):
+    reference = _with_reference()
+    reproduction = _golden_job()
+    for name, job_id in (("reference", reference), ("reproduction", reproduction)):
+        add_shot(job_id, 1, 2.0)
+        add_shot(job_id, 2, 7.0, **(omitted if name == side else {}))
+        add_shot(job_id, 3, 4.0, movement="crane_up", transition="crossfade")
+
+    response = _compare(client, reproduction)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [row["position"] for row in body["shots"]] == [1, 2, 3]
+    assert body["shots"][1][side] is None
+    other = "reproduction" if side == "reference" else "reference"
+    assert body["shots"][1][other] == {"lengthS": 7.0, "cutErrorS": None}
+    assert body["shots"][1]["flagged"] is (side == "reproduction")
+    assert body["summary"][side] == {
+        "shotCount": 2,
+        "totalS": 6.0,
+        "medianShotS": 3.0,
+        "movements": {"dolly_in": 1, "crane_up": 1},
+        "transitions": {"crossfade": 1},
+    }
+
+
+def test_missing_reference_row_is_not_ready(client):
+    import sqlite3
+
+    from app.config import get_settings
+
+    reference = _with_reference()
+    reproduction = _golden_job()
+    # Simulate a dangling reference from a legacy database or concurrent deletion.
+    with sqlite3.connect(get_settings().DATABASE_PATH) as connection:
+        connection.execute("DELETE FROM jobs WHERE id = ?", (reference,))
+
+    response = _compare(client, reproduction)
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "not_ready"
+
+
+def test_same_song_is_read_from_the_reference_jobs_own_song(client):
+    other_song = add_song(title="Night Drive", artist="Artist B")
+    reference = add_job(other_song, style_id=GOLDEN_HOUR_ID, style_text=GOLDEN_TEXT)
+    library.set_reference_job(GOLDEN_HOUR_ID, reference)
+    job_id = _golden_job()
+
+    assert _compare(client, job_id).json()["song"]["sameSong"] is False
+
+
+@pytest.mark.parametrize("change", ["song", "fps"])
+def test_set_reference_refuses_a_job_that_differs_from_the_saved_song_or_fps(client, change):
+    kwargs = (
+        {"song_id": add_song(title="Night Drive", artist="Artist B")}
+        if change == "song"
+        else {"fps": 30}
+    )
+    before = _reference_of(client, GOLDEN_HOUR_ID)
+    job_id = add_job(
+        kwargs.get("song_id", STUB_SONG_ID),
+        style_id=GOLDEN_HOUR_ID,
+        style_text=GOLDEN_TEXT,
+        fps=kwargs.get("fps", 24),
+    )
+
+    response = client.post(f"/api/styles/{GOLDEN_HOUR_ID}/reference", json={"jobId": job_id})
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "not_eligible"
+    assert _reference_of(client, GOLDEN_HOUR_ID) == before
+
+
+@pytest.mark.parametrize("other", ["video", "other_style"])
+def test_get_reproduction_accepts_only_a_reproduction_of_this_style(client, other):
+    _with_reference()
+    job_id = (
+        _golden_job(purpose="video")
+        if other == "video"
+        else add_job(STUB_SONG_ID, style_id=CRISP_MODERN_ID, style_text=CRISP_TEXT)
+    )
+
+    response = _compare(client, job_id)
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "not_a_reproduction"

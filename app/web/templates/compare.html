@@ -10,6 +10,7 @@
 <div id="compare" class="row" data-style-id="{{ style.id }}" data-style-name="{{ style.name }}">
   <span class="muted">Style: {{ style.name }} · Reproduction on:</span>
   <span id="tabs" class="row"></span>
+<a class="btn alt sm" href="/?reproduce={{ style.id }}">Run on another shoot</a>
 </div>
 <div id="message" class="banner b-info" hidden></div>
 <div id="comparison" class="screen" hidden>
@@ -32,13 +33,14 @@
     <div class="card">
       <h2>Shot by shot</h2>
       <table>
-        <thead><tr><th>#</th><th>Movement</th><th>Reference</th><th>Reproduction</th><th>Cuts vs each plan</th><th>Flag</th></tr></thead>
+        <thead><tr><th>#</th><th>Reference</th><th>Reproduction</th><th>Cuts vs each plan</th><th>Flag</th></tr></thead>
         <tbody id="shots"></tbody>
       </table>
       <p id="worst-cut" class="small"></p>
       <p class="small">Each video's cuts are checked against its own plan (within 0.1 s passes). Whether the look matches is your call by watching.</p>
     </div>
 </div>
+<div class="row"><a class="btn" href="/">Keep style in the library</a><a class="btn alt" href="/styles/new?styleId={{ style.id }}">Edit the style text</a></div>
 <script src="/static/compare.js"></script>
 {% endif %}
 </div>

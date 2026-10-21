@@ -146,10 +146,26 @@ def test_use_as_reference_sends_the_try(page, live_server, seeded):
     finished_try(page, live_server, seeded, api)
     api.stub("POST", "/api/styles/style-1/reference", {"style": {"id": "style-1"}})
 
-    page.get_by_role("button", name="Use as reference video").click()
+    page.get_by_role("button", name="Use as the reference video").click()
 
     page.get_by_text("is now the style's reference video").wait_for()
     assert api.bodies("POST", "/api/styles/style-1/reference") == [{"jobId": "job-1"}]
+
+
+def test_reference_note_clears_when_a_changed_text_cannot_start_a_try(page, live_server, seeded):
+    api = Api(page)
+    finished_try(page, live_server, seeded, api)
+    api.stub("POST", "/api/styles/style-1/reference", {"style": {"id": "style-1"}})
+    page.get_by_role("button", name="Use as the reference video").click()
+    page.get_by_text("is now the style's reference video").wait_for()
+    api.stub("PUT", "/api/styles/style-1", {"style": {"id": "style-1"}})
+    api.stub("POST", "/api/jobs", {"error": "boom", "message": "No try."}, status=500)
+
+    page.get_by_label("Style text").fill(STYLE_TEXT + " End on a Dolly Out.")
+    page.get_by_role("button", name="Try it").click()
+
+    page.locator("#error").wait_for()
+    assert page.locator("#reference-note").inner_text() == ""
 
 
 def test_try_it_sends_the_style_and_the_try(page, live_server, seeded):
@@ -247,7 +263,7 @@ def test_reference_button_stays_off_for_a_try_with_failed_shots(page, live_serve
     page.get_by_role("button", name="Try it").click()
 
     page.get_by_text("Try 1 is ready, with shots that did not work").wait_for()
-    assert page.get_by_role("button", name="Use as reference video").is_disabled()
+    assert page.get_by_role("button", name="Use as the reference video").is_disabled()
 
 
 def test_reference_button_is_off_once_a_revision_starts(page, live_server, seeded):
@@ -261,7 +277,7 @@ def test_reference_button_is_off_once_a_revision_starts(page, live_server, seede
     page.get_by_role("button", name="Try it").click()
 
     page.get_by_text("The shoot is still uploading.").wait_for()
-    assert page.get_by_role("button", name="Use as reference video").is_disabled()
+    assert page.get_by_role("button", name="Use as the reference video").is_disabled()
 
 
 def test_one_failed_poll_does_not_stop_following_the_try(page, live_server, seeded):
@@ -329,7 +345,7 @@ def test_revision_during_submit_does_not_paint_the_old_try(page, live_server, se
 def test_failed_style_update_keeps_the_ready_try(page, live_server, seeded):
     api = Api(page)
     finished_try(page, live_server, seeded, api)
-    assert page.get_by_role("button", name="Use as reference video").is_enabled()
+    assert page.get_by_role("button", name="Use as the reference video").is_enabled()
     api.stub(
         "PUT",
         "/api/styles/style-1",
@@ -340,12 +356,12 @@ def test_failed_style_update_keeps_the_ready_try(page, live_server, seeded):
     page.get_by_role("button", name="Try it").click()
 
     page.get_by_text("Could not save the style.").wait_for()
-    assert page.get_by_role("button", name="Use as reference video").is_enabled()
+    assert page.get_by_role("button", name="Use as the reference video").is_enabled()
     assert page.locator("#try-status").inner_text() == "Try 1 is ready."
     assert page.locator("#try").is_visible()
     assert len(api.bodies("POST", "/api/jobs")) == 1
     api.stub("POST", "/api/styles/style-1/reference", {"style": {"id": "style-1"}})
-    page.get_by_role("button", name="Use as reference video").click()
+    page.get_by_role("button", name="Use as the reference video").click()
     page.get_by_text("is now the style's reference video").wait_for()
     assert api.bodies("POST", "/api/styles/style-1/reference") == [{"jobId": "job-1"}]
 
@@ -371,8 +387,9 @@ def test_failed_style_update_keeps_polling_the_try(page, live_server, seeded):
 
     page.get_by_text("Could not save the style.").wait_for()
     page.get_by_text("Try 1 is ready").wait_for(timeout=15000)
-    assert page.get_by_role("button", name="Use as reference video").is_enabled()
+    assert page.get_by_role("button", name="Use as the reference video").is_enabled()
     assert len(api.bodies("GET", "/api/jobs/job-1")) >= 2
+    assert page.locator("#error").inner_text() == "Could not save the style."
 
 
 def test_non_json_error_page_shows_a_readable_message(page, live_server, seeded):
@@ -384,3 +401,17 @@ def test_non_json_error_page_shows_a_readable_message(page, live_server, seeded)
     page.get_by_role("button", name="Try it").click()
 
     page.get_by_text("The server answered 502").wait_for()
+
+
+def test_save_style_does_not_queue_a_try(page, live_server, seeded):
+    api = Api(page)
+    api.stub("POST", "/api/styles", {"style": {"id": "style-1"}}, status=201)
+    page.goto(live_server + "/styles/new")
+    fill_form(page, seeded)
+
+    page.get_by_role("button", name="Save style", exact=True).click()
+
+    page.wait_for_url(live_server + "/")
+    page.get_by_role("heading", name="Styles", exact=True).wait_for()
+    assert len(api.bodies("POST", "/api/styles")) == 1
+    assert api.bodies("POST", "/api/jobs") == []

@@ -1,11 +1,5 @@
-"""Stubs for what Library borrows from other modules, and the preset data other stubs share.
+"""Preset constants and synthetic data retained for existing fixtures."""
 
-reference_video_url stands in for Files.presignDownload (removed by S25);
-check_demo_photoshoot stands in for the Photoshoots table (removed by S25).
-STUB_SONG and STUB_STYLES are ids and data that other modules' stubs and tests import.
-"""
-
-from app.photoshoots import service as photoshoots
 from app.shared.types import Song, Style
 
 GOLDEN_HOUR_ID = "11111111-1111-4111-8111-111111111111"
@@ -50,11 +44,3 @@ STUB_STYLES = [
         reference_job_id=None,
     ),
 ]
-
-
-def reference_video_url(job_id: str) -> str:
-    return "/stub-media/reference.mp4"
-
-
-def check_demo_photoshoot(photoshoot_id: str) -> None:
-    photoshoots.get_photoshoot(photoshoot_id)

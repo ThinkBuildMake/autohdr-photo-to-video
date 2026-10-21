@@ -9,8 +9,9 @@ from sqlalchemy.exc import IntegrityError
 from app.db.base import session_scope
 from app.errors import AppError
 from app.files.service import presign_download
-from app.library import models, stubs
+from app.library import models
 from app.library.schemas import StyleCreate, StyleUpdate
+from app.photoshoots import service as photoshoots
 from app.shared.types import Song, Style, StyleSummary
 
 
@@ -81,7 +82,17 @@ def reference_video_url(style_id: str) -> str | None:
     style = get_style(style_id)
     if style.reference_job_id is None:
         return None
-    return stubs.reference_video_url(style.reference_job_id)
+    from app.jobs.queue import get_job
+
+    try:
+        job = get_job(style.reference_job_id)
+    except AppError as error:
+        if error.code == "job_not_found":
+            return None
+        raise
+    if job.status not in ("ready", "ready_with_failures") or job.video is None:
+        return None
+    return job.video.url
 
 
 def song_preview_url(song_id: str) -> str:
@@ -121,7 +132,7 @@ def _is_unique_name_error(error: IntegrityError) -> bool:
 def create_style(body: StyleCreate) -> Style:
     _check_text_and_fps(body.style_text, body.fps)
     if body.demo_photoshoot_id is not None:
-        stubs.check_demo_photoshoot(body.demo_photoshoot_id)
+        photoshoots.get_photoshoot(body.demo_photoshoot_id)
     style_id = str(uuid.uuid4())
     try:
         with session_scope() as session:
@@ -161,6 +172,15 @@ def update_style(style_id: str, body: StyleUpdate) -> Style:
                 raise StyleNotFound(style_id)
             if body.song_id is not None:
                 _check_song(session, body.song_id)
+            if any(
+                value is not None and value != getattr(row, field)
+                for field, value in (
+                    ("style_text", body.style_text),
+                    ("song_id", body.song_id),
+                    ("fps", body.fps),
+                )
+            ):
+                row.reference_job_id = None
             for field, value in body.model_dump(exclude_none=True).items():
                 setattr(row, field, value)
             row.updated_at = _now()

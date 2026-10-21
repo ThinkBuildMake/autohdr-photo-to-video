@@ -22,6 +22,8 @@ def add_job(
     style_text="t",
     video_key="default",
     label="12 Oak Street",
+    purpose="reproduction",
+    fps=30,
 ) -> str:
     init_db()
     job_id, shoot_id = str(uuid.uuid4()), str(uuid.uuid4())
@@ -30,8 +32,8 @@ def add_job(
     _run("insert into photoshoots (id, label) values (:i, :l)", i=shoot_id, l=label)
     _run(
         "insert into jobs (id, style_id, style_text, photoshoot_id, song_id, song_offset_s, fps,"
-        " plan_status, status, video_key) values (:i, :st, :t, :p, :s, 0, 30, 'ready', :status,"
-        " :vk)",
+        " plan_status, status, video_key, purpose) values (:i, :st, :t, :p, :s, 0, :fps, 'ready',"
+        " :status, :vk, :purpose)",
         i=job_id,
         st=style_id,
         t=style_text,
@@ -39,6 +41,8 @@ def add_job(
         s=song_id,
         status=status,
         vk=video_key,
+        purpose=purpose,
+        fps=fps,
     )
     return job_id
 
