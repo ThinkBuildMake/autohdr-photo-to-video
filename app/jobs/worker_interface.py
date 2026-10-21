@@ -37,6 +37,7 @@ __all__ = [
     "finish_attempt",
     "finish_job",
     "recover_interrupted",
+    "run_context",
     "set_shot_photo",
     "set_shot_result",
     "set_shot_state",
@@ -178,6 +179,8 @@ def cut_plan(job_id: str) -> CutPlan:
         job = session.get(Job, job_id)
         if job is None:
             raise JobNotFound(job_id)
+        if job.status != "running":
+            raise JobNotRunning(job_id)
         shots = session.execute(
             select(
                 JobShot.position,
@@ -311,3 +314,31 @@ def _claimed_job(job_id: str, now: datetime) -> types.Job:
         video=None,
         song_credit=_song_credit(row.song_id),
     )
+
+
+@dataclass(frozen=True)
+class RunContext:
+    round_no: int
+    earlier: list[tuple[str, str | None]]
+
+
+def run_context(job_shot_id: str) -> RunContext:
+    """Current round and ordered attempt outcomes, scoped to this shot alone."""
+    with session_scope() as session:
+        shot = session.get(JobShot, job_shot_id)
+        if shot is None:
+            raise LookupError(f"No shot with id {job_shot_id}")
+        attempts = session.scalars(
+            select(Attempt)
+            .where(Attempt.job_shot_id == shot.id, Attempt.round == shot.round)
+            .order_by(Attempt.attempt_no)
+        ).all()
+        earlier = []
+        for attempt in attempts:
+            kind = attempt.status
+            if attempt.error:
+                kind = attempt.error.split(":", 1)[0]
+                if ": check:" in attempt.error or ": check failed" in attempt.error:
+                    kind = f"check_error:{kind}"
+            earlier.append((attempt.model, kind))
+        return RunContext(shot.round, earlier)

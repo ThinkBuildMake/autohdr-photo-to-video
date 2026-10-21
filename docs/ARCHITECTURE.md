@@ -581,6 +581,8 @@ Job {
   elapsedS     now − submittedAt while running, finishedAt − submittedAt after
   totalCostUsd
   waitingBehind  id of the running job when this one is queued, else null (SC-1)
+  waitingBehindLabel  photoshoot label of that running job, else null
+  photoCount     number of photos in the job's photoshoot
   shots        JobShot[]
   video        { url, durationS, width, height, version } or null
                version is jobs.video_version (INDEX architectural issue 3)

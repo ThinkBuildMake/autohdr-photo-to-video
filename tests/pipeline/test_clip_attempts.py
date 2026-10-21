@@ -2,13 +2,14 @@ from pathlib import Path
 
 import pytest
 
+from app.jobs import worker_interface as jobs
 from app.jobs.errors import AttemptLimitReached
 from app.media.errors import MediaError
-from app.pipeline import clip, clip_stubs
+from app.pipeline import clip
 from app.providers.errors import ProviderError
 from app.shared.enums import ProviderErrorKind
 from tests.pipeline import clip_world
-from tests.pipeline.clip_world import flagged_check, make_shot, passed_check
+from tests.pipeline.clip_world import BUCKET, flagged_check, make_shot, passed_check
 
 JOB = "J"
 
@@ -38,7 +39,7 @@ def test_flagged_clip_is_tried_again(monkeypatch, tmp_path):
         "failure_reason": None,
         "final_attempt_id": "att-2-2",
     }
-    assert "jobs/J/shots/2/r0/a2.mp4" in clip_stubs.BUCKET
+    assert "jobs/J/shots/2/r0/a2.mp4" in BUCKET
 
 
 def test_four_flags_fail_the_shot(monkeypatch, tmp_path):
@@ -179,7 +180,7 @@ def test_attempt_limit_ends_the_loop(monkeypatch, tmp_path):
         world.record("start_attempt_refused", shot=shot.id)
         raise AttemptLimitReached()
 
-    monkeypatch.setattr(clip_stubs, "start_attempt", limit)
+    monkeypatch.setattr(jobs, "start_attempt", limit)
 
     assert run(world, shot, tmp_path) is None
 

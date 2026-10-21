@@ -169,3 +169,53 @@ def test_resumed_shot_marked_as_using_the_fallback_keeps_it(monkeypatch, tmp_pat
     clip.make_clip(JOB, shot, 0, b"jpeg", "a prompt", 4.0, tmp_path)
 
     assert models(world, shot) == [SEEDANCE]
+
+
+def test_fallback_uses_its_own_allowed_duration(monkeypatch, tmp_path):
+    from app.providers import interface as providers
+
+    world = clip_world.install(monkeypatch)
+    shot = make_shot(4, length_s=5)
+    world.generate[shot.id] = ["refused"]
+    monkeypatch.setattr(providers, "allowed_lengths", lambda model: [4, 8] if model == VEO else [6])
+
+    run(shot, tmp_path)
+
+    assert [a["requested_s"] for a in world.attempts(shot.id)] == [8, 6]
+
+
+def test_empty_allowed_lengths_fail_clearly(monkeypatch):
+    from app.pipeline import prompt
+    from app.providers import interface as providers
+
+    monkeypatch.setattr(providers, "allowed_lengths", lambda model: [])
+    with pytest.raises(ValueError, match="no allowed clip lengths"):
+        prompt.clip_length(make_shot(1))
+
+
+def test_resumed_check_error_never_switches_model(monkeypatch, tmp_path):
+    world = clip_world.install(monkeypatch)
+    shot = make_shot(4, attempts=2)
+
+    clip.make_clip(
+        JOB,
+        shot,
+        0,
+        b"jpeg",
+        "prompt",
+        4,
+        tmp_path,
+        [(VEO, "check_error:refused"), (VEO, "check_error:failed")],
+    )
+
+    assert models(world, shot) == [VEO]
+
+
+def test_resumed_all_flagged_round_keeps_failure_reason(monkeypatch, tmp_path):
+    world = clip_world.install(monkeypatch)
+    shot = make_shot(4, attempts=4)
+
+    clip.make_clip(JOB, shot, 0, b"jpeg", "prompt", 4, tmp_path, [(VEO, "flagged")] * 4)
+
+    assert world.attempts(shot.id) == []
+    assert world.result(shot.id)["failure_reason"] == "flagged_every_attempt"

@@ -171,3 +171,12 @@ def test_submit_never_starts_a_second_running_job(client, song, shoot):
     assert job_row(third)["status"] == "queued"
     for job_id in (second, third):
         assert client.get(f"/api/jobs/{job_id}").json()["job"]["waitingBehind"] == running
+
+
+def test_magic_stub_id_is_not_a_job(client):
+    from app.jobs.stubs import STUB_JOB_ID
+
+    for suffix in ("", "/video"):
+        response = client.get(f"/api/jobs/{STUB_JOB_ID}{suffix}")
+        assert response.status_code == 404
+        assert response.json()["error"] == "job_not_found"

@@ -13,35 +13,35 @@
 {% set left_out = shots | selectattr("status", "in", ["failed", "skipped"]) | list %}
 <div id="job" class="screen"{% if in_progress %} hx-get="/jobs/{{ job.id }}" hx-trigger="every 5s" hx-select="#job" hx-swap="outerHTML"{% endif %}>
 <div class="row spread"><h1>Your video</h1>{% if links %}<a class="btn" href="/jobs/{{ job.id }}/edit">Open in editor</a>{% endif %}</div>
-<div class="muted meta">Style: {{ job.style_name }}
+<div class="muted meta">{% if job.photoshoot_label %}{{ job.photoshoot_label }}{% if job.photo_count %}, {{ job.photo_count }} photo{{ "s" if job.photo_count != 1 }}{% endif %} · {% endif %}Style: {{ job.style_name }}
   {%- if job.submitted_at %} · Submitted <time datetime="{{ job.submitted_at }}">{{ job.submitted_at }}</time>{% endif %}
   {%- if in_progress %} · Elapsed {{ view.elapsed(job.elapsed_s) }}{% endif %}</div>
 <p class="error action-error" role="alert"></p>
 
 {% if job.status == "running" %}
 {% set finished = shots | selectattr("status", "in", ["passed", "failed", "skipped"]) | list | length %}
-<div class="banner b-info"><strong>Making your video: {{ finished }} of {{ shots | length }} shots finished</strong><span>All shots are made at the same time. Usually under 10 minutes, never more than 30. You can close this page and come back from Jobs.</span></div>
+<div class="banner b-info"><strong>Making your video: {{ finished }} of {{ shots | length }} shots finished</strong><span>Shots are made in parallel. Target: under 10 minutes, within 30 minutes of submitting, including retries. Waiting and provider delays can take longer. You can close this page and come back from Jobs.</span></div>
 {% elif job.status == "queued" %}
 <div class="banner b-warn">
   {% if job.waiting_behind %}
-  <strong>Waiting for job <a href="/jobs/{{ job.waiting_behind }}">{{ job.waiting_behind[:8] }}</a> to finish</strong>
+  <strong>Waiting: another video is being made</strong>
+  <span>Waiting for job <a href="/jobs/{{ job.waiting_behind }}">{{ job.waiting_behind[:8] }}</a> to finish.</span>
   {% else %}
   <strong>Waiting to start</strong>
   {% endif %}
-  <span>This tool makes one video at a time. Yours starts as soon as the one before it finishes.</span>
+  <span>This tool makes one video at a time. Yours starts as soon as {% if job.waiting_behind_label %}the {{ job.waiting_behind_label }} video{% else %}the one before it{% endif %} finishes. Estimated wait: usually under 10 minutes; provider delays can take longer.</span>
 </div>
 {% elif job.status == "stopped" %}
 {% set title, advice = view.stop_message(job.stop_reason) %}
 <div class="banner b-err"><strong>{{ title }}</strong><span>{{ advice }}</span>
+  {% set kept = shots | selectattr("status", "equalto", "passed") | map(attribute="position") | list %}
+  {% if kept %}<span>Shot{{ "s" if kept | length > 1 }} {{ view.shot_numbers(kept) }} {{ "are" if kept | length > 1 else "is" }} finished and kept.</span>{% endif %}
   <div class="row"><button class="btn alt" type="button" hx-post="/api/jobs/{{ job.id }}/restart" hx-swap="none" hx-disabled-elt="this">Start again</button></div>
 </div>
-{% elif job.status == "ready" %}
+{% elif done %}
 <div class="banner b-ok"><strong>Your video is ready</strong><span>Took {{ view.elapsed(job.elapsed_s) }}. Watch it before you send it to the agent.</span></div>
 {% endif %}
 
-{% if links %}
-{% set song, source = view.credit_parts(job.song_credit) %}
-<div class="card player">
   {% if done and left_out %}
   <div class="banner b-warn failures">
     <strong>Ready, with {{ left_out | length }} shot{{ "s" if left_out | length > 1 }} that did not work</strong>
@@ -53,11 +53,15 @@
     </ul>
   </div>
   {% endif %}
+
+{% if links %}
+{% set song, source = view.credit_parts(job.song_credit) %}
+<div class="card player">
   <video controls preload="metadata" src="{{ links.url }}"></video>
   <div class="row">
     <a class="btn" href="{{ links.download_url }}" download>Download video</a>
     <span class="small">Version {{ job.video.version }} · {{ job.video.width }} × {{ job.video.height }}</span>
-    <span class="small credit">Song: {{ song }}{% if source %} · <a href="{{ source }}">source</a>{% endif %}</span>
+    <span class="small credit">Song: {{ song }}{% if source %} · <a href="{{ source }}">source</a>{% endif %} · demo use only</span>
   </div>
 </div>
 {% endif %}
@@ -68,9 +72,15 @@
   {% set label, tone = view.shot_chip(shot) %}
   <div class="card shot" id="shot-{{ shot.position }}">
     <div class="row spread"><h3>Shot {{ shot.position }} · {{ view.words(shot.room) }}</h3><span class="chip tone-{{ tone }}">{{ label }}</span></div>
+    <div class="pair">
+      <figure>{% if shot.photo_url %}<img alt="Your photo" src="{{ shot.photo_url }}">{% else %}<div class="tile muted">No photo of this room</div>{% endif %}<figcaption>Your photo</figcaption></figure>
+      <figure>{% if shot.first_frame_url %}<img alt="{{ 'Crop-only first frame' if shot.edit_status == 'crop_only' else 'Edited first frame' }}" src="{{ shot.first_frame_url }}">{% else %}<div class="tile muted">First frame pending</div>{% endif %}<figcaption>{{ 'Crop only' if shot.edit_status == 'crop_only' else 'Edited first frame' }}</figcaption></figure>
+    </div>
     <div class="small">{{ view.words(shot.movement_name) }} · {{ view.words(shot.speed) }} · {{ shot.length_s }} s · {{ view.words(shot.transition) }}</div>
     {% if shot.failure_reason %}<div class="muted"><strong>{{ view.failure(shot.failure_reason) }}</strong></div>{% endif %}
     {% if shot.status_detail %}<div class="muted">{{ shot.status_detail }}</div>{% endif %}
+    <div class="small attempts">Attempts: {{ shot.attempts }} of 4 this round</div>
+    {% if shot.edit_status == "edited" %}<div class="small">Photo edited toward the style.</div>{% endif %}
     {% if shot.edit_status == "crop_only" and shot.edit_note %}<div class="small">Photo edit not used (crop only): {{ shot.edit_note }}</div>{% endif %}
     {% if shot.used_fallback %}<div class="small">Made with the fallback model ({{ shot.model }}).</div>{% endif %}
     {% if done and links and shot.photo_id %}<div class="row"><button class="btn alt sm" type="button" hx-post="/api/jobs/{{ job.id }}/shots/{{ shot.position }}/redo" hx-swap="none" hx-disabled-elt="this">Redo this shot</button></div>{% endif %}

@@ -31,3 +31,9 @@
 .screen th { text-align: left; font-weight: 500; color: #566160; padding: 8px; border-bottom: 1px solid #d9dcd8; }
 .screen td { padding: 10px 8px; border-bottom: 1px solid #eceeeb; vertical-align: middle; }
 .screen .tablebox { overflow-x: auto; }
+
+.screen .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.screen .pair figure { margin: 0; min-width: 0; }
+.screen .pair img, .screen .pair .tile { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #e6e8e6; border-radius: 6px; }
+.screen .pair .tile { display: grid; place-items: center; text-align: center; }
+.screen .pair figcaption { font-size: 12px; color: #566160; margin-top: 4px; }

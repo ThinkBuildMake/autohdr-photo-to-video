@@ -34,8 +34,10 @@ def plan_shots(
     return _impl().plan_shots(style_text, song_duration_s, photos, movements, allowed_lengths, ids)
 
 
-def edit_photo(jpeg_bytes: bytes, prompt: str, ids: dict[str, Any]) -> bytes:
-    return _impl().edit_photo(jpeg_bytes, prompt, ids)
+def edit_photo(
+    jpeg_bytes: bytes, prompt: str, ids: dict[str, Any], model: str | None = None
+) -> bytes:
+    return _impl().edit_photo(jpeg_bytes, prompt, ids, model)
 
 
 def check_edit(original_jpeg: bytes, edited_jpeg: bytes, ids: dict[str, Any]) -> EditCheck:

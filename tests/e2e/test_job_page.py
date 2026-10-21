@@ -93,12 +93,24 @@ def test_a_failed_poll_says_so_and_keeps_trying(page, live_server, stub_jobs):  
 def test_queued_job_says_what_it_waits_for(page, live_server, stub_jobs):  # noqa: F811
     running_id = "a1b2c3d4-0000-4000-8000-00000000000a"
     stub_jobs.add(
-        job(JOB_B, status=JobStatus.queued, waiting_behind=running_id, finished_at=None, video=None)
+        job(
+            JOB_B,
+            status=JobStatus.queued,
+            waiting_behind=running_id,
+            waiting_behind_label="Condo",
+            finished_at=None,
+            video=None,
+        )
     )
 
     page.goto(f"{live_server}/jobs/{JOB_B}")
 
-    assert page.get_by_text("Waiting for job a1b2c3d4 to finish").is_visible()
+    assert page.get_by_text("Waiting: another video is being made").is_visible()
+    assert page.get_by_text("Waiting for job a1b2c3d4 to finish.").is_visible()
+    assert (
+        "Yours starts as soon as the Condo video finishes" in page.locator(".b-warn").inner_text()
+    )
+    assert "Estimated wait: usually under 10 minutes" in page.locator(".b-warn").inner_text()
     assert page.get_by_role("link", name="a1b2c3d4").get_attribute("href") == f"/jobs/{running_id}"
 
 
@@ -127,7 +139,17 @@ def test_stopped_job_names_the_reason(page, live_server, stub_jobs):  # noqa: F8
 
     banner = page.locator(".banner.b-err")
     assert "the video service account is out of credit" in banner.inner_text()
+    assert "Shots 1, 2, 3 and 4 are finished and kept." in banner.inner_text()
     assert banner.get_by_role("button", name="Start again").is_visible()
+
+
+def test_header_names_the_property_and_photos(page, live_server, stub_jobs):  # noqa: F811
+    stub_jobs.add(job(photoshoot_label="4-bed house", photo_count=28))
+
+    page.goto(f"{live_server}/jobs/{JOB_A}")
+
+    assert page.locator(".meta").inner_text().startswith("4-bed house, 28 photos · Style:")
+    assert "Took 5 min. Watch it before you send it to the agent." in page.inner_text("#job")
 
 
 def ready_with_failures(*failed_shots):
@@ -144,6 +166,7 @@ def test_failed_shot_is_marked_beside_the_player(page, live_server, stub_jobs): 
                 status=ShotStatus.failed,
                 failure_reason=FailureReason.flagged_every_attempt,
                 status_detail=CHECK_NOTES,
+                attempts=4,
             )
         )
     )
@@ -152,11 +175,13 @@ def test_failed_shot_is_marked_beside_the_player(page, live_server, stub_jobs): 
 
     player = page.locator(".player")
     assert player.locator("video").count() == 1
-    failures = player.locator(".failures").inner_text()
+    failures = page.locator("#job > .failures").inner_text()
+    assert page.locator(".failures").bounding_box()["y"] < player.bounding_box()["y"]
     assert "Shot 3" in failures
     assert "Failed the check on every attempt" in failures
     assert CHECK_NOTES in failures
     assert page.locator("#shot-3 .chip").inner_text() == "Failed"
+    assert page.locator("#shot-3 .attempts").inner_text() == "Attempts: 4 of 4 this round"
     assert CHECK_NOTES in page.locator("#shot-3").inner_text()
 
 
@@ -171,7 +196,7 @@ def test_every_failed_shot_is_listed_with_its_reason(page, live_server, stub_job
 
     page.goto(f"{live_server}/jobs/{JOB_A}")
 
-    items = page.locator(".player .failures li").all_inner_texts()
+    items = page.locator("#job > .failures li").all_inner_texts()
     assert len(items) == 3
     assert "Shot 2" in items[0] and "The video service returned an error" in items[0]
     assert "Shot 3" in items[1] and "The video service refused this shot" in items[1]
@@ -266,6 +291,7 @@ def test_song_is_credited(page, live_server, stub_jobs):  # noqa: F811
     credit = page.locator(".player .credit")
     text = credit.inner_text()
     assert "Track A" in text and "Artist A" in text and "BY-NC" in text
+    assert "demo use only" in text
     assert credit.get_by_role("link").get_attribute("href") == SOURCE_URL
 
 

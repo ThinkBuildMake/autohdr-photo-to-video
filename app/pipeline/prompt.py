@@ -16,9 +16,11 @@ def build_prompt(shot: JobShot) -> str:
     return f"{shot.movement_prompt.rstrip('. ')}. Camera speed: {shot.speed}. {LOCK_TEXT}"
 
 
-def clip_length(shot: JobShot) -> float:
+def clip_length(shot: JobShot, model: str | None = None) -> float:
     """The shortest allowed length covering the shot and its incoming crossfade. Plan position 1
     has no incoming transition, even when it is not the first shot being made."""
     need = round(shot.length_s + (shot.transition_s if shot.position > 1 else 0.0), 3)
-    allowed = sorted(providers.allowed_lengths(shot.model))
+    allowed = sorted(providers.allowed_lengths(model or shot.model))
+    if not allowed:
+        raise ValueError("The video model has no allowed clip lengths")
     return next((s for s in allowed if s >= need), allowed[-1])

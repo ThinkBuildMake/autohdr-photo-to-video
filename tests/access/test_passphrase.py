@@ -92,7 +92,7 @@ def test_passphrase_never_logged(bare_client, caplog, capfd):
         assert secret not in captured
 
 
-def test_passphrase_is_the_only_gate_on_paid_jobs(bare_client):
+def test_passphrase_is_the_only_gate_on_paid_jobs(bare_client, bucket):
     song = add_song()
     shoot_id, photos = add_shoot()
 

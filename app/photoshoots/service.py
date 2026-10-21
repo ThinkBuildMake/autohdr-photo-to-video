@@ -194,6 +194,27 @@ def list_photos(photoshoot_id: str) -> list[Photo]:
     return _read(photoshoot_id, only_uploaded=True)[1]
 
 
+def photo_bytes(photoshoot_id: str, photo_id: str) -> bytes:
+    """Read the original uploaded photo, scoped to its photoshoot."""
+    with session_scope() as session:
+        if session.get(Photoshoot, photoshoot_id) is None:
+            raise PhotoshootNotFound(photoshoot_id)
+        row = session.scalar(
+            select(PhotoRow).where(PhotoRow.id == photo_id, PhotoRow.photoshoot_id == photoshoot_id)
+        )
+        if row is None:
+            raise AppError(
+                404, "photo_not_found", f"No photo with id {photo_id} in this photoshoot."
+            )
+        if row.status != "uploaded":
+            raise AppError(400, "photo_not_uploaded", "The photo has not been uploaded.")
+        file_key = row.file_key
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "photo"
+        files.get(file_key, str(path))
+        return path.read_bytes()
+
+
 def planner_photos(photoshoot_id: str) -> list[dict]:
     """Uploaded photos in upload order, as the planner's {photoId, room, subject, jpegBytes}."""
     with session_scope() as session:

@@ -1,14 +1,21 @@
-"""The scripted world make_clip runs in: every clip_stubs function replaced, time faked."""
+"""The scripted world make_clip runs in: external boundaries scripted, time faked."""
 
 import os
 import tempfile
 import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 
-from app.pipeline import clip, clip_stubs
+from app.files import service as files
+from app.jobs import worker_interface as jobs
+from app.media import service as media
+from app.pipeline import clip
+from app.providers import interface as providers
 from app.providers.errors import ProviderError
 from app.shared.enums import ProviderErrorKind
 from app.shared.types import ClipCheck, ClipResult, JobShot
+
+BUCKET = {}
 
 
 def passed_check() -> ClipCheck:
@@ -77,7 +84,7 @@ class ClipWorld:
     checks: dict[str, list] = field(default_factory=dict)
     frame_errors: dict[str, list] = field(default_factory=dict)
     clip_paths: list[str] = field(default_factory=list)
-    current_shot: str = ""
+    current_shot: threading.local = field(default_factory=threading.local)
     lock: threading.Lock = field(default_factory=threading.Lock)
     _shots: dict[str, int] = field(default_factory=dict)
     _attempt_shot: dict[str, str] = field(default_factory=dict)
@@ -133,6 +140,7 @@ def _as_error(item) -> ProviderError:
 
 def install(monkeypatch) -> ClipWorld:
     world = ClipWorld()
+    monkeypatch.setattr(providers, "allowed_lengths", lambda model: [4.0, 6.0, 8.0])
 
     def set_shot_state(job_shot_id, status, detail):
         world.record("set_shot_state", shot=job_shot_id, status=status, detail=detail)
@@ -185,7 +193,7 @@ def install(monkeypatch) -> ClipWorld:
         os.write(fd, b"clip")
         os.close(fd)
         world.clip_paths.append(path)
-        world.current_shot = shot
+        world.current_shot.id = shot
         return ClipResult(
             path=path,
             seconds=length_s,
@@ -197,7 +205,7 @@ def install(monkeypatch) -> ClipWorld:
 
     def extract_frames(clip_path, per_second):
         world.record("extract_frames", path=clip_path)
-        shot = world.current_shot
+        shot = world.current_shot.id
         step = world._next(world.frame_errors, shot, None)
         if step is not None:
             raise step
@@ -214,20 +222,21 @@ def install(monkeypatch) -> ClipWorld:
 
     def put(key, path):
         world.record("put", key=key)
-        clip_stubs.BUCKET[key] = b"clip"
+        BUCKET[key] = b"clip"
 
     def wait(seconds):
         world.record("wait", seconds=seconds)
         world.clock.now += seconds
 
-    monkeypatch.setattr(clip_stubs, "set_shot_state", set_shot_state)
-    monkeypatch.setattr(clip_stubs, "start_attempt", start_attempt)
-    monkeypatch.setattr(clip_stubs, "finish_attempt", finish_attempt)
-    monkeypatch.setattr(clip_stubs, "set_shot_result", set_shot_result)
-    monkeypatch.setattr(clip_stubs, "generate_clip", generate_clip)
-    monkeypatch.setattr(clip_stubs, "extract_frames", extract_frames)
-    monkeypatch.setattr(clip_stubs, "check_clip", check_clip)
-    monkeypatch.setattr(clip_stubs, "put", put)
+    monkeypatch.setattr(jobs, "set_shot_state", set_shot_state)
+    monkeypatch.setattr(jobs, "start_attempt", start_attempt)
+    monkeypatch.setattr(jobs, "finish_attempt", finish_attempt)
+    monkeypatch.setattr(jobs, "set_shot_result", set_shot_result)
+    monkeypatch.setattr(providers, "generate_clip", generate_clip)
+    monkeypatch.setattr(media, "extract_frames", extract_frames)
+    monkeypatch.setattr(providers, "check_clip", check_clip)
+    monkeypatch.setattr(files, "put", put)
+    monkeypatch.setattr(files, "get", lambda key, path: Path(path).write_bytes(BUCKET[key]))
     monkeypatch.setattr(clip, "_wait", wait)
-    clip_stubs.BUCKET.clear()
+    BUCKET.clear()
     return world

@@ -7,12 +7,12 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from app.comparison import service as comparison
+from app.files import service as files
 from app.files.keys import video_key
 from app.jobs import worker_interface
 from app.jobs.errors import JobNotRunning
 from app.jobs.worker_interface import CutPlan, CutShot
 from app.media import service as media
-from app.pipeline import clip_stubs
 from app.providers.errors import ProviderError
 from app.shared.enums import ProviderErrorKind, StopReason
 from app.shared.types import Job
@@ -40,7 +40,7 @@ class Run:
 
     def has_time(self) -> bool:
         """True while the deadline leaves time for one more clip and check (PF-3)."""
-        return now_utc() + CLIP_AND_CHECK <= self.deadline
+        return not self.stopped and now_utc() + CLIP_AND_CHECK <= self.deadline
 
     def stop(self, reason: StopReason) -> None:
         self.stopped = True
@@ -61,14 +61,17 @@ class Run:
                 return
             log.exception("shot %s failed", shot_id)
             with contextlib.suppress(Exception):
-                clip_stubs.set_shot_result(shot_id, "failed", "provider_error")
+                worker_interface.set_shot_result(shot_id, "failed", "provider_error")
 
 
 def finish_run(run: Run, folder: Path) -> None:
     """Cut the passed shots to the song and finish the job, or stop it with the reason."""
     if run.stopped:
         return
-    plan = worker_interface.cut_plan(run.job_id)
+    try:
+        plan = worker_interface.cut_plan(run.job_id)
+    except JobNotRunning:
+        return
     passed = [shot for shot in plan.shots if shot.status == "passed"]
     if not passed:
         run.stop(StopReason.no_shot_passed)
@@ -77,6 +80,8 @@ def finish_run(run: Run, folder: Path) -> None:
         video = _cut(run.job_id, plan, passed, folder / "cut")
         status = "ready" if len(passed) == len(plan.shots) else "ready_with_failures"
         worker_interface.finish_job(run.job_id, status, video=video)
+    except JobNotRunning:
+        return
     except Exception:
         log.exception("job %s could not be cut", run.job_id)
         run.stop(StopReason.assembly_failed)
@@ -92,7 +97,7 @@ def _cut(job_id: str, plan: CutPlan, passed: list[CutShot], folder: Path) -> dic
     clips = []
     for shot in passed:
         path = str(folder / f"{shot.position}.mp4")
-        clip_stubs.get(shot.clip_key, path)
+        files.get(shot.clip_key, path)
         clips.append(
             {
                 "path": path,
@@ -102,11 +107,12 @@ def _cut(job_id: str, plan: CutPlan, passed: list[CutShot], folder: Path) -> dic
             }
         )
     song = str(folder / f"song{Path(plan.song_key).suffix}")
-    clip_stubs.get(plan.song_key, song)
+    files.get(plan.song_key, song)
     out = str(folder / "video.mp4")
     result = media.assemble(clips, song, plan.song_offset_s, out, WIDTH, HEIGHT, plan.fps)
     key = video_key(job_id, plan.video_version + 1)
-    clip_stubs.put(key, out)
+    worker_interface.cut_plan(job_id)
+    files.put(key, out)
     return {
         "key": key,
         "duration_s": result["durationS"],

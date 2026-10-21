@@ -1,6 +1,6 @@
 """A seeded job driven through the run state: real Jobs tables, scripted clips, fake clock.
 
-Jobs calls in clip_stubs go to the real Jobs interface; Files stay in clip_stubs.BUCKET;
+Jobs calls in clip_stubs go to the real Jobs interface; Files stay in BUCKET;
 generate_clip and check_clip are scripted per shot position; Media.assemble and
 Comparison.record_cuts are recorded at their module boundaries.
 """
@@ -14,13 +14,16 @@ from sqlalchemy import text
 
 from app.comparison import service as comparison
 from app.db.base import session_scope
+from app.files import service as files
 from app.jobs import shot_writes, worker_interface
+from app.jobs import worker_interface as jobs
 from app.media import service as media
-from app.pipeline import clip, clip_stubs, run
+from app.pipeline import clip, run
+from app.providers import interface as providers
 from app.providers.errors import ProviderError
 from app.shared.enums import ProviderErrorKind
 from app.shared.types import ClipResult, Job
-from tests.pipeline.clip_world import passed_check
+from tests.pipeline.clip_world import BUCKET, passed_check
 from tests.support.library_rows import add_song
 from tests.support.worker_rows import add_job, add_shoot, rows
 
@@ -50,7 +53,7 @@ class World:
     def seed(self, shots: list[dict], video_version: int = 0) -> str:
         """A queued job. shots: [{position, length_s?, transition?, transition_s?, removed?}]."""
         song = add_song()
-        clip_stubs.BUCKET[f"songs/{song}.mp3"] = b"song"
+        BUCKET[f"songs/{song}.mp3"] = b"song"
         shoot, _ = add_shoot(0)
         job = add_job(
             shoot, song, submitted_at="2026-10-19T09:59:00.000Z", video_version=video_version
@@ -80,7 +83,7 @@ class World:
     def pass_shot(self, job_id: str, position: int) -> None:
         """Mark a seeded shot passed with a final clip in the bucket, as an earlier run left it."""
         key = f"jobs/{job_id}/shots/{position}/r0/a1.mp4"
-        clip_stubs.BUCKET[key] = f"clip-{position}".encode()
+        BUCKET[key] = f"clip-{position}".encode()
         shot = rows(
             "select id from job_shots where job_id = :j and position = :p", j=job_id, p=position
         )[0]["id"]
@@ -112,7 +115,7 @@ class World:
         return state
 
     def _make(self, job: Job, shot, state: run.Run) -> None:
-        clip_stubs.set_shot_state(shot.id, "editing", "Preparing the photo")
+        jobs.set_shot_state(shot.id, "editing", "Preparing the photo")
         folder = self.folder / str(shot.position)
         folder.mkdir(parents=True, exist_ok=True)
         clip.make_clip(
@@ -139,10 +142,15 @@ def _error(item) -> Exception:
 
 def install(monkeypatch, tmp_path) -> World:
     world = World(folder=tmp_path / "job")
+    monkeypatch.setattr(providers, "allowed_lengths", lambda model: [4.0, 6.0, 8.0])
+    monkeypatch.setattr(
+        files, "put", lambda key, path: BUCKET.__setitem__(key, Path(path).read_bytes())
+    )
+    monkeypatch.setattr(files, "get", lambda key, path: Path(path).write_bytes(BUCKET[key]))
     monkeypatch.setattr(shot_writes, "now_utc", lambda: world.now)
     monkeypatch.setattr(run, "now_utc", lambda: world.now)
     for name in ("set_shot_state", "start_attempt", "finish_attempt", "set_shot_result"):
-        monkeypatch.setattr(clip_stubs, name, getattr(worker_interface, name))
+        monkeypatch.setattr(jobs, name, getattr(worker_interface, name))
 
     def generate_clip(first_frame_jpeg, prompt, model, length_s, ids):
         position = world.positions[ids["jobShotId"]]
@@ -186,13 +194,13 @@ def install(monkeypatch, tmp_path) -> World:
     def record_cuts(job_id):
         world.cuts.append((job_id, world.job(job_id)["status"]))
 
-    monkeypatch.setattr(clip_stubs, "generate_clip", generate_clip)
-    monkeypatch.setattr(clip_stubs, "check_clip", check_clip)
-    monkeypatch.setattr(clip_stubs, "extract_frames", lambda clip_path, per_second: [])
+    monkeypatch.setattr(providers, "generate_clip", generate_clip)
+    monkeypatch.setattr(providers, "check_clip", check_clip)
+    monkeypatch.setattr(media, "extract_frames", lambda clip_path, per_second: [])
     monkeypatch.setattr(clip, "_wait", lambda seconds: None)
     monkeypatch.setattr(media, "assemble", assemble)
     monkeypatch.setattr(comparison, "record_cuts", record_cuts)
-    clip_stubs.BUCKET.clear()
+    BUCKET.clear()
     return world
 
 

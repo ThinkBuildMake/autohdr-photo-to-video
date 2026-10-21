@@ -5,14 +5,12 @@ from sqlalchemy import func, select, update
 from app.db.base import session_scope
 from app.errors import AppError
 from app.files import service as files
-from app.jobs import models, reading, stubs
+from app.jobs import models, reading
 from app.jobs.errors import JobNotFound
 from app.shared.types import Job, JobListItem
 
 
 def get_job(job_id: str) -> Job:
-    if job_id == stubs.STUB_JOB_ID:
-        return stubs.stub_job()
     return reading.load_job(job_id)
 
 
@@ -68,8 +66,6 @@ def submit_job(job_id: str) -> Job:
 
 
 def get_video(job_id: str) -> dict:
-    if job_id == stubs.STUB_JOB_ID:
-        return stubs.stub_video_links()
     with session_scope() as session:
         row = session.get(models.Job, job_id)
         if row is None:

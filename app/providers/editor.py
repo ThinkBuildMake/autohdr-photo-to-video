@@ -48,9 +48,13 @@ def _edit_with(model: str, text: str, jpeg_bytes: bytes, ids: dict[str, Any]) ->
     return _to_jpeg(answer.images[0], answer.call_id)
 
 
-def edit_photo(jpeg_bytes: bytes, prompt: str, ids: dict[str, Any]) -> bytes:
+def edit_photo(
+    jpeg_bytes: bytes, prompt: str, ids: dict[str, Any], model: str | None = None
+) -> bytes:
     settings = get_settings()
     text = _with_preserve(prompt)
+    if model is not None:
+        return _edit_with(model, text, jpeg_bytes, ids)
     try:
         return _edit_with(settings.ENHANCE_MODEL, text, jpeg_bytes, ids)
     except ProviderError as error:

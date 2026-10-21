@@ -97,6 +97,8 @@ class JobShot(CamelModel):
     failure_reason: FailureReason | None
     attempts: int
     clip_url: str | None
+    photo_url: str | None = None
+    first_frame_url: str | None = None
 
 
 class JobVideo(CamelModel):
@@ -108,6 +110,9 @@ class JobVideo(CamelModel):
 
 
 class Job(CamelModel):
+    photoshoot_label: str | None = None
+    photo_count: int = 0
+    waiting_behind_label: str | None = None
     id: str
     style_id: str | None
     style_name: str

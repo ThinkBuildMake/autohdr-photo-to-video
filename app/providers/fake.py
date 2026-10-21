@@ -129,8 +129,15 @@ class FakeProviders:
 
         return _run("plan_shots", settings.PLANNER_MODEL, ids, make)
 
-    def edit_photo(self, jpeg_bytes: bytes, prompt: str, ids: dict[str, Any]) -> bytes:
-        return _run("edit_photo", get_settings().ENHANCE_MODEL, ids, lambda: _fixed_jpeg())
+    def edit_photo(
+        self, jpeg_bytes: bytes, prompt: str, ids: dict[str, Any], model: str | None = None
+    ) -> bytes:
+        return _run(
+            "edit_photo",
+            model if model is not None else get_settings().ENHANCE_MODEL,
+            ids,
+            lambda: _fixed_jpeg(),
+        )
 
     def check_edit(
         self, original_jpeg: bytes, edited_jpeg: bytes, ids: dict[str, Any]

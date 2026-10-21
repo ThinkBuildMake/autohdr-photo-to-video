@@ -84,3 +84,9 @@ def elapsed(seconds: float) -> str:
     if secs or not (hours or minutes):
         parts.append(f"{secs} s")
     return " ".join(part for part in parts if part)
+
+
+def shot_numbers(positions: list[int]) -> str:
+    if len(positions) == 1:
+        return str(positions[0])
+    return ", ".join(map(str, positions[:-1])) + " and " + str(positions[-1])

@@ -1,8 +1,8 @@
 import pytest
 
-from app.pipeline import clip_stubs, run
+from app.pipeline import run
 from tests.pipeline import run_world
-from tests.pipeline.clip_world import flagged_check
+from tests.pipeline.clip_world import BUCKET, flagged_check
 from tests.pipeline.run_world import at
 
 SIX = [{"position": p} for p in range(1, 7)]
@@ -46,7 +46,7 @@ def test_out_of_credit_stops_the_job(monkeypatch, tmp_path):
     shots = world.shots(job_id)
     for position in (1, 2):
         assert shots[position]["status"] == "passed"
-        assert shots[position]["clip_key"] in clip_stubs.BUCKET
+        assert shots[position]["clip_key"] in BUCKET
     for position in (3, 4, 5, 6):
         assert (shots[position]["status"], shots[position]["failure_reason"]) == (
             "failed",

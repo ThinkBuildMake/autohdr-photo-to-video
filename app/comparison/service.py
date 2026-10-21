@@ -3,7 +3,9 @@
 import logging
 from collections import Counter
 from itertools import accumulate
+from pathlib import Path
 from statistics import median
+from tempfile import TemporaryDirectory
 
 from sqlalchemy import delete, select
 
@@ -20,11 +22,13 @@ from app.comparison.schemas import (
 )
 from app.db.base import session_scope
 from app.errors import AppError
+from app.files import service as files
 from app.jobs.errors import JobNotFound
 from app.jobs.models import Job, JobShot
 from app.library import service as library
 from app.library.models import Style as StyleRow
 from app.library.service import StyleNotFound
+from app.media import service as media
 from app.photoshoots.models import Photoshoot
 from app.shared.types import Style
 
@@ -165,7 +169,10 @@ def record_cuts(job_id: str) -> None:
         ).all()
     shots = [shot for shot in shots if _in_video(shot)]
     try:
-        detected = stubs.detect_cuts(video_key)
+        with TemporaryDirectory() as folder:
+            path = str(Path(folder) / "video.mp4")
+            files.get(video_key, path)
+            detected = media.detect_cuts(path)
     except Exception as exc:
         log.warning("cut detection failed for job %s (%s)", job_id, type(exc).__name__)
         detected = []

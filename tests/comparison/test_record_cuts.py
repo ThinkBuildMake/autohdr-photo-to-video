@@ -2,7 +2,9 @@ import logging
 
 import pytest
 
-from app.comparison import service, stubs
+from app.comparison import service
+from app.files import service as files
+from app.media import service as media
 from tests.support.comparison_rows import add_job, add_shot, add_shots, cut_rows, job_status
 from tests.support.library_rows import add_song
 
@@ -14,18 +16,19 @@ def job():
 
 @pytest.fixture
 def detector(monkeypatch):
-    """The stub cut detector: set detector.cuts, or detector.error to make it raise."""
+    """Control the public Files/Media boundaries for cut-matching cases."""
 
     class Detector:
         cuts: list[float] = []
         error: Exception | None = None
 
-    def detect(video_key):
+    def detect(video_path):
         if Detector.error:
             raise Detector.error
         return Detector.cuts
 
-    monkeypatch.setattr(stubs, "detect_cuts", detect)
+    monkeypatch.setattr(files, "get", lambda key, path: None)
+    monkeypatch.setattr(media, "detect_cuts", detect)
     return Detector
 
 

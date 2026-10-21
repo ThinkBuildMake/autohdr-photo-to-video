@@ -9,10 +9,14 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from app.config import get_settings
+from app.files import service as files
 from app.files.keys import attempt_clip_key
+from app.jobs import worker_interface as jobs
 from app.jobs.errors import AttemptLimitReached
+from app.media import service as media
 from app.media.errors import MediaError
-from app.pipeline import clip_stubs
+from app.pipeline.prompt import clip_length
+from app.providers import interface as providers
 from app.providers.errors import ProviderError
 from app.shared.enums import ProviderErrorKind
 from app.shared.types import JobShot
@@ -38,7 +42,7 @@ def _busy_wait_s(retry_after_s: float | None) -> float:
 
 def _record_error(attempt_id: str, error: ProviderError, **fields) -> None:
     """Write the attempt's error at once (RL-1); out_of_credit then goes up to stop the job."""
-    clip_stubs.finish_attempt(attempt_id, "error", error=error, **fields)
+    jobs.finish_attempt(attempt_id, "error", error=error, **fields)
     log.warning("attempt %s failed: %s", attempt_id, error.kind)
     if error.kind == ProviderErrorKind.out_of_credit:
         raise error
@@ -81,7 +85,7 @@ def make_clip(
     except Exception as e:
         if started:
             with contextlib.suppress(Exception):
-                clip_stubs.finish_attempt(
+                jobs.finish_attempt(
                     started[-1],
                     "error",
                     error=ProviderError("failed", f"The worker hit an error: {type(e).__name__}"),
@@ -111,23 +115,24 @@ def _attempts(
             failures += 1
             if failures >= 2:
                 model = fallback
-    last = "provider_error"
-    flagged = 0
-    errored = False
+    last = "refused" if earlier and earlier[-1][1] == "refused" else "provider_error"
+    flagged = sum(kind == "flagged" for _, kind in earlier)
+    errored = any(kind != "flagged" for _, kind in earlier)
     for n in range(shot.attempts + 1, MAX_ATTEMPTS + 1):
         if not has_time():
-            clip_stubs.set_shot_result(shot.id, "failed", "out_of_time")
+            jobs.set_shot_result(shot.id, "failed", "out_of_time")
             return None
+        requested_s = clip_length(shot, model)
         via = f" with the fallback video model ({model})" if model == fallback != shot.model else ""
-        clip_stubs.set_shot_state(shot.id, "generating", f"Attempt {n} of 4: making the clip{via}")
+        jobs.set_shot_state(shot.id, "generating", f"Attempt {n} of 4: making the clip{via}")
         try:
-            attempt_id = clip_stubs.start_attempt(shot.id, prompt, model, requested_s)
+            attempt_id = jobs.start_attempt(shot.id, prompt, model, requested_s)
         except AttemptLimitReached:
             break
         started.append(attempt_id)
         ids = {"jobId": job_id, "jobShotId": shot.id, "attemptId": attempt_id}
         try:
-            result = clip_stubs.generate_clip(first_frame, prompt, model, requested_s, ids)
+            result = providers.generate_clip(first_frame, prompt, model, requested_s, ids)
         except ProviderError as e:
             _record_error(attempt_id, e)
             errored = True
@@ -141,39 +146,41 @@ def _attempts(
                 if failures >= 2:
                     model = fallback
             elif e.kind in _BUSY and n < MAX_ATTEMPTS:
-                clip_stubs.set_shot_state(shot.id, "generating", "Provider busy, trying again")
+                jobs.set_shot_state(shot.id, "generating", "Provider busy, trying again")
                 _wait(_busy_wait_s(e.retry_after_s))
             continue
 
         path = str(folder / f"a{n}.mp4")
         shutil.move(result.path, path)
-        clip_stubs.set_shot_state(shot.id, "checking", f"Attempt {n} of 4: checking the clip{via}")
+        jobs.set_shot_state(shot.id, "checking", f"Attempt {n} of 4: checking the clip{via}")
         try:
             try:
-                frames = clip_stubs.extract_frames(path, get_settings().CHECK_FRAMES_PER_SECOND)
+                frames = media.extract_frames(path, get_settings().CHECK_FRAMES_PER_SECOND)
             except MediaError as e:
                 raise ProviderError("bad_response", "The clip could not be read") from e
-            check = clip_stubs.check_clip(path, frames, first_frame, ids)
+            check = providers.check_clip(path, frames, first_frame, ids)
         except ProviderError as e:
-            _record_error(attempt_id, e, cost_usd=result.cost_usd)
+            _record_error(
+                attempt_id, ProviderError(e.kind, f"check: {e.message}"), cost_usd=result.cost_usd
+            )
             errored = True
             last = "refused" if e.kind == ProviderErrorKind.refused else "provider_error"
             continue
 
         key = attempt_clip_key(job_id, shot.position, round_no, n)
-        clip_stubs.put(key, path)
+        files.put(key, path)
         if check.passed:
-            clip_stubs.finish_attempt(
+            jobs.finish_attempt(
                 attempt_id, "passed", clip_key=key, check=check, cost_usd=result.cost_usd
             )
-            clip_stubs.set_shot_result(shot.id, "passed", final_attempt_id=attempt_id)
+            jobs.set_shot_result(shot.id, "passed", final_attempt_id=attempt_id)
             return attempt_id
-        clip_stubs.finish_attempt(
+        jobs.finish_attempt(
             attempt_id, "flagged", clip_key=key, check=check, cost_usd=result.cost_usd
         )
         flagged += 1
 
     if flagged and not errored:
         last = "flagged_every_attempt"
-    clip_stubs.set_shot_result(shot.id, "failed", last)
+    jobs.set_shot_result(shot.id, "failed", last)
     return None

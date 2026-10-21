@@ -24,10 +24,12 @@ class OpenRouterProviders:
 
         return plan_shots(style_text, song_duration_s, photos, movements, allowed_lengths, ids)
 
-    def edit_photo(self, jpeg_bytes: bytes, prompt: str, ids: dict[str, Any]) -> bytes:
+    def edit_photo(
+        self, jpeg_bytes: bytes, prompt: str, ids: dict[str, Any], model: str | None = None
+    ) -> bytes:
         from app.providers.editor import edit_photo
 
-        return edit_photo(jpeg_bytes, prompt, ids)
+        return edit_photo(jpeg_bytes, prompt, ids, model)
 
     def check_edit(
         self, original_jpeg: bytes, edited_jpeg: bytes, ids: dict[str, Any]

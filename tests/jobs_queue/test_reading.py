@@ -86,7 +86,7 @@ def test_failed_and_skipped_shots_are_listed_with_reason(bucket, song, shoot):
     passed = add_shot(job_id, 0, photos[0], status="passed")
     clip = add_attempt(passed, 1, "passed", clip_key="jobs/J/shots/1/r0/a1.mp4")
     set_final_attempt(passed, clip)
-    add_shot(
+    failed = add_shot(
         job_id,
         1,
         photos[1],
@@ -94,6 +94,8 @@ def test_failed_and_skipped_shots_are_listed_with_reason(bucket, song, shoot):
         failure_reason="flagged_every_attempt",
         status_detail="Attempt 4 of 4: flagged",
     )
+    for number in range(1, 5):
+        add_attempt(failed, number, "flagged")
     add_shot(job_id, 2, None, status="skipped", failure_reason="no_photo")
 
     shots = reading.load_job(job_id).shots
@@ -102,6 +104,7 @@ def test_failed_and_skipped_shots_are_listed_with_reason(bucket, song, shoot):
     assert shots[0].clip_url is not None
     assert shots[1].failure_reason == "flagged_every_attempt"
     assert shots[1].status_detail == "Attempt 4 of 4: flagged"
+    assert shots[1].attempts == 4
     assert shots[1].clip_url is None
     assert shots[2].failure_reason == "no_photo"
     assert shots[2].photo_id is None
@@ -116,6 +119,7 @@ def test_queued_job_waits_behind_the_running_one(song, shoot):
     queued = add_job(shoot_id, song, status="queued", submitted_at=NOW)
 
     assert reading.load_job(queued).waiting_behind == running
+    assert reading.load_job(queued).waiting_behind_label == "12 Oak Street"
     assert reading.load_job(running).waiting_behind is None
 
 
@@ -158,3 +162,32 @@ def test_ready_job_carries_the_video_and_credit(bucket, song, shoot):
 def test_unknown_job_is_job_not_found(song):
     with pytest.raises(JobNotFound):
         reading.load_job("nope")
+
+
+@pytest.mark.parametrize("outcome,expected", [("edited", "edited.jpg"), ("crop_only", "crop.jpg")])
+def test_job_reads_property_and_signed_photo_pair(bucket, song, shoot, outcome, expected):
+    from urllib.parse import parse_qs, urlparse
+
+    from app.db.base import session_scope
+    from app.jobs.models import JobShot
+
+    shoot_id, photos = shoot
+    job_id = add_job(shoot_id, song)
+    shot_id = add_shot(job_id, 1, photos[0])
+    add_shot(job_id, 2, None)
+    with session_scope() as session:
+        row = session.get(JobShot, shot_id)
+        row.edit_status = outcome
+        row.cropped_key = "jobs/crop.jpg"
+        row.edited_key = "jobs/edited.jpg"
+    job = reading.load_job(job_id)
+    assert job.photoshoot_label == "12 Oak Street"
+    assert job.photo_count == len(photos)
+    assert f"/{photos[0]}.jpg" in job.shots[0].photo_url
+    assert f"/jobs/{expected}" in job.shots[0].first_frame_url
+    for url in (job.shots[0].photo_url, job.shots[0].first_frame_url):
+        query = parse_qs(urlparse(url).query)
+        assert query["X-Amz-Signature"]
+        assert query["X-Amz-Expires"] == ["3600"]
+    assert job.shots[1].photo_url is None
+    assert job.shots[1].first_frame_url is None

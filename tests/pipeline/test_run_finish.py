@@ -1,12 +1,15 @@
+"""The worker's run of a claimed job: every shot, then the finish step, in a fresh folder."""
+
 import pytest
 
 from app.config import reset_settings
 from app.db.base import reset_engine
+from app.files import service as files
 from app.jobs import worker_interface
 from app.media.errors import MediaError
-from app.pipeline import clip_stubs, run
+from app.pipeline import run
 from tests.pipeline import run_world
-from tests.pipeline.clip_world import flagged_check
+from tests.pipeline.clip_world import BUCKET, flagged_check
 from tests.support.worker_rows import rows
 
 SIX = [{"position": p} for p in range(1, 7)]
@@ -17,7 +20,7 @@ def contents(*positions):
 
 
 def finish(world, job):
-    """The worker's run of a claimed job: every shot, then the finish step, in a fresh folder."""
+
     state = world.run_shots(job)
     run.finish_run(state, world.folder.parent / "finish" / "job")
     return state
@@ -43,7 +46,7 @@ def test_one_failed_shot_leaves_the_rest(monkeypatch, tmp_path, script, reason, 
     row = world.job(job_id)
     assert row["status"] == "ready_with_failures"
     assert row["video_key"] == f"jobs/{job_id}/video-v1.mp4"
-    assert clip_stubs.BUCKET[row["video_key"]] == b"|".join(contents(1, 2, 4, 5, 6))
+    assert BUCKET[row["video_key"]] == b"|".join(contents(1, 2, 4, 5, 6))
     assert (row["video_width"], row["video_height"], row["video_fps"]) == (1920, 1080, 30)
     assert row["video_duration_s"] == 20.0
     shot = world.shots(job_id)[3]
@@ -87,15 +90,15 @@ def _fail_assemble(world, monkeypatch, job_id):
 
 
 def _lose_song(world, monkeypatch, job_id):
-    for key in [k for k in clip_stubs.BUCKET if k.startswith("songs/")]:
-        del clip_stubs.BUCKET[key]
+    for key in [k for k in BUCKET if k.startswith("songs/")]:
+        del BUCKET[key]
 
 
 def _fail_put(world, monkeypatch, job_id):
     def put(key, path):
         raise OSError("bucket unavailable")
 
-    monkeypatch.setattr(clip_stubs, "put", put)
+    monkeypatch.setattr(files, "put", put)
 
 
 def _refuse_finish(world, monkeypatch, job_id):
@@ -122,7 +125,7 @@ def test_assembly_failure_stops_the_job(monkeypatch, tmp_path, break_it):
     assert (row["status"], row["stop_reason"]) == ("stopped", "assembly_failed")
     for shot in world.shots(job_id).values():
         assert shot["status"] == "passed"
-        assert shot["clip_key"] in clip_stubs.BUCKET
+        assert shot["clip_key"] in BUCKET
     assert world.cuts == []
 
 
@@ -191,7 +194,7 @@ def test_separate_runs_give_the_same_video(monkeypatch, tmp_path):
         videos.append(
             {
                 "assembled": world.assembled,
-                "video": clip_stubs.BUCKET[row["video_key"]],
+                "video": BUCKET[row["video_key"]],
                 "status": row["status"],
                 "duration_s": row["video_duration_s"],
             }
@@ -218,4 +221,26 @@ def test_recut_only_export_reassembles(monkeypatch, tmp_path):
     row = world.job(job_id)
     assert (row["status"], row["video_version"]) == ("ready", 2)
     assert row["video_key"] == f"jobs/{job_id}/video-v2.mp4"
-    assert clip_stubs.BUCKET[row["video_key"]] == b"|".join(contents(1, 2, 3))
+    assert BUCKET[row["video_key"]] == b"|".join(contents(1, 2, 3))
+
+
+def test_job_stopped_during_assembly_does_not_upload(monkeypatch, tmp_path):
+    from app.jobs import worker_interface
+    from app.media import service as media
+
+    world = run_world.install(monkeypatch, tmp_path)
+    job_id = world.seed([{"position": 1}])
+    job = world.claim()
+    state = world.run_shots(job)
+    assemble = media.assemble
+
+    def stop_during_assembly(*args):
+        result = assemble(*args)
+        worker_interface.stop_job(job_id, "out_of_credit")
+        return result
+
+    monkeypatch.setattr(media, "assemble", stop_during_assembly)
+    run.finish_run(state, tmp_path / "finish")
+
+    assert world.job(job_id)["stop_reason"] == "out_of_credit"
+    assert not any(key.startswith(f"jobs/{job_id}/video-v") for key in BUCKET)

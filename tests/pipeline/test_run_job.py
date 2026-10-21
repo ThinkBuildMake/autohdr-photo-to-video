@@ -123,10 +123,11 @@ def test_one_failing_shot_does_not_stop_the_others(world, monkeypatch, caplog):
 
     runner.run_next_job()
 
-    assert [world.result(s.id) is not None for s in shots] == [True, False, True]
-    (logged,) = [r for r in caplog.records if r.name == "app.pipeline.runner"]
+    assert [world.result(s.id) is not None for s in shots] == [True, True, True]
+    assert world.result(shots[1].id)["failure_reason"] == "provider_error"
+    (logged,) = [r for r in caplog.records if r.name == "app.pipeline.run"]
     assert logged.levelname == "ERROR"
-    assert logged.getMessage() == "shot 2 of job J stopped"
+    assert logged.getMessage() == f"shot {shots[1].id} failed"
     assert isinstance(logged.exc_info[1], OSError)
 
 

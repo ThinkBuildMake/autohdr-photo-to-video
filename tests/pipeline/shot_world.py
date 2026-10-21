@@ -1,12 +1,18 @@
-"""The scripted world a shot is prepared in: S12's stand-ins replaced on top of clip_world's."""
+"""The scripted photo boundaries layered on the clip test world."""
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from app.files import service as files
+from app.jobs import worker_interface as jobs
+from app.jobs.worker_interface import RunContext
 from app.media import service as media
-from app.pipeline import clip_stubs, stubs
+from app.photoshoots import service as photoshoots
+from app.pipeline import run
+from app.providers import interface as providers
 from app.shared.types import EditCheck
 from tests.pipeline import clip_world
-from tests.pipeline.clip_world import _as_error
+from tests.pipeline.clip_world import BUCKET, _as_error
 
 
 def clean_check() -> EditCheck:
@@ -68,13 +74,19 @@ def install(monkeypatch):
 
     def put(key, path):
         world.record("put", key=key, path=path)
-        clip_stubs.BUCKET[key] = Path(path).read_bytes()
+        BUCKET[key] = Path(path).read_bytes()
 
-    monkeypatch.setattr(clip_stubs, "put", put)
-    monkeypatch.setattr(stubs, "get_photo", get_photo)
+    monkeypatch.setattr(files, "put", put)
+    monkeypatch.setattr(photoshoots, "photo_bytes", get_photo)
     monkeypatch.setattr(media, "crop16x9", crop16x9)
-    monkeypatch.setattr(stubs, "edit_photo", edit_photo)
-    monkeypatch.setattr(stubs, "check_edit", check_edit)
-    monkeypatch.setattr(stubs, "set_shot_photo", set_shot_photo)
-    monkeypatch.setattr(stubs, "shot_round", lambda job_shot_id: 0)
+    monkeypatch.setattr(providers, "edit_photo", edit_photo)
+    monkeypatch.setattr(providers, "check_edit", check_edit)
+    monkeypatch.setattr(jobs, "set_shot_photo", set_shot_photo)
+    monkeypatch.setattr(jobs, "run_context", lambda job_shot_id: RunContext(0, []))
+    monkeypatch.setattr(
+        run.Run,
+        "for_job",
+        classmethod(lambda cls, job: cls(job.id, datetime.now(UTC) + timedelta(minutes=30))),
+    )
+    monkeypatch.setattr(run, "finish_run", lambda state, folder: None)
     return world

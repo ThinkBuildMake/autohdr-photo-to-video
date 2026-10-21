@@ -155,3 +155,54 @@ def test_live_edit_photo(live, synthetic_jpeg):
     )
     with Image.open(io.BytesIO(result)) as image:
         assert image.format == "JPEG"
+
+
+@pytest.mark.parametrize("model", [ENHANCE, FALLBACK])
+def test_explicit_model_dispatch_and_audit(openrouter, synthetic_jpeg, rows, model):
+    from app.providers import interface
+
+    openrouter.answer(json=image_answer())
+    result = interface.edit_photo(synthetic_jpeg(), "brighter", {"photoshootId": "ps-1"}, model)
+
+    assert Image.open(io.BytesIO(result)).format == "JPEG"
+    assert [openrouter.body(i)["model"] for i in range(len(openrouter.requests))] == [model]
+    (row,) = rows()
+    assert (row.model, row.status, row.photoshoot_id, row.cost_usd) == (model, "ok", "ps-1", 0.04)
+
+
+def test_explicit_model_does_not_fallback(openrouter, synthetic_jpeg, rows):
+    from app.providers import interface
+
+    openrouter.answer(status=500, json={"error": {"code": 500, "message": "boom"}})
+    with pytest.raises(ProviderError) as caught:
+        interface.edit_photo(synthetic_jpeg(), "brighter", {}, ENHANCE)
+
+    assert caught.value.kind == "failed"
+    assert len(openrouter.requests) == 1
+    (row,) = rows()
+    assert (row.model, row.status) == (ENHANCE, "error")
+
+
+def test_fake_explicit_model_is_audited(openrouter, synthetic_jpeg, rows, monkeypatch):
+    from app.config import reset_settings
+    from app.providers import interface
+
+    monkeypatch.setenv("FAKE_PROVIDERS", "1")
+    reset_settings()
+    result = interface.edit_photo(synthetic_jpeg(), "brighter", {}, FALLBACK)
+    assert Image.open(io.BytesIO(result)).format == "JPEG"
+    (row,) = rows()
+    assert (row.model, row.status, row.cost_usd) == (FALLBACK, "ok", 0.0)
+    assert openrouter.requests == []
+
+
+def test_interface_default_preserves_fallback(openrouter, synthetic_jpeg, rows):
+    from app.providers import interface
+
+    openrouter.answer(status=500, json={"error": {"code": 500, "message": "boom"}})
+    openrouter.answer(json=image_answer())
+    result = interface.edit_photo(synthetic_jpeg(), "brighter", {})
+
+    assert Image.open(io.BytesIO(result)).format == "JPEG"
+    assert [openrouter.body(i)["model"] for i in range(2)] == [ENHANCE, FALLBACK]
+    assert [(row.model, row.status) for row in rows()] == [(ENHANCE, "error"), (FALLBACK, "ok")]

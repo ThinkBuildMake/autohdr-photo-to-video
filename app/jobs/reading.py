@@ -11,7 +11,7 @@ from app.jobs import models
 from app.jobs.errors import JobNotFound
 from app.library import service as library
 from app.library.service import StyleNotFound
-from app.photoshoots.models import Photoshoot
+from app.photoshoots.models import Photo, Photoshoot
 from app.shared.types import Job, JobListItem, JobShot, JobVideo
 
 CUSTOM_STYLE = "Custom style"
@@ -79,9 +79,16 @@ def pending_change(row: models.JobShot, submitted_at: str | None) -> str:
 
 
 def _shot(
-    row: models.JobShot, attempts: int, clip_key: str | None, submitted_at: str | None
+    row: models.JobShot,
+    attempts: int,
+    clip_key: str | None,
+    submitted_at: str | None,
+    photo_key: str | None = None,
 ) -> JobShot:
+    frame_key = row.edited_key if row.edit_status == "edited" else row.cropped_key
     return JobShot(
+        photo_url=files.presign_download(photo_key) if photo_key else None,
+        first_frame_url=files.presign_download(frame_key) if frame_key else None,
         id=row.id,
         position=row.position,
         room=row.room,
@@ -118,6 +125,10 @@ def load_job(job_id: str) -> Job:
             .where(models.JobShot.job_id == job_id)
             .order_by(models.JobShot.position)
         ).all()
+        label = session.scalar(select(Photoshoot.label).where(Photoshoot.id == row.photoshoot_id))
+        photo_count = session.scalar(
+            select(func.count()).select_from(Photo).where(Photo.photoshoot_id == row.photoshoot_id)
+        )
         shots = []
         for shot in shot_rows:
             count = session.scalar(
@@ -134,8 +145,18 @@ def load_job(job_id: str) -> Job:
                 else None
             )
             clip_key = final.clip_key if final is not None and final.status == "passed" else None
-            shots.append((shot, count, clip_key))
+            photo_key = session.scalar(select(Photo.file_key).where(Photo.id == shot.photo_id))
+            shots.append(_shot(shot, count, clip_key, row.submitted_at, photo_key))
         running = running_job_id(session)
+        running_label = (
+            session.scalar(
+                select(Photoshoot.label)
+                .join(models.Job, models.Job.photoshoot_id == Photoshoot.id)
+                .where(models.Job.id == running)
+            )
+            if running
+            else None
+        )
     waiting_behind = running if row.status == "queued" and running != row.id else None
     video = None
     if row.video_key:
@@ -151,6 +172,9 @@ def load_job(job_id: str) -> Job:
         style_id=row.style_id,
         style_name=_style_name(row.style_id),
         photoshoot_id=row.photoshoot_id,
+        photoshoot_label=label,
+        photo_count=photo_count,
+        waiting_behind_label=running_label if waiting_behind else None,
         purpose=row.purpose,
         style_text=row.style_text,
         plan_status=row.plan_status,
@@ -163,7 +187,7 @@ def load_job(job_id: str) -> Job:
         elapsed_s=elapsed_s(row.status, row.submitted_at, row.finished_at, now_utc()),
         total_cost_usd=row.total_cost_usd,
         waiting_behind=waiting_behind,
-        shots=[_shot(*parts, row.submitted_at) for parts in shots],
+        shots=shots,
         video=video,
         song_credit=_song_credit(row.song_id),
     )
