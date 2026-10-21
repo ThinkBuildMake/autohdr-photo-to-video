@@ -280,3 +280,106 @@ def test_added_crane_up_shot_is_kept(planned):
     expect(last.get_by_label("Camera movement")).to_have_value("crane_up")
     expect(last.locator("select[name=photo]")).to_have_value(unused)
     print(f"movement={last.get_by_label('Camera movement').input_value()} photo={unused}")
+
+
+@pytest.mark.parametrize("button", ["Back", "Change the style text and re-plan"])
+def test_plan_navigation_replans_existing_upload(planned, button):
+    job_id = plan(planned, WALK)
+    expect(cards(planned)).to_have_count(3)
+    shoot_id = planned.request.get(f"{planned.base_url}/api/jobs/{job_id}").json()["job"][
+        "photoshootId"
+    ]
+    original_song = planned.locator("#song").input_value()
+    requests = []
+    planned.on("request", lambda request: requests.append((request.method, request.url)))
+    planned.get_by_role("button", name=button, exact=True).click()
+    expect(planned.get_by_label("Style text")).to_have_value(WALK)
+    expect(planned.locator("#song")).to_have_value(original_song)
+    expect(planned.locator("#photo-grid .tile")).to_have_count(3)
+    revised = "End on a Dolly Out."
+    planned.get_by_label("Style text").fill(revised)
+    song = planned.locator("#song option").last.get_attribute("value")
+    planned.get_by_label("Song", exact=True).select_option(song)
+    with planned.expect_response(
+        lambda response: (
+            response.request.method == "POST" and response.url.endswith(f"/api/jobs/{job_id}/plan")
+        )
+    ) as replanned:
+        planned.get_by_role("button", name="Next: write the shot plan").click()
+    assert replanned.value.request.post_data_json == {"styleText": revised, "songId": song}
+    expect(cards(planned).last.get_by_label("Camera movement")).to_have_value("dolly_out")
+    job = planned.request.get(f"{planned.base_url}/api/jobs/{job_id}").json()["job"]
+    assert job["photoshootId"] == shoot_id
+    assert not any(
+        method == "POST" and url.endswith(("/api/photoshoots", "/api/jobs"))
+        for method, url in requests
+    )
+    print(f"replanned draft={job_id} shoot={shoot_id} style={revised} song={song}")
+
+
+def test_cut_times_follow_lengths_and_removal(planned):
+    plan(planned, WALK)
+    expect(planned.locator(".cut-time")).to_have_text(["cut at 0:04", "cut at 0:08", "cut at 0:12"])
+    cards(planned).first.get_by_label("Length").fill("2.5")
+    cards(planned).first.get_by_label("Length").press("Tab")
+    expect(planned.locator(".cut-time")).to_have_text(
+        ["cut at 0:02.5", "cut at 0:06.5", "cut at 0:10.5"]
+    )
+    cards(planned).nth(1).get_by_role("button", name="Remove shot").click()
+    expect(planned.locator(".cut-time")).to_have_text(["cut at 0:02.5", "cut at 0:06.5"])
+    print(planned.locator(".cut-time").all_text_contents())
+
+
+def test_submit_stays_disabled_until_navigation(planned):
+    job_id = plan(planned, WALK)
+    expect(cards(planned)).to_have_count(3)
+    submissions = []
+
+    def submit(route):
+        submissions.append(route.request.url)
+        route.fulfill(status=200, json={})
+
+    planned.route(f"**/api/jobs/{job_id}/submit", submit)
+    # Evaluating while a navigation is held open hangs, so the old document
+    # records its own controls (and tries a second click) as it unloads.
+    planned.evaluate(
+        """() => addEventListener("pagehide", () => {
+            const makeVideo = document.querySelector("#make-video");
+            makeVideo.dispatchEvent(new MouseEvent("click", {bubbles: true}));
+            sessionStorage.setItem("controls", JSON.stringify({
+                makeVideoDisabled: makeVideo.disabled,
+                backDisabled: document.querySelector("#back").disabled,
+            }));
+        })"""
+    )
+    planned.get_by_role("button", name="Make my video").click()
+    planned.wait_for_url(f"**/jobs/{job_id}", timeout=20_000)
+    controls = planned.evaluate("JSON.parse(sessionStorage.getItem('controls'))")
+    assert controls == {"makeVideoDisabled": True, "backDisabled": True}
+    assert len(submissions) == 1
+    print("one submit; Make my video and Back disabled during navigation")
+
+
+@pytest.mark.parametrize("failure", ["shots", "submit"])
+def test_failed_submission_preserves_edits_and_restores_controls(planned, failure):
+    job_id = plan(planned, WALK)
+    expect(cards(planned)).to_have_count(3)
+    cards(planned).first.get_by_label("Camera movement").select_option("crane_up")
+    submissions = []
+    planned.on(
+        "request",
+        lambda request: (
+            submissions.append(request.url) if request.url.endswith("/submit") else None
+        ),
+    )
+    planned.route(
+        f"**/api/jobs/{job_id}/{failure}",
+        lambda route: route.fulfill(status=503, json={"message": "Please retry"}),
+    )
+    planned.get_by_role("button", name="Make my video").click()
+    expect(planned.locator("#page-error")).to_have_text("Please retry")
+    expect(planned.locator("#make-video")).to_be_enabled()
+    expect(planned.locator("#back")).to_be_enabled()
+    expect(cards(planned).first.get_by_label("Camera movement")).to_have_value("crane_up")
+    assert len(submissions) == (1 if failure == "submit" else 0)
+    print(f"{failure} failed: edits retained and controls enabled")

@@ -52,6 +52,7 @@ def _requeue(session, job_id: str, *shots_where) -> None:
             status_detail=None,
             final_attempt_id=None,
             needs_new_clip=0,
+            clip_inputs=None,
             updated_at=now,
         )
     )
@@ -101,12 +102,16 @@ def _shot_row(session, job_id: str, position: int) -> models.JobShot:
 
 def redo_shot(job_id: str, position: int) -> Job:
     with session_scope() as session:
-        _check_finished(_lock_job(session, job_id).status)
+        job = _lock_job(session, job_id)
+        _check_finished(job.status)
         shot = _shot_row(session, job_id, position)
         if shot.photo_id is None:
             raise AppError(409, "no_photo", "This shot has no photo to make a clip from.")
         if shot.removed:
             raise AppError(409, "shot_removed", "Put this shot back before redoing it.")
+        shots = session.scalars(select(models.JobShot).where(models.JobShot.job_id == job_id))
+        if any(_awaiting_export(s, job.submitted_at) for s in shots):
+            raise AppError(409, "pending_edits", "Export your saved edits before redoing a shot.")
         _requeue(session, job_id, models.JobShot.id == shot.id)
     return reading.load_job(job_id)
 
@@ -159,18 +164,42 @@ def edit_shot(job_id: str, position: int, body: ShotEdit) -> ShotEditResult:
             )
         current = _planned(row)
         edited = current.model_copy(update=changes)
+        if edited.photo_id is None:
+            ineffective = [
+                field for field in changes if getattr(edited, field) != getattr(current, field)
+            ]
+            if ineffective:
+                raise AppError(
+                    400,
+                    "invalid_edit",
+                    f"Shot {position}: {', '.join(ineffective)} requires an uploaded photo.",
+                )
         problems, warning = plan_rules.validate_saved_plan(
             [edited], set(rooms), math.inf, allowed_lengths
         )
         if problems:
             message = " ".join(p.replace("Shot 1:", f"Shot {position}:", 1) for p in problems)
             raise AppError(400, "invalid_edit", message)
+        if removed and not _other_kept(session, job_id, row.id):
+            raise AppError(
+                400, "invalid_edit", "Keep at least one room in the video; put another back first."
+            )
         if edited != current:
-            if edited.photo_id is not None and (
-                any(getattr(edited, f) != getattr(current, f) for f in _NEW_CLIP_FIELDS)
-                or edited.length_s + edited.transition_s > _clip_s(session, row)
-            ):
-                row.needs_new_clip = 1
+            if edited.photo_id is not None:
+                base = (
+                    json.loads(row.clip_inputs)
+                    if row.clip_inputs
+                    else {f: getattr(current, f) for f in _NEW_CLIP_FIELDS}
+                )
+                had_base = row.clip_inputs is not None
+                if not had_base and not row.needs_new_clip:  # a flag set before baselines is sticky
+                    row.clip_inputs = json.dumps(base)
+                if any(
+                    getattr(edited, f) != base[f] for f in _NEW_CLIP_FIELDS
+                ) or edited.length_s + edited.transition_s > _clip_s(session, row):
+                    row.needs_new_clip = 1
+                elif row.clip_inputs is not None and row.needs_new_clip:
+                    row.needs_new_clip = 0  # back to what the clip was made from
             for field in _EDITABLE:
                 setattr(row, field, getattr(edited, field))
             row.photo_edit_prompts = json.dumps(edited.photo_edit_prompts)
@@ -194,17 +223,41 @@ def edit_shot(job_id: str, position: int, body: ShotEdit) -> ShotEditResult:
     )
 
 
+def _other_kept(session, job_id: str, shot_id: str) -> bool:
+    """Another shot with a photo stays in the video."""
+    return (
+        session.scalar(
+            select(models.JobShot.id).where(
+                models.JobShot.job_id == job_id,
+                models.JobShot.id != shot_id,
+                models.JobShot.removed == 0,
+                models.JobShot.photo_id.is_not(None),
+            )
+        )
+        is not None
+    )
+
+
+def _awaiting_export(shot: models.JobShot, submitted_at: str | None) -> bool:
+    return (
+        reading.pending_change(shot, submitted_at) != "none"
+        or (
+            not shot.removed
+            and shot.photo_id is not None
+            and reading.edited_since(shot, submitted_at)
+        )
+        or (shot.removed and not reading.removed_in_run(shot, submitted_at))
+    )
+
+
 def export_job(job_id: str) -> Job:
     with session_scope() as session:
         job_row = _lock_job(session, job_id)
         _check_finished(job_row.status)
+        if not _other_kept(session, job_id, ""):
+            raise AppError(409, "no_shots_kept", "Put at least one room back before exporting.")
         shots = session.scalars(select(models.JobShot).where(models.JobShot.job_id == job_id))
-        if not any(
-            reading.pending_change(s, job_row.submitted_at) != "none"
-            or reading.edited_since(s, job_row.submitted_at)
-            or (s.removed and not reading.removed_in_run(s, job_row.submitted_at))
-            for s in shots
-        ):
+        if not any(_awaiting_export(s, job_row.submitted_at) for s in shots):
             raise AppError(409, "nothing_to_export", "Nothing changed since the last video.")
         _requeue(
             session,

@@ -18,6 +18,7 @@
 
   function paint() {
     let total = 0;
+    const kept = tiles.filter((t) => t.dataset.removed !== "true" && t.dataset.photo === "true");
     for (const tile of tiles) {
       const pos = tile.dataset.position;
       const removed = tile.dataset.removed === "true";
@@ -30,6 +31,9 @@
       seg.style.flexGrow = length;
       byPos("form", pos).querySelector(".remove").textContent =
         removed ? "Put this room back" : "Remove this room from the video";
+      const last = kept.length === 1 && kept[0] === tile;
+      byPos("form", pos).querySelector(".remove").disabled = last;
+      byPos("form", pos).querySelector(".remove-why").hidden = !last;
       if (!removed) total += length;
     }
     root.querySelector(".song-total").textContent = clock(total);
@@ -95,9 +99,9 @@
       }
       const stillQueued = (name) =>
         (pending.get(`${pos}:${name}`) || 0) > (name === field ? 1 : 0);
-      if (!res?.ok || !data.shot) {
+      if (!res?.ok || !data?.shot) {
         const later = (pending.get(key) || 0) > 1;
-        error.textContent = data.message;
+        error.textContent = data?.message || "The change was not saved. Try again.";
         if (field === "removed" && !later) form.dataset.wantRemoved = tile.dataset.removed;
         if (field === "movementName" && !later) {
           form.elements.movementName.value = form.dataset.savedMovement;
@@ -122,8 +126,33 @@
       if (!stillQueued("movementName") && !stillQueued("movementPrompt")) {
         form.querySelector('.field-error[data-for="movementName"]').textContent = "";
       }
+      const room = data.shot.room.replaceAll("_", " ");
+      const roomLabel = room.charAt(0).toUpperCase() + room.slice(1);
+      tile.querySelector(".room-label").textContent = roomLabel;
+      form.querySelector("h2").textContent = `Shot ${tiles.indexOf(tile) + 1} · ${roomLabel}`;
+      tile.querySelector(".movement-label").textContent =
+        [...form.elements.movementName.options].find((option) => option.value === data.shot.movementName)?.textContent || data.shot.movementName;
+      const grid = byPos(".ed-grid", pos);
+      for (const [selector, url] of [[".original-photo", data.shot.photoUrl], [".first-frame", data.shot.firstFrameUrl]]) {
+        const img = grid.querySelector(selector);
+        img.hidden = !url;
+        if (url) img.src = url;
+        else img.removeAttribute("src");
+        img.nextElementSibling.hidden = Boolean(url);
+      }
+      // The stored frame belongs to the old photo until the next export makes a new one.
+      if (field === "photoId" && data.shot.pendingChange === "new_clip") {
+        const frame = grid.querySelector(".frame-preview");
+        frame.querySelector(".first-frame").hidden = true;
+        const note = frame.querySelector(".preview-missing");
+        note.textContent = "New first frame is made on re-export";
+        note.hidden = false;
+      }
+      grid.querySelector(".frame-preview figcaption").textContent =
+        data.shot.editStatus === "crop_only" ? "Cropped first frame" : "Edited first frame";
       tile.dataset.pending = data.shot.pendingChange;
       tile.dataset.removed = data.shot.removed;
+      tile.dataset.photo = String(Boolean(data.shot.photoId));
       tile.dataset.length = data.shot.lengthS;
       paint();
     } finally {
@@ -156,6 +185,6 @@
     });
   }
   for (const tile of tiles) tile.addEventListener("click", () => pick(tile));
-  pick(tiles[0]);
+  if (tiles.length) pick(tiles[0]);
   paint();
 })();

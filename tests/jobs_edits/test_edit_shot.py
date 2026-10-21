@@ -245,3 +245,179 @@ def test_shot_edit_survives_model_list_timeout(
     saved = client.get(f"/api/jobs/{job_id}").json()["job"]["shots"][0]
     assert saved[saved_field] == saved_value
     assert "Saved without checking video model limits" in saved["planNote"]
+
+
+@pytest.mark.parametrize(
+    "body,field",
+    [
+        ({"movementName": "crane_up"}, "movement_name"),
+        ({"movementPrompt": "Rise gently"}, "movement_prompt"),
+        ({"speed": "fast"}, "speed"),
+        ({"photoEditPrompts": ["Brighten"]}, "photo_edit_prompts"),
+        ({"lengthS": 2.0}, "length_s"),
+        ({"transition": "crossfade", "transitionS": 0.4}, "transition"),
+    ],
+)
+def test_photoless_edits_name_the_field_and_roll_back(bucket, client, make_job, body, field):
+    from tests.support.queue_rows import add_shot
+
+    job_id = make_job(status="ready_with_failures", passed=2)
+    add_shot(job_id, 3, None, status="skipped", failure_reason="no_photo")
+    before = shot_rows(job_id)
+
+    response = _patch(client, job_id, 3, {**body, "removed": True})
+
+    assert (response.status_code, response.json()["error"]) == (400, "invalid_edit")
+    assert field in response.json()["message"]
+    assert shot_rows(job_id) == before
+
+
+def test_swapped_room_and_crane_prompt_survive_reload(bucket, client, make_job, shoot):
+    job_id = make_job()
+    with session_scope() as session:
+        session.execute(text("update photos set room='kitchen' where id=:p"), {"p": shoot[1][7]})
+    assert _patch(client, job_id, 2, {"photoId": shoot[1][7]}).status_code == 200
+    assert _patch(client, job_id, 3, {"movementName": "crane_up"}).status_code == 200
+
+    shots = client.get(f"/api/jobs/{job_id}").json()["job"]["shots"]
+
+    assert (shots[1]["photoId"], shots[1]["room"]) == (shoot[1][7], "kitchen")
+    assert shots[2]["movementPrompt"] == (
+        "Super smooth camera rises vertically upward, straight vertical path, cinematic"
+    )
+    assert [shots[i]["pendingChange"] for i in (1, 2)] == ["new_clip", "new_clip"]
+    print(
+        {
+            "shot2": {"room": shots[1]["room"], "pendingChange": shots[1]["pendingChange"]},
+            "shot3": {
+                "movementName": shots[2]["movementName"],
+                "pendingChange": shots[2]["pendingChange"],
+            },
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"movementPrompt": "Rise slowly above the counter."},
+        {"photoEditPrompts": ["Brighten shadows", "Warm the lights"]},
+    ],
+)
+def test_custom_prompts_persist_in_order(bucket, client, make_job, body):
+    job_id = make_job()
+
+    response = _patch(client, job_id, 1, body)
+
+    assert response.status_code == 200
+    saved = client.get(f"/api/jobs/{job_id}").json()["job"]["shots"][0]
+    for field, value in body.items():
+        assert saved[field] == value
+    assert saved["pendingChange"] == "new_clip"
+
+
+def test_fast_and_crossfade_are_saved_for_export(bucket, client, make_job):
+    job_id = make_job()
+
+    response = _patch(
+        client,
+        job_id,
+        6,
+        {
+            "speed": "fast",
+            "transition": "crossfade",
+            "transitionS": 0.4,
+        },
+    )
+
+    assert response.status_code == 200
+    saved = client.get(f"/api/jobs/{job_id}").json()["job"]["shots"][5]
+    print(
+        {field: saved[field] for field in ("speed", "transition", "transitionS", "pendingChange")}
+    )
+    assert (saved["speed"], saved["transition"], saved["transitionS"]) == ("fast", "crossfade", 0.4)
+    assert saved["pendingChange"] == "new_clip"
+
+
+def test_transition_exceeding_clip_coverage_remakes(bucket, client, make_job):
+    job_id = make_job()
+
+    response = _patch(
+        client,
+        job_id,
+        6,
+        {
+            "lengthS": 4.0,
+            "transition": "crossfade",
+            "transitionS": 0.4,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["shot"]["pendingChange"] == "new_clip"
+
+
+def test_photoless_shot_can_be_removed_or_repaired(bucket, client, make_job, shoot):
+    from tests.support.queue_rows import add_shot
+
+    job_id = make_job(passed=2)
+    add_shot(job_id, 3, None, status="skipped", failure_reason="no_photo")
+    assert _patch(client, job_id, 3, {"removed": True}).status_code == 200
+
+    response = _patch(
+        client,
+        job_id,
+        3,
+        {
+            "photoId": shoot[1][7],
+            "movementName": "crane_up",
+            "removed": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["shot"]["pendingChange"] == "new_clip"
+    assert client.post(f"/api/jobs/{job_id}/export").status_code == 202
+    assert shot_rows(job_id)[3]["status"] == "pending"
+
+
+@pytest.mark.parametrize("status", ["queued", "running"])
+def test_busy_edit_and_export_preserve_every_row(bucket, client, make_job, status):
+    job_id = make_job(status=status)
+    before_job, before_shots = job_row(job_id), shot_rows(job_id)
+
+    edit = _patch(client, job_id, 2, {"speed": "fast", "removed": True})
+    export = client.post(f"/api/jobs/{job_id}/export")
+
+    assert edit.status_code == export.status_code == 409
+    assert edit.json()["error"] == export.json()["error"] == "job_busy"
+    assert job_row(job_id) == before_job
+    assert shot_rows(job_id) == before_shots
+
+
+def test_cannot_remove_the_last_kept_shot(bucket, client, make_job):
+    job_id = make_job(status="ready", passed=2)
+    assert _patch(client, job_id, 1, {"removed": True}).status_code == 200
+
+    response = _patch(client, job_id, 2, {"removed": True})
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_edit"
+    assert "at least one room" in response.json()["message"]
+    assert shot_rows(job_id)[2]["removed"] == 0
+
+
+def test_undoing_a_change_clears_the_new_clip_flag(bucket, client, make_job):
+    job_id = make_job(status="ready", passed=6)
+    first = shot_rows(job_id)[3]
+    original = {"movementName": first["movement_name"], "movementPrompt": first["movement_prompt"]}
+    assert (
+        _patch(client, job_id, 3, {"movementName": "slider_truck_left_to_right"}).status_code == 200
+    )
+    assert shot_rows(job_id)[3]["needs_new_clip"] == 1
+
+    response = _patch(client, job_id, 3, original)
+
+    assert response.status_code == 200
+    assert shot_rows(job_id)[3]["needs_new_clip"] == 0
+    assert response.json()["exportPlan"]["newClips"] == 0

@@ -132,3 +132,58 @@ def test_restart_and_redo_never_change_plan_fields(bucket, client, make_job, sta
     after = shot_rows(job_id)
     for position, row in before.items():
         assert {f: after[position][f] for f in PLAN_FIELDS} == {f: row[f] for f in PLAN_FIELDS}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"speed": "fast"},
+        {"lengthS": 2.0},
+        {"removed": True},
+    ],
+)
+def test_redo_rejects_pending_edits_without_mutation(bucket, client, make_job, body):
+    job_id = make_job()
+    assert client.patch(f"/api/jobs/{job_id}/shots/2", json=body).status_code == 200
+    before_job, before_shots = job_row(job_id), shot_rows(job_id)
+
+    response = client.post(f"/api/jobs/{job_id}/shots/4/redo")
+
+    assert (response.status_code, response.json()["error"]) == (409, "pending_edits")
+    assert job_row(job_id) == before_job
+    assert shot_rows(job_id) == before_shots
+    print(
+        {
+            "redoStatus": response.status_code,
+            "error": response.json()["error"],
+            "jobAndShotsUnchanged": True,
+        }
+    )
+
+
+def test_concurrent_claim_waits_for_job_write_transaction(bucket, make_job):
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError
+    from threading import Event
+
+    from sqlalchemy import text
+
+    from app.db.base import session_scope
+
+    job_id = make_job()
+    entered = Event()
+
+    def claim():
+        entered.set()
+        return worker.claim_next_job()
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with session_scope() as session:
+            session.execute(text("update jobs set status='queued' where id=:j"), {"j": job_id})
+            future = pool.submit(claim)
+            assert entered.wait(2)
+            with pytest.raises(TimeoutError):
+                future.result(timeout=0.1)
+        claimed = future.result(timeout=5)
+
+    assert claimed.id == job_id
+    assert job_row(job_id)["status"] == "running"

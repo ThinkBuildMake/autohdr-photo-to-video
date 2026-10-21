@@ -69,7 +69,7 @@
     <div class="row"><button class="btn alt" type="button" id="try-again">Try again</button></div>
   </div>
   <div id="plan-ready" class="stack" hidden>
-    <p class="muted" id="plan-summary"></p>
+    <div class="row" style="justify-content:space-between"><p class="muted" id="plan-summary"></p><button class="btn alt sm" type="button" id="replan">Change the style text and re-plan</button></div>
     <div id="plan-notes" class="banner b-warn" hidden><strong>Something in the text could not be followed</strong><span class="note"></span></div>
     <div id="shots" class="shotgrid"></div>
     <div class="row">
@@ -79,6 +79,7 @@
     </div>
     <div class="row">
       <button class="btn" type="button" id="make-video">Make my video</button>
+      <button class="btn alt" type="button" id="back">Back</button>
       <span class="muted">After you submit you can close this page. The Jobs tab shows the status and the finished video.</span>
     </div>
   </div>
@@ -98,7 +99,7 @@
         <label>Transition in<select name="transition"><option value="cut">Cut</option><option value="crossfade">Crossfade</option></select></label>
       </div>
       <label>Photo edits, in order<textarea name="edits" placeholder="One edit per line; empty means crop only"></textarea></label>
-      <p class="small plan-note"></p>
+      <p class="small"><span class="plan-note"></span> · <span class="cut-time"></span></p>
       <div class="row"><button class="btn danger sm" type="button" name="remove">Remove shot</button></div>
     </article>
   </template>

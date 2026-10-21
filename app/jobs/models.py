@@ -81,6 +81,7 @@ class JobShot(Base):
     removed: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     needs_new_clip: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     edited_at: Mapped[str | None]
+    clip_inputs: Mapped[str | None]  # JSON of the clip's inputs before the first edit since export
     position: Mapped[int] = mapped_column(Integer)
     room: Mapped[str]
     photo_id: Mapped[str | None] = mapped_column(ForeignKey("photos.id"))

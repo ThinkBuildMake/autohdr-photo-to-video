@@ -397,6 +397,7 @@ One shot of the job's shot plan.
 | removed | INTEGER | no | 0 | 1 when the photographer removed this room in the editor (FR-1.15); a removed shot is left out of the video and can be put back |
 | needs_new_clip | INTEGER | no | 0 | 1 after an editor change that needs a new clip; cleared when exportJob sets the shot pending |
 | edited_at | TEXT | yes | null | Last editor change to a shot field. Removing or putting back a shot does not set it; queuing a run again (restart, redo, export; a draft has no removed shot) sets every removed shot's `edited_at` to the run's `submitted_at`, so a shot put back reads as re-cut only if it was left out of the last video |
+| clip_inputs | TEXT | yes | null | JSON snapshot of the clip's inputs (photo, movement name and prompt, speed, photo edit prompts) taken at the first editor change after an export; cleared when a run is queued. An edit that brings the inputs back to it clears `needs_new_clip` |
 | position | INTEGER | no | | Order in the video, from 1 |
 | room | TEXT | no | | What the shot shows: a `Room` value (Shared types) |
 | photo_id | TEXT → photos.id | yes | null | The photo the shot is made from; null = skipped, the text asked for a room the photos lack (FR-1.10) |
@@ -818,7 +819,8 @@ Errors     404 job_not_found | shot_not_found
            409 job_busy — job is queued or running
            409 not_finished — the job is a draft or stopped
            400 invalid_edit — names the field: unknown movement, photo not in this
-               photoshoot, length longer than the model's longest clip
+               photoshoot, length longer than the model's longest clip; meaningful generation,
+               length or transition edits without a photo (assign an uploaded photo first)
            (more may be added)
 
 exportJob    POST /api/jobs/{id}/export                serves FR-1.16, PF-4, HLD I-13
@@ -833,6 +835,8 @@ Errors     404 job_not_found | shot_not_found
            409 not_finished — the job is a draft or stopped (use restart)
            409 no_photo — the shot has no photo
            409 shot_removed — the shot is removed; put it back first
+           409 pending_edits — export saved editor changes before redoing a shot;
+               rejection preserves the run clock, flags and attempts
 
 listJobs     GET /api/jobs                             serves FR-1.11, HLD I-6
 Response   200 { jobs: [{ id, styleName, photoshootLabel, purpose, status, submittedAt, elapsedS }] }
@@ -841,6 +845,12 @@ Response   200 { jobs: [{ id, styleName, photoshootLabel, purpose, status, submi
 getJob       GET /api/jobs/{id}                        serves FR-1.3, FR-1.5, RL-1, HLD I-5
 Response   200 { job: Job }
 Errors     404 job_not_found
+
+Editor preview read: Jobs.reading.load_job (used by getJob) returns each shot's
+photoUrl and firstFrameUrl. URLs are presigned by Files from the photo's stored
+file_key and that job shot's stored edited_key (when edit_status is edited), falling
+back to cropped_key. Missing keys return null; no frame paths are fabricated.
+The existing getJob interface supplies the editor; no separate endpoint is needed.
 
 getVideo     GET /api/jobs/{id}/video                  serves FR-1.9, HLD I-7
 Response   200 { url, downloadUrl, durationS }   url plays inline, downloadUrl saves the file, 1 h

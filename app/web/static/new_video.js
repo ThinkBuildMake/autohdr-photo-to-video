@@ -91,6 +91,8 @@ async function pollShoot() {
 async function upload(fileList) {
   const files = [...fileList];
   if (!files.length) return;
+  plan.job = null;
+  plan.shots = [];
   state.shoot = null;
   state.refused = [];
   $("#upload-error").textContent = "";
@@ -139,7 +141,15 @@ const PLANNED_FIELDS = [
 const plan = { job: null, shots: [] };
 const photoById = (id) => (state.shoot ? state.shoot.photos.find((p) => p.id === id) : undefined);
 
+function cutTime(seconds) {
+  const value = Math.round(seconds * 10);
+  const minutes = Math.floor(value / 600);
+  const wholeSeconds = String(Math.floor(value / 10) % 60).padStart(2, "0");
+  return `${minutes}:${wholeSeconds}${value % 10 ? "." + value % 10 : ""}`;
+}
+
 function renderShots() {
+  let elapsed = 0;
   const photos = state.shoot ? state.shoot.photos.filter((p) => p.status === "uploaded") : [];
   $("#plan-summary").textContent =
     `We turned your style text into a plan of ${plan.shots.length} shots. ` +
@@ -149,6 +159,8 @@ function renderShots() {
       const card = $("#shot-card").content.firstElementChild.cloneNode(true);
       const field = (name) => $(`[name=${name}]`, card);
       const photo = photoById(shot.photoId);
+      elapsed += shot.photoId ? shot.lengthS : 0;
+      $(".cut-time", card).textContent = `cut at ${cutTime(elapsed)}`;
       $(".shot-title", card).textContent = `Shot ${index + 1} · ${roomName(shot.room)}`;
       $(".shot-photo", card).hidden = !photo;
       if (photo) $(".shot-photo", card).src = photo.thumbUrl;
@@ -241,12 +253,14 @@ async function whileBusy(button, action) {
 
 $("#next").addEventListener("click", (event) =>
   whileBusy(event.currentTarget, async () => {
-    const created = await api("POST", "/api/jobs", {
+    const body = {
       photoshootId: state.shoot.id,
       styleText: $("#style-text").value,
       songId: $("#song").value,
-      styleId: $("#start-from").value || undefined,
-    });
+    };
+    const created = plan.job
+      ? await api("POST", `/api/jobs/${plan.job.id}/plan`, { styleText: body.styleText, songId: body.songId })
+      : await api("POST", "/api/jobs", { ...body, styleId: $("#start-from").value || undefined });
     await pollPlan(created.job);
   })
 );
@@ -277,13 +291,39 @@ $("#save-plan").addEventListener("click", () =>
   })
 );
 
-$("#make-video").addEventListener("click", (event) =>
-  whileBusy(event.currentTarget, async () => {
+let submitting = false;
+function setPlanDisabled(disabled) {
+  $("#step-2").querySelectorAll("button, input, select, textarea").forEach((control) => {
+    control.disabled = disabled;
+  });
+}
+$("#make-video").addEventListener("click", async () => {
+  if (submitting) return;
+  submitting = true;
+  setPlanDisabled(true);
+  $("#page-error").textContent = "";
+  try {
     await savePlan();
+    setPlanDisabled(true);
     await api("POST", `/api/jobs/${plan.job.id}/submit`);
     location.href = `/jobs/${encodeURIComponent(plan.job.id)}`;
-  })
-);
+  } catch (error) {
+    $("#page-error").textContent = error.message;
+    submitting = false;
+    setPlanDisabled(false);
+  }
+});
+
+function backToStyle() {
+  $("#step-1").hidden = false;
+  $("#step-2").hidden = true;
+  $("#step-1-tab").classList.add("on");
+  $("#step-2-tab").classList.remove("on");
+  $("#page-error").textContent = "";
+  showShoot();
+}
+$("#back").addEventListener("click", backToStyle);
+$("#replan").addEventListener("click", backToStyle);
 
 $("#try-again").addEventListener("click", () =>
   report(async () => pollPlan((await api("POST", `/api/jobs/${plan.job.id}/plan`, {})).job))
@@ -294,6 +334,8 @@ if (draftId) {
   report(async () => {
     const job = (await api("GET", `/api/jobs/${encodeURIComponent(draftId)}`)).job;
     state.shoot = (await api("GET", `/api/photoshoots/${job.photoshootId}`)).photoshoot;
+    $("#style-text").value = job.styleText;
+    showShoot();
     await pollPlan(job);
   });
 }

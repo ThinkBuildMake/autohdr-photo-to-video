@@ -13,7 +13,9 @@
   </div>
   <div class="ed-muted">{{ shoot.label or "Photoshoot" }} · Style: {{ job.style_name }} · Changes are drafts until you re-export</div>
   {% if busy %}
-  <div class="ed-banner warn"><strong>This video is being made</strong><span>You can edit it once it is finished.</span></div>
+  <div class="ed-banner info"><strong>Re-exporting: {% if making %}making {{ making }} changed shot{{ "" if making == 1 else "s" }}, then {% endif %}re-cutting the video</strong><span>Shots you did not change are reused. About 2 minutes.</span></div>
+  {% elif not editable %}
+  <div class="ed-banner warn"><strong>This video is not ready to edit</strong><span>Open a finished video to make changes.</span></div>
   {% endif %}
 
   <div class="ed-card">
@@ -28,17 +30,17 @@
     <div class="timeline">
       {% for shot in job.shots %}
       <button type="button" class="tl" data-position="{{ shot.position }}" data-length="{{ shot.length_s }}"
-              data-pending="{{ shot.pending_change }}" data-removed="{{ shot.removed|lower }}">
-        <span class="ed-ph">{{ shot.room|replace("_", " ")|capitalize }}</span>
+              data-pending="{{ shot.pending_change }}" data-removed="{{ shot.removed|lower }}" data-photo="{{ (shot.photo_id is not none)|lower }}">
+        <span class="ed-ph room-label">{{ shot.room|replace("_", " ")|capitalize }}</span>
         <strong>Shot {{ loop.index }}</strong>
-        <span class="ed-small">{{ movement_labels.get(shot.movement_name, shot.movement_name) }}</span>
+        <span class="ed-small movement-label">{{ movement_labels.get(shot.movement_name, shot.movement_name) }}</span>
         <span class="ed-small"><span class="tl-len"></span> · <span class="tl-change"></span></span>
       </button>
       {% endfor %}
     </div>
   </div>
 
-  <fieldset class="ed-controls" {% if busy %}disabled{% endif %}>
+  <fieldset class="ed-controls" {% if not editable %}disabled{% endif %}>
     {% for shot in job.shots %}
     <div class="ed-grid" data-position="{{ shot.position }}" {% if not loop.first %}hidden{% endif %}>
       <div class="ed-card">
@@ -47,14 +49,26 @@
         {% else %}
         <div class="ed-video">No clip yet</div>
         {% endif %}
+        <div class="preview-pair">
+          <figure class="original-preview">
+            <img class="original-photo" {% if shot.photo_url %}src="{{ shot.photo_url }}"{% else %}hidden{% endif %} alt="Original photo">
+            <span class="preview-missing" {% if shot.photo_url %}hidden{% endif %}>Original photo unavailable</span>
+            <figcaption>Original photo</figcaption>
+          </figure>
+          <figure class="frame-preview">
+            <img class="first-frame" {% if shot.first_frame_url %}src="{{ shot.first_frame_url }}"{% else %}hidden{% endif %} alt="Stored first frame">
+            <span class="preview-missing" {% if shot.first_frame_url %}hidden{% endif %}>First frame unavailable</span>
+            <figcaption>{% if shot.edit_status == "crop_only" %}Cropped first frame{% else %}Edited first frame{% endif %}</figcaption>
+          </figure>
+        </div>
       </div>
       <form class="ed-card shot-form" data-position="{{ shot.position }}">
         <p class="save-warning ed-muted" role="status" hidden></p>
         <h2>Shot {{ loop.index }} · {{ shot.room|replace("_", " ")|capitalize }}</h2>
         <label>Swap the room (photo)
           <select name="photoId">
-            {% if shot.photo_id not in shoot.photos|map(attribute="id")|list %}<option value="{{ shot.photo_id or '' }}" selected>Current photo</option>{% endif %}
-            {% for photo in shoot.photos %}
+            {% if shot.photo_id not in photos|map(attribute="id")|list %}<option value="{{ shot.photo_id or '' }}" selected disabled>Current photo unavailable</option>{% endif %}
+            {% for photo in photos %}
             <option value="{{ photo.id }}" {% if photo.id == shot.photo_id %}selected{% endif %}>{{ photo.original_name }}{% if photo.room %} · {{ photo.room|replace("_", " ") }}{% endif %}</option>
             {% endfor %}
           </select>
@@ -95,7 +109,8 @@
         </label>
         <span class="field-error" data-for="photoEditPrompts"></span>
         <div class="ed-small">Changing the photo, movement, speed or prompts makes a new clip. Changing length or transition only re-cuts.</div>
-        <div class="ed-row"><button type="button" class="ed-btn danger sm remove"></button></div>
+        <div class="ed-row"><button type="button" class="ed-btn danger sm remove"></button>
+          <span class="ed-small remove-why" hidden>The video needs at least one room.</span></div>
         <span class="field-error" data-for="removed"></span>
       </form>
     </div>

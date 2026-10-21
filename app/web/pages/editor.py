@@ -7,10 +7,12 @@ from app.errors import AppError
 from app.jobs import queue
 from app.jobs.plan_rules import MOVEMENTS
 from app.photoshoots import service as photoshoots
-from app.shared.enums import JobStatus
+from app.shared.enums import JobStatus, ShotStatus
 from app.web.templating import templates
 
 router = APIRouter()
+
+_IN_PROGRESS = (ShotStatus.pending, ShotStatus.editing, ShotStatus.generating, ShotStatus.checking)
 
 # PRD pp.8-9 names, in MovementName order.
 MOVEMENT_LABELS = {
@@ -34,13 +36,21 @@ def editor_page(request: Request, job_id: str):
     try:
         job = queue.get_job(job_id)
         shoot = photoshoots.get_photoshoot(job.photoshoot_id)
+        photos = photoshoots.list_photos(job.photoshoot_id)
     except AppError as exc:
         return templates.TemplateResponse(
             request, "editor.html", {"job": None, "error": exc.message}, status_code=exc.status_code
         )
+    making = sum(
+        not s.removed and (s.pending_change == "new_clip" or s.status in _IN_PROGRESS)
+        for s in job.shots
+    )
     context = {
+        "making": making,
         "job": job,
         "shoot": shoot,
+        "photos": photos,
+        "editable": job.status in (JobStatus.ready, JobStatus.ready_with_failures),
         "error": None,
         "busy": job.status in (JobStatus.queued, JobStatus.running),
         "movement_labels": MOVEMENT_LABELS,

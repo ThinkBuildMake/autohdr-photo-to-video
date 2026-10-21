@@ -102,6 +102,7 @@ COLUMNS = {
         "removed": ("INTEGER", 1, "0"),
         "needs_new_clip": ("INTEGER", 1, "0"),
         "edited_at": ("TEXT", 0, None),
+        "clip_inputs": ("TEXT", 0, None),
         "position": ("INTEGER", 1, None),
         "room": ("TEXT", 1, None),
         "photo_id": ("TEXT", 0, None),
@@ -314,6 +315,16 @@ def test_init_db_twice_is_harmless(db):
     init_db()
     init_db()
     assert table_names(db) == NINE
+
+
+def test_init_db_adds_clip_inputs_to_an_older_job_shots_table(db):
+    raw("ALTER TABLE job_shots DROP COLUMN clip_inputs")
+
+    init_db()
+
+    with db.connect() as c:
+        names = {r[1] for r in c.execute(text("pragma table_info(job_shots)"))}
+    assert "clip_inputs" in names
 
 
 def test_file_is_created_in_missing_parent_directory(tmp_path, monkeypatch):

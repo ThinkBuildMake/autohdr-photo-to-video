@@ -186,6 +186,7 @@ def world_factory(monkeypatch, live_server):
         world = EditorWorld(live_server, status)
         monkeypatch.setattr("app.jobs.queue.get_job", world.get_job)
         monkeypatch.setattr("app.photoshoots.service.get_photoshoot", world.get_photoshoot)
+        monkeypatch.setattr("app.photoshoots.service.list_photos", lambda _: make_shoot().photos)
         monkeypatch.setattr("app.jobs.edits.edit_shot", world.edit_shot)
         monkeypatch.setattr("app.jobs.edits.export_job", world.export_job)
         return world
@@ -251,12 +252,48 @@ def test_busy_job_cannot_be_edited(page, world_factory):
 
     page.goto(world.url)
 
-    expect(page.get_by_text("This video is being made")).to_be_visible()
+    expect(page.get_by_text("Re-exporting:", exact=False)).to_be_visible()
     controls = page.locator("form.shot-form :is(input, select, textarea, button)")
     assert controls.count() > 0
     for i in range(controls.count()):
         expect(controls.nth(i)).to_be_disabled()
     expect(page.get_by_role("button", name="Re-export video")).to_be_disabled()
+
+
+def test_running_reexport_shows_how_many_shots_are_being_made(page, world_factory):
+    world = world_factory(JobStatus.running)
+    for i in (0, 2):
+        world.job.shots[i] = world.job.shots[i].model_copy(update={"status": ShotStatus.generating})
+
+    page.goto(world.url)
+
+    expect(
+        page.get_by_text("Re-exporting: making 2 changed shots, then re-cutting the video")
+    ).to_be_visible()
+    expect(
+        page.get_by_text("Shots you did not change are reused. About 2 minutes.")
+    ).to_be_visible()
+
+
+def test_running_recut_only_reexport_says_it_is_recutting(page, world_factory):
+    world = world_factory(JobStatus.running)
+
+    page.goto(world.url)
+
+    expect(page.get_by_text("Re-exporting: re-cutting the video", exact=False)).to_be_visible()
+    expect(page.get_by_text("making 0")).to_have_count(0)
+
+
+def test_swapped_photo_does_not_show_the_old_first_frame(page, world):
+    page.goto(world.url)
+    form = open_shot(page, 2)
+
+    form.get_by_label("Swap the room (photo)").select_option(PHOTO_IDS[6])
+
+    expect(tile_change(page, 2)).to_have_text("will be made again")
+    frame = page.locator(".ed-grid:visible .frame-preview")
+    expect(frame.locator(".first-frame")).to_be_hidden()
+    expect(frame.get_by_text("New first frame is made on re-export")).to_be_visible()
 
 
 def test_swapping_a_photo_saves_it_and_marks_the_shot_remade(page, world):
@@ -335,6 +372,19 @@ def test_removing_a_shot_closes_the_song_bar_gap(page, real_job):
     shot4, shot6 = blocks.nth(3).bounding_box(), blocks.nth(5).bounding_box()
     assert abs(shot6["x"] - (shot4["x"] + shot4["width"])) < 1
     expect(page.locator(".song-total")).to_have_text("0:15")
+
+
+def test_the_last_kept_shot_cannot_be_removed(page, real_job):
+    page.goto(real_job)
+    for n in range(1, 6):
+        form = open_shot(page, n)
+        form.get_by_role("button", name="Remove this room from the video").click()
+        expect(tile_change(page, n)).to_have_text("removed")
+
+    form = open_shot(page, 6)
+
+    expect(form.get_by_role("button", name="Remove this room from the video")).to_be_disabled()
+    expect(form.locator(".remove-why")).to_be_visible()
 
 
 def test_putting_a_shot_back_shows_unchanged(page, real_job):
@@ -668,3 +718,35 @@ def test_saved_edit_during_model_outage_reconciles_and_allows_export(page, world
     page.get_by_role("button", name="Re-export video").click()
     expect(page).to_have_url(world.url.removesuffix("/edit"))
     assert world.exports == [JOB_ID]
+
+
+@pytest.mark.parametrize("status", [JobStatus.draft, JobStatus.stopped])
+def test_unfinished_job_has_a_clear_disabled_editor(page, world_factory, status):
+    world = world_factory(status)
+
+    page.goto(world.url)
+
+    expect(page.get_by_text("This video is not ready to edit")).to_be_visible()
+    expect(page.get_by_role("button", name="Re-export video")).to_be_disabled()
+    expect(open_shot(page, 1).get_by_label("Camera movement")).to_be_disabled()
+
+
+@pytest.mark.parametrize("state", ["edited", "crop_only", None])
+def test_original_and_stored_first_frame_are_paired_truthfully(page, world, state):
+    shot = world.job.shots[0]
+    shot.photo_url = THUMB
+    shot.first_frame_url = THUMB if state else None
+    shot.edit_status = state
+
+    page.goto(world.url)
+
+    pair = page.locator('.ed-grid[data-position="1"] .preview-pair')
+    expect(pair.locator(".original-photo")).to_have_attribute("src", THUMB)
+    if state:
+        expect(pair.locator(".first-frame")).to_have_attribute("src", THUMB)
+        expect(pair.locator(".first-frame")).to_be_visible()
+        caption = "Cropped first frame" if state == "crop_only" else "Edited first frame"
+        expect(pair.locator(".frame-preview figcaption")).to_have_text(caption)
+    else:
+        expect(pair.locator(".first-frame")).to_be_hidden()
+        expect(pair.get_by_text("First frame unavailable")).to_be_visible()

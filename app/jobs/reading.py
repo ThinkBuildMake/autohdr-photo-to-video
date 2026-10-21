@@ -70,7 +70,7 @@ def removed_in_run(row: models.JobShot, submitted_at: str | None) -> bool:
 
 def pending_change(row: models.JobShot, submitted_at: str | None) -> str:
     """What the next re-export does with the shot; a removed shot is left out, so none."""
-    if row.removed:
+    if row.removed or row.photo_id is None:
         return "none"
     if row.needs_new_clip:
         return "new_clip"
@@ -85,7 +85,9 @@ def _shot(
     submitted_at: str | None,
     photo_key: str | None = None,
 ) -> JobShot:
-    frame_key = row.edited_key if row.edit_status == "edited" else row.cropped_key
+    frame_key = (
+        (row.edited_key or row.cropped_key) if row.edit_status == "edited" else row.cropped_key
+    )
     return JobShot(
         photo_url=files.presign_download(photo_key) if photo_key else None,
         first_frame_url=files.presign_download(frame_key) if frame_key else None,

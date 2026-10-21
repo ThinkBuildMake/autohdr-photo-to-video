@@ -123,17 +123,17 @@ def test_photoless_shot_is_never_made_on_export(bucket, client, make_job, body):
     add_shot(job_id, 3, None, status="skipped", failure_reason="no_photo")
 
     edit = client.patch(f"/api/jobs/{job_id}/shots/3", json=body)
-    _export(client, job_id)
-    claimed = worker.claim_next_job()
+    export = _export(client, job_id)
 
-    assert edit.json()["shot"]["pendingChange"] != "new_clip"
+    assert (edit.status_code, edit.json()["error"]) == (400, "invalid_edit")
+    assert (export.status_code, export.json()["error"]) == (409, "nothing_to_export")
+    assert worker.claim_next_job() is None
     row = shot_rows(job_id)[3]
     assert (row["status"], row["failure_reason"], row["needs_new_clip"]) == (
         "skipped",
         "no_photo",
         0,
     )
-    assert [s.position for s in claimed.shots] == []
 
 
 def test_export_never_requeues_a_photoless_shot(bucket, client, make_job):
@@ -151,3 +151,58 @@ def test_export_never_requeues_a_photoless_shot(bucket, client, make_job):
     rows = shot_rows(job_id)
     assert rows[1]["status"] == "pending"
     assert (rows[3]["status"], rows[3]["round"]) == ("skipped", 0)
+
+
+def test_restore_before_export_keeps_old_clip_with_another_edit(bucket, client, make_job):
+    job_id = make_job()
+    before = shot_rows(job_id)[5]
+    for removed in (True, False):
+        assert (
+            client.patch(f"/api/jobs/{job_id}/shots/5", json={"removed": removed}).status_code
+            == 200
+        )
+    assert client.patch(f"/api/jobs/{job_id}/shots/1", json={"lengthS": 2.0}).status_code == 200
+
+    response = _export(client, job_id)
+
+    assert response.status_code == 202
+    assert shot_rows(job_id)[5] == before
+    print(
+        {
+            "exportStatus": response.status_code,
+            "shot5Removed": bool(shot_rows(job_id)[5]["removed"]),
+            "shot5OriginalClipRetained": shot_rows(job_id)[5]["final_attempt_id"]
+            == before["final_attempt_id"],
+        }
+    )
+
+
+def test_legacy_photoless_change_cannot_queue_an_ineffective_export(bucket, client, make_job):
+    job_id = make_job(passed=2)
+    shot_id = add_shot(job_id, 3, None, status="skipped", failure_reason="no_photo")
+    with session_scope() as session:
+        session.execute(
+            text(
+                "update job_shots set needs_new_clip=1, "
+                "edited_at='2026-10-20T00:00:00Z' where id=:i"
+            ),
+            {"i": shot_id},
+        )
+    before = shot_rows(job_id)
+
+    response = _export(client, job_id)
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "nothing_to_export"
+    assert shot_rows(job_id) == before
+
+
+def test_export_with_no_kept_shot_is_refused(bucket, client, make_job):
+    job_id = make_job(status="ready", passed=2)
+    with session_scope() as session:
+        session.execute(text("UPDATE job_shots SET removed = 1 WHERE job_id = :j"), {"j": job_id})
+
+    response = _export(client, job_id)
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "no_shots_kept"

@@ -1,5 +1,7 @@
 """Create every table. Idempotent; called by app start and worker start."""
 
+from sqlalchemy import inspect, text
+
 from app.db.base import Base, get_engine
 
 TABLES = (
@@ -22,4 +24,9 @@ def init_db() -> None:
     from app.photoshoots import models as _photoshoots  # noqa: F401
     from app.providers import models as _providers  # noqa: F401
 
-    Base.metadata.create_all(get_engine())
+    engine = get_engine()
+    Base.metadata.create_all(engine)
+    # create_all never alters a table: add the column S24 follow-up put on job_shots.
+    if "clip_inputs" not in {c["name"] for c in inspect(engine).get_columns("job_shots")}:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE job_shots ADD COLUMN clip_inputs TEXT"))
